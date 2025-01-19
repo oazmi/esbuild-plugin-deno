@@ -1,0 +1,23 @@
+name: build-npm
+
+on: ["workflow_dispatch", "workflow_call"]
+
+permissions:
+  contents: write
+
+jobs:
+  build-npm:
+    runs-on: ubuntu-latest
+    steps:
+      - name: clone repo
+        uses: actions/checkout@v4
+        with:
+          ref: "main"
+
+      - name: setup project
+        uses: ./.github/actions/setup
+
+      - name: build-npm and commit npm-branch
+        uses: ./.github/actions/build-npm
+        with:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

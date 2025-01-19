@@ -1,0 +1,21 @@
+name: build-docs
+
+on: ["workflow_dispatch", "workflow_call"]
+
+permissions:
+  contents: write
+
+jobs:
+  build-docs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: clone repo
+        uses: actions/checkout@v4
+        with:
+          ref: "main"
+
+      - name: setup project
+        uses: ./.github/actions/setup
+
+      - name: build-docs and commit github-pages
+        uses: ./.github/actions/build-docs

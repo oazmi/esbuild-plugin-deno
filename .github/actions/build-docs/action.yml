@@ -1,0 +1,19 @@
+name: action-build-docs
+description: "builds the documentation folder and commits it to the github pages branch"
+
+runs:
+  using: composite
+  steps:
+    - name: deno-task test
+      shell: bash
+      run: deno task test
+
+    - name: deno-task build-docs
+      shell: bash
+      run: deno task build-docs
+
+    - name: deploy github pages
+      uses: JamesIves/github-pages-deploy-action@v4
+      with:
+        branch: gh-pages
+        folder: docs

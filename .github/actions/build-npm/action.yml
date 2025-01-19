@@ -1,0 +1,30 @@
+name: action-build-npm
+description: "builds the npm folder and commits it to the npm branch"
+inputs:
+  GITHUB_TOKEN:
+    required: true
+    description: "github token that would allow for publishing of git branch"
+
+runs:
+  using: composite
+  steps:
+    - name: setup node
+      uses: actions/setup-node@v3
+      with:
+        node-version: 20
+
+    - name: deno-task build-npm
+      shell: bash
+      run: deno task build-npm --install
+
+    - name: deno-task build-npm-dist
+      shell: bash
+      run: deno task build-npm-dist
+
+    - name: create npm branch
+      uses: s0/git-publish-subdir-action@develop
+      env:
+        REPO: self
+        BRANCH: npm
+        FOLDER: npm
+        GITHUB_TOKEN: ${{ inputs.GITHUB_TOKEN }}

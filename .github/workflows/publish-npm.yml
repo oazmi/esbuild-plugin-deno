@@ -1,0 +1,29 @@
+name: publish-to-npm
+
+on:
+  workflow_dispatch:
+
+jobs:
+  publish-to-npm:
+    runs-on: ubuntu-latest
+    steps:
+      - name: clone npm repo branch
+        uses: actions/checkout@v4
+        with:
+          ref: "npm"
+
+      - name: setup node
+        uses: actions/setup-node@v3
+        with:
+          node-version: 20
+          registry-url: "https://registry.npmjs.org"
+
+      - name: install dependencies
+        run: npm ci
+
+      - name: publish
+        run: |
+          echo "//registry.npmjs.org/:_authToken=${{secrets.NPM_TOKEN}}" > .npmrc
+          npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{secrets.NPM_TOKEN}}

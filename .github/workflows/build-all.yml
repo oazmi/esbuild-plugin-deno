@@ -1,0 +1,13 @@
+name: build-all
+
+on: ["workflow_dispatch", "workflow_call"]
+
+permissions:
+  contents: write
+
+jobs:
+  build-docs:
+    uses: ./.github/workflows/build-docs.yml
+  
+  build-npm:
+    uses: ./.github/workflows/build-npm.yml
