@@ -1,0 +1,114 @@
+/** a submodule containing common utility functions used by most plugins.
+ * 
+ * @module
+*/
+
+import { DEBUG, ensureEndSlash, ensureStartDotSlash, joinPaths, type Optional, type esbuild } from "../deps.ts"
+import type { CommonPluginData, CommonPluginSetupConfig } from "./typedefs.ts"
+
+
+/** a factory function that returns a general purpose path resolver function for your esbuild plugin, tuned to your specific `config`.
+ * 
+ * given a certain esbuild {@link esbuild.OnResolveArgs | `args`}, and your expected resolved {@link esbuild.OnResolveResult | `result`}
+ * here is what the returned resolver function takes care of:
+ * 1. figure out the absolute resolved `result.path`:
+ * - if `args.parse` is an absolute path (i.e. when `config.isAbsolutePath(args.parse) === true`), then it will be returned as is.
+ * - if `args.parse` is a relative path (i.e. when `config.isAbsolutePath(args.parse) === false`), then:
+ *   - we figure out the absolute parent directory `dir`, by:
+ *     - joining `args.importer` with `args.resolveDir` (via `config.resolvePath`) if `args.importer` is not absolute.
+ *     - otherwise set `dir` to `args.importer` if it is absolute.
+ *   - join `dir` with `args.parse` using `config.resolvePath` and return it as `result.path`.
+ * 2. take care of namespace:
+ * - set `result.namespace` to `config.namespace`
+ * - backup the  original namespace `args.namespace` to `config.pluginData.originalNamespace`
+ * 3. inherit import maps from plugin data:
+ * - set `result.pluginData.importMap` to `args.pluginData.importMap` (which is originally set by the loaders of our typical plugin)
+ * 
+ * @param config provide a configuration for this factory function.
+ * @returns a path resolver function that can be passed to {@link esbuild.PluginBuild.onResolve}.
+ *   the resolver function will resolve any relative paths to absolute ones, and set the namespace to `config.namespace`.
+*/
+export const onResolveFactory = (
+	config: Optional<CommonPluginSetupConfig, "defaultLoader">,
+): ((args: esbuild.OnResolveArgs) => Promise<esbuild.OnResolveResult>) => {
+	const { isAbsolutePath, namespace: plugin_ns, resolvePath, log = false } = config
+
+	// this function resolves either an absolute or relative http href link (provided in the `args`)
+	return async (args: esbuild.OnResolveArgs): Promise<esbuild.OnResolveResult> => {
+		// NOTE:
+		// - `args.path` is absolute when the entity is an entry point
+		// - `args.path` is _possibly_ relative when the entity is imported by a another entity
+		// - `args.resolveDir` is almost always an empty string, or a malformed/non-existing path, UNLESS what is being loaded is a node module package.
+		const
+			{ path, resolveDir, importer, namespace, pluginData } = args,
+			dir = isAbsolutePath(importer)
+				? importer
+				: joinPaths(ensureEndSlash(resolveDir), importer),
+			resolved_path = isAbsolutePath(path) ? path : resolvePath(dir, ensureStartDotSlash(path)),
+			originalNamespace = namespace,
+			importMap = {} // TODO: its inheritance from parent's `pluginData` needs to be implemented if `path` was originally a relative path
+		if (DEBUG.LOG && log) { console.log(`[${plugin_ns}] onResolve:`, { path, resolved_path, args, importMap }) }
+		return {
+			path: resolved_path,
+			namespace: plugin_ns,
+			pluginData: { originalNamespace, importMap, ...pluginData } satisfies CommonPluginData
+		}
+	}
+}
+
+/** a path resolution factory function for {@link esbuild.PluginBuild.onResolve},
+ * similar to {@link onResolveFactory}, but it "unhooks" any current `args.namespace`.
+ * 
+ * given a certain esbuild {@link esbuild.OnResolveArgs | `args`}, and your expected resolved {@link esbuild.OnResolveResult | `result`},
+ * here is how the returned resolver function works:
+ * 1. strips out the current `args.namespace` and replaces it with the backedup original one in `args.pluginData.originalNamespace`
+ *    (assuming it exists, otherwise the namespace will become `undefined`).
+ * 2. the absolute path of the input `args` is resolved using the same mechanism in the returned function of the {@link onResolveFactory} factory.
+ * 3. we call {@link build["resolve"] | `build.resolve`} with the `namespace` set to `args.pluginData.originalNamespace`,
+ *    so that it resolves naturally, by giving other plugins the chance to intercept it (including esbuild's native file resolution and built-in "node_module" resolution).
+ * 4. the naturally resolved `result` is then returned, thereby changing the potential `build.onLoad` loader function that esbuild will then call
+ *    (that's because `result.namespace` could possibly shift to something different from the initial `arg.namespace`,
+ *    thereby our plugin's path-resolution and path-loading will not remain in a continuous cycle of the same namespace,
+ *    since it'll give other plugins the chance to resolve and load it as well).
+ * 
+ * @param config provide a configuration similar to the configuration provided to the {@link unResolveFactory} function that you are trying to "unresolve"/"unhook" from.
+ * @param build provide the current plugin setup's `build: esbuild.PluginBuild` parameter,
+ *   so that returned unresolver function can call `build.resolve(...)` in order to acquire the natural resolved results from potentially external plugins (or the native behavior).
+ * @returns a path resolver function, under a specific `namespace`, that can be passed to {@link esbuild.PluginBuild.onResolve}, so that the namespace can be stripped away,
+ *   and so that the path and `args` can be resolved naturally by other plugins or by esbuild's file native resolver.
+*/
+export const unResolveFactory = (
+	config: Optional<CommonPluginSetupConfig, "defaultLoader">,
+	build: esbuild.PluginBuild,
+): ((args: esbuild.OnResolveArgs) => Promise<esbuild.OnResolveResult>) => {
+	const
+		{ log, namespace: plugin_ns } = config,
+		on_resolve_fn = onResolveFactory({ ...config, log: false, namespace: "oazmi-unresolver-namespace-doesnt-matter" })
+
+	// this function resolves either an absolute or relative http href link (provided in the `args`)
+	return async (args: esbuild.OnResolveArgs): Promise<esbuild.OnResolveResult> => {
+		const {
+			path,
+			namespace: _0,
+			pluginData: {
+				importMap,
+				originalNamespace: namespace,
+				...restPluginData
+			} = {} satisfies Partial<CommonPluginData>,
+			...rest_args
+		} = args
+		const {
+			path: resolved_abs_path,
+			namespace: _1,
+			pluginData: _2,
+			...rest_resolved_args
+		} = await on_resolve_fn({ path, namespace, ...rest_args, pluginData: { importMap } })
+		const naturally_resolved_result = await build.resolve(resolved_abs_path!, {
+			...rest_args,
+			namespace,
+			pluginData: { importMap, ...restPluginData },
+		})
+		if (DEBUG.LOG && log) { console.log(`[${plugin_ns}] unResolve:`, { path, resolved_abs_path, naturally_resolved_result, rest_resolved_args }) }
+		return { ...rest_resolved_args, ...naturally_resolved_result }
+	}
+}

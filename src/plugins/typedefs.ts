@@ -3,7 +3,7 @@
  * @module
 */
 
-import type { esbuild } from "../deps.ts"
+import type { esbuild, DEBUG } from "../deps.ts"
 
 
 /** this is the plugin data utilized by most plugins in this library. */
@@ -41,10 +41,39 @@ export interface CommonPluginData {
 	 *   string is a super-string of one of the import map keys.
 	 * TODO: I should also merge the `exports` field of `deno.json` into the current scope's import map, since deno does allow
 	 *   a package/library to self reference via one of the following (and it works even when offline):
-	 *   - `@user/library`
-	 *   - `@user/library@current_version`
+	 *   - `@user/library` or `library` (i.e.  package json's (e.g. deno.json, package.json, jsr.json) `name` field)
 	 *   - `jsr:@user/library`
 	 *   - `jsr:@user/library@current_version`
 	*/
 	importMap: Record<string, string>
+}
+
+/** this is the common plugin setup config interface, utilized by all plugins of this library. */
+export interface CommonPluginSetupConfig {
+	/** the default loader that the plugin should use for unidentified content types.
+	 * 
+	 * if you would like to use esbuild's _own_ default loader, set the value to `"default"`.
+	*/
+	defaultLoader: esbuild.Loader
+
+	/** the namespace that the plugin should use.
+	 * 
+	 * if the plugin requires multiple namespaces, it should append additional characters to this base namespace for consistency and collision resistance.
+	*/
+	namespace: string
+
+	/** enable logging of the input arguments and resolved paths, when {@link DEBUG.LOG} is ennabled.
+	 * 
+	 * @defaultValue `false`
+	*/
+	log?: boolean
+
+	/** a function that joins/resolves path segments to an absolute path (i.e. a path that the plugin itself can recognize as an absolute path).
+	 * 
+	 * typically, only two or one segments are provided at a time, but it's better if your function accepts variable number of segments.
+	*/
+	resolvePath: (...segments: string[]) => string
+
+	/** a function that declares whether or not a given path segment is an absolute path (i.e. the plugin itself recognizes it as an absolute path). */
+	isAbsolutePath: (segment: string) => boolean
 }

@@ -3,9 +3,10 @@
  * @module
 */
 
-import { type esbuild, defaultResolvePath, ensureEndSlash, ensureStartDotSlash, isAbsolutePath, joinPaths, json_stringify, resolveAsUrl } from "../deps.ts"
+import { type esbuild, defaultResolvePath, isAbsolutePath, json_stringify, resolveAsUrl } from "../deps.ts"
 import { guessHttpResponseLoaders } from "../loadermap/mod.ts"
-import type { CommonPluginData } from "./typedefs.ts"
+import { onResolveFactory, unResolveFactory } from "./funcdefs.ts"
+import type { CommonPluginSetupConfig } from "./typedefs.ts"
 
 
 export interface HttpPluginSetupConfig {
@@ -22,58 +23,15 @@ export const defaultHttpPluginSetupConfig: HttpPluginSetupConfig = {
 
 export const httpPluginSetup = (config: Partial<HttpPluginSetupConfig> = {}): esbuild.Plugin["setup"] => {
 	const { resolvePath, defaultLoader, namespace: plugin_ns } = { ...defaultHttpPluginSetupConfig, ...config }
+	const pluginResolverConfig: CommonPluginSetupConfig = { defaultLoader: "default", isAbsolutePath, namespace: plugin_ns, resolvePath }
 
 	return (async (build: esbuild.PluginBuild): Promise<void> => {
 		// TODO: we must prioritize the user's `loader` preference over our `guessHttpResponseLoaders`,
 		//   if they have an extension entry for the url path that we're loading
 		const { absWorkingDir, outdir, outfile, entryPoints, write, loader } = build.initialOptions
 
-		// this function resolves the absolute http href link of the provided args
-		const resolveHttp = async (args: esbuild.OnResolveArgs): Promise<esbuild.OnResolveResult> => {
-			// `args.path` is absolute when the entity is an entry point
-			// `args.path` is _possibly_ relative when the entity is imported by a another entity
-			const
-				{ path, resolveDir, importer, kind, namespace, pluginData } = args,
-				dir = isAbsolutePath(importer)
-					? importer
-					: joinPaths(ensureEndSlash(resolveDir), importer),
-				resolved_path = isAbsolutePath(path) ? path : resolvePath(dir, ensureStartDotSlash(path)),
-				originalNamespace = namespace,
-				importMap = {}
-			// console.log("resolveHttp", { path, resolved_path, resolveDir, importer, kind, namespace, pluginData })
-			return {
-				path: resolved_path,
-				namespace: plugin_ns,
-				pluginData: { originalNamespace, importMap, ...pluginData } satisfies CommonPluginData
-			}
-		}
-
-		// this function un-does the http `namespace`, and allows other plugins to potentially intercept the pure absolute path.
-		const unresolveHttp = async (args: esbuild.OnResolveArgs): Promise<esbuild.OnResolveResult> => {
-			const {
-				path,
-				namespace: _0,
-				pluginData: {
-					originalNamespace,
-					importMap,
-					...restPluginData
-				} = {} satisfies Partial<CommonPluginData>,
-				...rest_args
-			} = args
-			const
-				namespace = originalNamespace,
-				{ path: resolved_abs_path, namespace: _1, pluginData: _2, ...rest_resolved_args } = await resolveHttp({ path, namespace, ...rest_args, pluginData: { importMap } })
-			// console.log("unresolveHttp", { resolved_abs_path, _1, _2, resolveDir: rest_args.resolveDir, ...rest_resolved_args })
-			return build.resolve(resolved_abs_path!, {
-				...rest_args,
-				...rest_resolved_args,
-				namespace: originalNamespace,
-				pluginData: { importMap, ...restPluginData },
-			})
-		}
-
-		build.onResolve({ filter: /^https?\:\/\// }, resolveHttp)
-		build.onResolve({ filter: /.*/, namespace: plugin_ns }, unresolveHttp)
+		build.onResolve({ filter: /^https?\:\/\// }, onResolveFactory(pluginResolverConfig))
+		build.onResolve({ filter: /.*/, namespace: plugin_ns }, unResolveFactory(pluginResolverConfig, build))
 		build.onLoad({ filter: /.*/, namespace: plugin_ns }, async (args: esbuild.OnLoadArgs) => {
 			// `args.path` is absolute when the entity is an entry point
 			// `args.path` is _possibly_ relative when the entity is imported by a another entity
