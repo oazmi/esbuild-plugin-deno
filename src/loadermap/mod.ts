@@ -61,9 +61,9 @@ export const guessExtensionLoaders = (file_path: string): Set<esbuild.Loader> | 
  * it does so by looking at the `"content-type"` header of the response, and also by inspecting the file extension of the request's url path.
  * 
  * @param response your http response object.
- * @returns zero or more esbuild loaders that are accepted by the current http response.
+ * @returns a set of zero or more esbuild loaders that are accepted by the current http response.
 */
-export const guessHttpResponseLoaders = (response: Response): Array<esbuild.Loader> => {
+export const guessHttpResponseLoaders = (response: Response): Set<esbuild.Loader> => {
 	const
 		{ headers, url } = response,
 		content_type = headers.get("content-type") ?? "",
@@ -74,5 +74,5 @@ export const guessHttpResponseLoaders = (response: Response): Array<esbuild.Load
 	// otherwise, if even that turns out to be empty, then we  will use the loaders from `mime_loaders`.
 	if (common_loaders.size <= 0) { common_loaders = extension_loaders }
 	if (common_loaders.size <= 0) { common_loaders = mime_loaders }
-	return [...common_loaders]
+	return common_loaders
 }

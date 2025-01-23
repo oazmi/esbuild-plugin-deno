@@ -3,8 +3,9 @@
  * @module
 */
 
-import { DEBUG, ensureEndSlash, ensureStartDotSlash, joinPaths, type Optional, type esbuild } from "../deps.ts"
-import type { CommonPluginData, CommonPluginSetupConfig } from "./typedefs.ts"
+import { DEBUG, ensureEndSlash, ensureStartDotSlash, joinPaths, json_stringify, resolveAsUrl, type esbuild } from "../deps.ts"
+import { guessHttpResponseLoaders } from "../loadermap/mod.ts"
+import type { CommonPluginData, CommonPluginLoaderConfig, CommonPluginResolverConfig } from "./typedefs.ts"
 
 
 /** a factory function that returns a general purpose path resolver function for your esbuild plugin, tuned to your specific `config`.
@@ -29,7 +30,7 @@ import type { CommonPluginData, CommonPluginSetupConfig } from "./typedefs.ts"
  *   the resolver function will resolve any relative paths to absolute ones, and set the namespace to `config.namespace`.
 */
 export const onResolveFactory = (
-	config: Optional<CommonPluginSetupConfig, "defaultLoader">,
+	config: CommonPluginResolverConfig,
 ): ((args: esbuild.OnResolveArgs) => Promise<esbuild.OnResolveResult>) => {
 	const { isAbsolutePath, namespace: plugin_ns, resolvePath, log = false } = config
 
@@ -78,7 +79,7 @@ export const onResolveFactory = (
  *   and so that the path and `args` can be resolved naturally by other plugins or by esbuild's file native resolver.
 */
 export const unResolveFactory = (
-	config: Optional<CommonPluginSetupConfig, "defaultLoader">,
+	config: CommonPluginResolverConfig,
 	build: esbuild.PluginBuild,
 ): ((args: esbuild.OnResolveArgs) => Promise<esbuild.OnResolveResult>) => {
 	const
@@ -110,5 +111,62 @@ export const unResolveFactory = (
 		})
 		if (DEBUG.LOG && log) { console.log(`[${plugin_ns}] unResolve:`, { path, resolved_abs_path, naturally_resolved_result, rest_resolved_args }) }
 		return { ...rest_resolved_args, ...naturally_resolved_result }
+	}
+}
+
+const all_esbuild_loaders: Array<esbuild.Loader> = [
+	"base64", "binary", "copy", "css", "dataurl",
+	"default", "empty", "file", "js", "json",
+	"jsx", "local-css", "text", "ts", "tsx",
+]
+
+/** a factory function that returns a general purpose url content loading function for your esbuild plugin, tuned to your specific `config`.
+ * 
+ * for the content to be correctly fetched and loaded, your `args.path` **must** be in one of the following formats:
+ * - an `"http://"` or an `"https://"` url
+ * - a `"file://"` url
+ * - or, an absolute local file path (such as `"/home/bin/..."` or `"C:/Users/..."`)
+ * 
+ * make sure that the path is **not** a relative path (even if it's relative to the current working directory).
+ * 
+ * @param config provide a configuration to customize some aspects of the returned loader function.
+ * @returns a url loader function that can be passed to {@link esbuild.PluginBuild.onLoad},
+ *   so that it can fetch the contents of url-based paths when esbuild intercept 
+*/
+export const urlLoaderFactory = (
+	config: CommonPluginLoaderConfig
+): ((args: esbuild.OnLoadArgs) => Promise<esbuild.OnLoadResult>) => {
+	const
+		{ defaultLoader, namespace: plugin_ns, acceptLoaders = all_esbuild_loaders, log = false } = config,
+		accept_loaders_set = new Set(acceptLoaders)
+
+	return async (args: esbuild.OnLoadArgs) => {
+		// `args.path` is absolute when the entity is an entry point.
+		// `args.path` is _possibly_ relative when the entity is imported by a another entity,
+		// and the resolver preceding this `onLoad` function has not generated an absolute path.
+		const
+			{ path, pluginData } = args,
+			path_url = resolveAsUrl(path),
+			response = await fetch(path_url)
+		if (!response.ok) {
+			throw new Error(`[${plugin_ns}] onLoadUrl: ERROR: network fetch response for url "${path_url.href}" was not ok (${response.status}). response header:\n${json_stringify(response.headers)}`)
+		}
+		const
+			guessed_loaders = guessHttpResponseLoaders(response),
+			available_loaders = accept_loaders_set.intersection(guessed_loaders),
+			preferred_loader = [...available_loaders].at(0) ?? defaultLoader,
+			contents = await response.bytes()
+		if (DEBUG.LOG && log) { console.log(`[${plugin_ns}] onLoadUrl:`, { path, path_url: path_url.href, guessed_loaders, preferred_loader, args }) }
+		return {
+			contents,
+			loader: preferred_loader,
+			// unfortunately, if we set the `resolveDir` to anything but an empty string, then it will be appended to the
+			// previous `resolveDir` of the resolver. even if provide an absolute path value to it, it still joins it up.
+			// I think the intention behind `resolveDir` is to set the OUTPUT relative directory,
+			// and not that we're trying to specify the current working/loading directory.
+			// but it still doesn't work (i.e. I am unable to manipulate the output dir via this option).
+			// resolveDir: resolveAsUrl("./", path).href,
+			pluginData,
+		}
 	}
 }

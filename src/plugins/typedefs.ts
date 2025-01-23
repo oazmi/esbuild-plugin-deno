@@ -48,14 +48,8 @@ export interface CommonPluginData {
 	importMap: Record<string, string>
 }
 
-/** this is the common plugin setup config interface, utilized by all plugins of this library. */
-export interface CommonPluginSetupConfig {
-	/** the default loader that the plugin should use for unidentified content types.
-	 * 
-	 * if you would like to use esbuild's _own_ default loader, set the value to `"default"`.
-	*/
-	defaultLoader: esbuild.Loader
-
+/** this is the common configuration interface for resolver functions of most plugins of this library. */
+export interface CommonPluginResolverConfig {
 	/** the namespace that the plugin should use.
 	 * 
 	 * if the plugin requires multiple namespaces, it should append additional characters to this base namespace for consistency and collision resistance.
@@ -76,4 +70,32 @@ export interface CommonPluginSetupConfig {
 
 	/** a function that declares whether or not a given path segment is an absolute path (i.e. the plugin itself recognizes it as an absolute path). */
 	isAbsolutePath: (segment: string) => boolean
+}
+
+/** this is the common configuration interface for loader functions of most plugins of this library. */
+export interface CommonPluginLoaderConfig {
+	/** the namespace that the plugin should use. this value is only used for logging purposes, and nothing more. */
+	namespace: string
+
+	/** enable logging of the input arguments and preferred loader, when {@link DEBUG.LOG} is ennabled.
+	 * 
+	 * @defaultValue `false`
+	*/
+	log?: boolean
+
+	/** the default loader that the plugin's loader should use for unidentified content types.
+	 * 
+	 * if you would like to use esbuild's _own_ default loader, set the value to `"default"`.
+	*/
+	defaultLoader: esbuild.Loader
+
+	/** only accept the following subset of loaders when auto content-detection is used for guessing the loader type.
+	 * 
+	 * > [!note]
+	 * > if there is no intersection between the set of guessed loaders, and this set of `acceptLoaders`,
+	 * > then the default loader ({@link defaultLoader}) will be used as a fallback.
+	 * 
+	 * @defaultValue all available esbuild loaders
+	*/
+	acceptLoaders?: Array<esbuild.Loader>
 }
