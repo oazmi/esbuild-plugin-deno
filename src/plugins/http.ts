@@ -10,19 +10,21 @@ import type { CommonPluginLoaderConfig, CommonPluginResolverConfig } from "./typ
 
 export interface HttpPluginSetupConfig {
 	defaultLoader: esbuild.Loader
+	filters: RegExp[]
 	namespace: string
 	resolvePath: (...segments: string[]) => string
 }
 
 export const defaultHttpPluginSetupConfig: HttpPluginSetupConfig = {
 	defaultLoader: "copy",
+	filters: [/^https?\:\/\//, /^file\:\/\//],
 	namespace: "oazmi-http",
 	resolvePath: defaultResolvePath,
 }
 
 export const httpPluginSetup = (config: Partial<HttpPluginSetupConfig> = {}): esbuild.Plugin["setup"] => {
 	const
-		{ resolvePath, defaultLoader, namespace: plugin_ns } = { ...defaultHttpPluginSetupConfig, ...config },
+		{ resolvePath, defaultLoader, filters, namespace: plugin_ns } = { ...defaultHttpPluginSetupConfig, ...config },
 		pluginResolverConfig: CommonPluginResolverConfig = { isAbsolutePath, namespace: plugin_ns, resolvePath },
 		pluginLoaderConfig: CommonPluginLoaderConfig = { defaultLoader, namespace: plugin_ns }
 
@@ -32,7 +34,9 @@ export const httpPluginSetup = (config: Partial<HttpPluginSetupConfig> = {}): es
 		const { absWorkingDir, outdir, outfile, entryPoints, write, loader } = build.initialOptions
 
 		// the placement of the `onResolve` and `onLoader` callbacks is ordered in their natural handling pathway
-		build.onResolve({ filter: /^https?\:\/\// }, onResolveFactory(pluginResolverConfig))
+		filters.forEach((filter) => {
+			build.onResolve({ filter }, onResolveFactory(pluginResolverConfig))
+		})
 		build.onLoad({ filter: /.*/, namespace: plugin_ns }, urlLoaderFactory(pluginLoaderConfig))
 		build.onResolve({ filter: /.*/, namespace: plugin_ns }, unResolveFactory(pluginResolverConfig, build))
 	})

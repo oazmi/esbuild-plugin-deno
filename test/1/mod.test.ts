@@ -6,12 +6,14 @@ import { httpPluginSetup } from "../../src/plugins/http.ts"
 
 Deno.test("test http plugin", async () => {
 	const entry_points = [
-		"./sample_entry.ts",
+		"./local_path_entry.ts",
+		"file://" + import.meta.dirname + "/file_uri_entry.ts",
 		"https://jsr.io/@oazmi/kitchensink/0.9.2/src/array1d.ts",
 		"https://jsr.io/@oazmi/kitchensink/0.9.2/src/array2d.ts",
 		"https://jsr.io/@oazmi/kitchensink/0.9.2/src/struct.ts",
 		"https://raw.githubusercontent.com/jenil/chota/7d780731421fc987d8f7a1c8f66c730d8573684c/src/chota.css",
-	].map((path) => ({
+	]
+	.map((path) => ({
 		in: path,
 		out: parseFilepathInfo(path).basename
 	}))
