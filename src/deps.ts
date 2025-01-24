@@ -18,6 +18,10 @@ export const enum DEBUG {
 
 // below is a custom path segment's absoluteness test function that will identify all `UriScheme` segments that are not "relative" as absolute paths,
 export const isAbsolutePath = (segment: string): boolean => {
+	// the condition below will identify node imports such as `"node:http"` and `"node:fs"` as absolute.
+	// thereby the default path resolvers of the plugin will not join import paths like `"node:http"` with the path of `args.importer` or `args.resolveDir`.
+	// this in turn will allow esbuild's native resolver to intercept this path inside of the "unResolver" function (when `build.resolve` is called).
+	if (segment.startsWith("node:")) { return true }
 	const scheme = getUriScheme(segment) ?? "relative"
 	return scheme !== "relative"
 }
