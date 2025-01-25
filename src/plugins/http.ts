@@ -9,13 +9,15 @@ import type { CommonPluginLoaderConfig, CommonPluginResolverConfig } from "./typ
 
 
 export interface HttpPluginSetupConfig {
-	defaultLoader: esbuild.Loader
+	acceptLoaders?: CommonPluginLoaderConfig["acceptLoaders"]
+	defaultLoader: CommonPluginLoaderConfig["defaultLoader"]
 	filters: RegExp[]
-	namespace: string
-	resolvePath: (...segments: string[]) => string
+	namespace: CommonPluginResolverConfig["namespace"]
+	resolvePath: CommonPluginResolverConfig["resolvePath"]
 }
 
 export const defaultHttpPluginSetupConfig: HttpPluginSetupConfig = {
+	acceptLoaders: undefined,
 	defaultLoader: "copy",
 	filters: [/^https?\:\/\//, /^file\:\/\//],
 	namespace: "oazmi-http",
@@ -24,9 +26,9 @@ export const defaultHttpPluginSetupConfig: HttpPluginSetupConfig = {
 
 export const httpPluginSetup = (config: Partial<HttpPluginSetupConfig> = {}): esbuild.Plugin["setup"] => {
 	const
-		{ resolvePath, defaultLoader, filters, namespace: plugin_ns } = { ...defaultHttpPluginSetupConfig, ...config },
+		{ acceptLoaders, defaultLoader, filters, namespace: plugin_ns, resolvePath } = { ...defaultHttpPluginSetupConfig, ...config },
 		pluginResolverConfig: CommonPluginResolverConfig = { isAbsolutePath, namespace: plugin_ns, resolvePath },
-		pluginLoaderConfig: CommonPluginLoaderConfig = { defaultLoader, namespace: plugin_ns }
+		pluginLoaderConfig: CommonPluginLoaderConfig = { acceptLoaders, defaultLoader, namespace: plugin_ns }
 
 	return (async (build: esbuild.PluginBuild): Promise<void> => {
 		// TODO: we must prioritize the user's `loader` preference over our `guessHttpResponseLoaders`,

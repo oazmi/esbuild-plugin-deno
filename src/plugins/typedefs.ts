@@ -3,7 +3,8 @@
  * @module
 */
 
-import type { esbuild, DEBUG } from "../deps.ts"
+import type { DEBUG, esbuild } from "../deps.ts"
+import type { ImportMap } from "../importmap/typedefs.ts"
 
 
 /** this is the plugin data utilized by most plugins in this library. */
@@ -37,6 +38,8 @@ export interface CommonPluginData {
 	 * 
 	 * the keys of this object hold the aliased name of the import, while the values hold the absolute path of the referenced resource.
 	 * 
+	 * for further reading on import maps, see {@link ImportMap}.
+	 * 
 	 * TODO: this feature needs to be implemented, and I might need an efficient way to be able to tell whether a given path
 	 *   string is a super-string of one of the import map keys.
 	 * TODO: I should also merge the `exports` field of `deno.json` into the current scope's import map, since deno does allow
@@ -45,7 +48,7 @@ export interface CommonPluginData {
 	 *   - `jsr:@user/library`
 	 *   - `jsr:@user/library@current_version`
 	*/
-	importMap: Record<string, string>
+	importMap: ImportMap
 }
 
 /** this is the common configuration interface for resolver functions of most plugins of this library. */

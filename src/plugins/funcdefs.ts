@@ -129,6 +129,34 @@ const all_esbuild_loaders: Array<esbuild.Loader> = [
  * 
  * make sure that the path is **not** a relative path (even if it's relative to the current working directory).
  * 
+ * > [!important]
+ * > esbuild identifies redundant/duplicate resources by their _resolved path_ and _namespace_ .
+ * > if the same resource is being bundled but with either a different resolved path, or under a different namespace,
+ * > then esbuild will consider them to be separate resources, instead of being one and the same.
+ * > thus, it is extremely crucial that you prepare a uniquely-idenfifiable resolved path in the plugin's resolver,
+ * > rather than delaying its resolution in the plugin's loader.
+ * > 
+ * > in other words, for best results minifiable results, you should resolve the following things in the plugin's resolver, rather than the plugin's loader:
+ * > - a path that is an alias inside the current import map, should be resolved to absolute an path (i.e. preferebly an `http://` or `file://` path)
+ * > - jsr and npm specifiers (such as `jsr:@scope/package/pathname`) should also be resolved to http paths.
+ * > - if you are caching jsr/npm/http resources on your local filesystem, you should _still_ resolve the resources by their absolute http paths,
+ * >   and then check for the cached resource's existence in the filesystem inside the plugin's loader function.
+ * >   do not _resolve_ to a local filesystem path if cached resources are detected, since it will break equivalency of referenced resource's resolved path.
+ * > 
+ * > typically, the unique key that esbuild uses for identifiying redundant/duplicate resource references is of the following template:
+ * > `${resolver_result.namespace}:${resolver_result.path}`
+ * > 
+ * > where `resolver_result` is of kind {@link esbuild.OnResolveResult}.
+ * > 
+ * > this key also becomes the key of the resource in the output metadata object (if it is enabled).
+ * 
+ * > [!caution]
+ * > based on some logging tests, I've verified that esbuild does indeed memorize the result of an `onLoad`'s callback.
+ * > this means that it is possible for inconsistencies to occur in your `pluginData`, when the dependency paths are being resolved.
+ * > but I will say that it is hard to imagine if this could ever become an issue, since the dependencies will also be loaded _only once_ .
+ * > although, the next time something other than the original dependant, requires the same dependency file,
+ * > the new `pluginData` (i.e. potentially different) of the new dependant will not be conveyed to the loader (since its results are cached by esbuild).
+ * 
  * @param config provide a configuration to customize some aspects of the returned loader function.
  * @returns a url loader function that can be passed to {@link esbuild.PluginBuild.onLoad},
  *   so that it can fetch the contents of url-based paths when esbuild intercept 
