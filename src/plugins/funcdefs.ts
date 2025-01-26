@@ -4,7 +4,7 @@
 */
 
 import { DEBUG, ensureEndSlash, ensureStartDotSlash, joinPaths, json_stringify, resolveAsUrl, type esbuild } from "../deps.ts"
-import { resolvePathFromImportmap } from "../importmap/funcdefs.ts"
+import { resolvePathFromImportMap } from "../importmap/funcdefs.ts"
 import type { ImportMap } from "../importmap/typedefs.ts"
 import { guessHttpResponseLoaders } from "../loadermap/mod.ts"
 import type { CommonPluginData, CommonPluginLoaderConfig, CommonPluginResolverConfig } from "./typedefs.ts"
@@ -46,7 +46,7 @@ export const onResolveFactory = (
 			{ path, resolveDir, importer, namespace, pluginData } = args,
 			originalNamespace = namespace,
 			importMap = { ...globalImportMap, ...pluginData?.importMap } as ImportMap
-		let resolved_path = resolvePathFromImportmap(path, importMap)
+		let resolved_path = resolvePathFromImportMap(path, importMap)
 		if (resolved_path === undefined) {
 			// the input `path` is not an alias key of the full `importMap`. thus, we need to resolve `path` by traditional means. 
 			const dir = isAbsolutePath(importer)

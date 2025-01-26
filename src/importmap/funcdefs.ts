@@ -17,7 +17,7 @@ import type { ImportMap } from "./typedefs.ts"
  * import { assertEquals, assertThrows } from "jsr:@std/assert"
  * 
  * // aliasing our function for brevity
- * const fn = resolvePathFromImportmap
+ * const fn = resolvePathFromImportMap
  * 
  * const my_import_map = {
  * 	// non-directory specifiers (i.e. not used for prefixing)
@@ -101,7 +101,7 @@ import type { ImportMap } from "./typedefs.ts"
  * })
  * ```
 */
-export const resolvePathFromImportmap = <M extends ImportMap>(path_alias: string, import_map: M): (M[keyof M] | string | undefined) => {
+export const resolvePathFromImportMap = <M extends ImportMap>(path_alias: string, import_map: M): (M[keyof M] | string | undefined) => {
 	const exact_match = import_map[path_alias]
 	if (exact_match) { return exact_match as M[keyof M] }
 
