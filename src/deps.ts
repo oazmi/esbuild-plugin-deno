@@ -1,7 +1,7 @@
 import { getUriScheme, resolvePathFactory } from "@oazmi/kitchensink/pathman"
 
 
-export { json_stringify, object_entries, response_json } from "@oazmi/kitchensink/alias"
+export { json_parse, json_stringify, object_entries, object_keys, object_values } from "@oazmi/kitchensink/alias"
 export { InvertibleMap, invertMap } from "@oazmi/kitchensink/collections"
 export { ensureEndSlash, ensureStartDotSlash, joinPaths, parseFilepathInfo, parsePackageUrl, resolveAsUrl } from "@oazmi/kitchensink/pathman"
 export type { Optional } from "@oazmi/kitchensink/typedefs"
