@@ -4,6 +4,8 @@
 */
 
 import { DEBUG, ensureEndSlash, ensureStartDotSlash, joinPaths, json_stringify, resolveAsUrl, type esbuild } from "../deps.ts"
+import { resolvePathFromImportmap } from "../importmap/funcdefs.ts"
+import type { ImportMap } from "../importmap/typedefs.ts"
 import { guessHttpResponseLoaders } from "../loadermap/mod.ts"
 import type { CommonPluginData, CommonPluginLoaderConfig, CommonPluginResolverConfig } from "./typedefs.ts"
 
@@ -32,9 +34,9 @@ import type { CommonPluginData, CommonPluginLoaderConfig, CommonPluginResolverCo
 export const onResolveFactory = (
 	config: CommonPluginResolverConfig,
 ): ((args: esbuild.OnResolveArgs) => Promise<esbuild.OnResolveResult>) => {
-	const { isAbsolutePath, namespace: plugin_ns, resolvePath, log = false } = config
+	const { isAbsolutePath, namespace: plugin_ns, resolvePath, log = false, globalImportMap = {} } = config
 
-	// this function resolves either an absolute or relative http href link (provided in the `args`)
+	// this function is meant to resolve paths that are either absolute or relative: http-urls, file-uris, or filesystem paths.
 	return async (args: esbuild.OnResolveArgs): Promise<esbuild.OnResolveResult> => {
 		// NOTE:
 		// - `args.path` is absolute when the entity is an entry point
@@ -42,17 +44,25 @@ export const onResolveFactory = (
 		// - `args.resolveDir` is almost always an empty string, or a malformed/non-existing path, UNLESS what is being loaded is a node module package.
 		const
 			{ path, resolveDir, importer, namespace, pluginData } = args,
-			dir = isAbsolutePath(importer)
-				? importer
-				: joinPaths(ensureEndSlash(resolveDir), importer),
-			resolved_path = isAbsolutePath(path) ? path : resolvePath(dir, ensureStartDotSlash(path)),
 			originalNamespace = namespace,
-			importMap = {} // TODO: its inheritance from parent's `pluginData` needs to be implemented if `path` was originally a relative path
+			importMap = { ...globalImportMap, ...pluginData?.importMap } as ImportMap
+		let resolved_path = resolvePathFromImportmap(path, importMap)
+		if (resolved_path === undefined) {
+			// the input `path` is not an alias key of the full `importMap`. thus, we need to resolve `path` by traditional means. 
+			const dir = isAbsolutePath(importer)
+				? importer
+				: joinPaths(ensureEndSlash(resolveDir), importer)
+			resolved_path = isAbsolutePath(path) ? path : resolvePath(dir, ensureStartDotSlash(path))
+		}
 		if (DEBUG.LOG && log) { console.log(`[${plugin_ns}] onResolve:`, { path, resolved_path, args, importMap }) }
 		return {
 			path: resolved_path,
 			namespace: plugin_ns,
-			pluginData: { originalNamespace, importMap, ...pluginData } satisfies CommonPluginData
+			// TODO: should I also embed `importMap` into `pluginData` after `...pluginData`?
+			//   doing so would let us propagate our `globalImportMap` to all dependencies,
+			//   without them needing to be resolved specifically by _this_ resolver function.
+			//   but it may have unintended consequences, so I'll leave it out for now.
+			pluginData: { originalNamespace, ...pluginData } satisfies CommonPluginData
 		}
 	}
 }
@@ -98,6 +108,8 @@ export const unResolveFactory = (
 			} = {} satisfies Partial<CommonPluginData>,
 			...rest_args
 		} = args
+		// TODO: merge the current `pluginData.importMap` with `globalImportMap`.
+		//   or should we? since `on_resolve_fn` would be aware of this `globalImportMap` anyway.
 		const {
 			path: resolved_abs_path,
 			namespace: _1,

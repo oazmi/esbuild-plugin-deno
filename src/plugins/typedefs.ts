@@ -65,6 +65,19 @@ export interface CommonPluginResolverConfig {
 	*/
 	log?: boolean
 
+	/** specify a global import-map for aliases to resources.
+	 * 
+	 * the full import-map within the body of the resolver function should be a merger between _this_ global import-map,
+	 * and the import-map acquired from the plugin data (i.e. {@link CommonPluginData.importMap}).
+	 * the plugin data's import-map will take a higher priority in case of conflicting key (i.e. same alias key but different absolute path values).
+	 * 
+	 * the resolve function will always look for a match for `args.path` inside of the import-map,
+	 * before resolving it with respect to the current importer or resolve-directory (i.e. `args.importer` or `args.resolveDir`).
+	 * 
+	 * @defaultValue `{}` (empty object/dictionary)
+	*/
+	globalImportMap?: ImportMap
+
 	/** a function that joins/resolves path segments to an absolute path (i.e. a path that the plugin itself can recognize as an absolute path).
 	 * 
 	 * typically, only two or one segments are provided at a time, but it's better if your function accepts variable number of segments.
