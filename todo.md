@@ -18,7 +18,7 @@
 
 ## pre-version `0.1.0` todo list
 
-- [ ] import map in `PluginData`
+- [x] import map in `PluginData`
 - [x] http plugin
 - [ ] jsr plugin
 - [ ] contemplate which factory functions could potentially require information on `build.initialOptions.absWorkingDir`
