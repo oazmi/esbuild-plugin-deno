@@ -3,7 +3,7 @@ import { getUriScheme, resolvePathFactory } from "@oazmi/kitchensink/pathman"
 
 export { json_parse, json_stringify, object_entries, object_keys, object_values } from "@oazmi/kitchensink/alias"
 export { InvertibleMap, invertMap } from "@oazmi/kitchensink/collections"
-export { ensureEndSlash, ensureStartDotSlash, joinPaths, parseFilepathInfo, parsePackageUrl, resolveAsUrl } from "@oazmi/kitchensink/pathman"
+export { ensureEndSlash, ensureStartDotSlash, joinPaths, normalizePath, parseFilepathInfo, parsePackageUrl, resolveAsUrl } from "@oazmi/kitchensink/pathman"
 export type { Optional } from "@oazmi/kitchensink/typedefs"
 export type * as esbuild from "npm:esbuild@0.24.2"
 

@@ -3,7 +3,7 @@
  * @module
 */
 
-import { object_keys } from "../deps.ts"
+import { normalizePath, object_keys } from "../deps.ts"
 import type { ImportMap } from "./typedefs.ts"
 
 
@@ -60,6 +60,13 @@ import type { ImportMap } from "./typedefs.ts"
  * 	"https://example.com/shapes/square.js",
  * )
  * 
+ * // even though there is no exact match of the non-normalized input path here,
+ * // once it is normalized inside of the function, it matches the same key as the previous test's.
+ * assertEquals(
+ * 	fn("http://shape.com/lib/../square.js", my_import_map),
+ * 	"https://example.com/shapes/square.js",
+ * )
+ * 
  * // even relative imports can be thought as path aliases, so long as there is a key for it in `my_import_map`.
  * // moreover, it is permissible for an import-map value to end with a trailing slash, even when its associated key does not.
  * assertEquals(
@@ -102,6 +109,11 @@ import type { ImportMap } from "./typedefs.ts"
  * ```
 */
 export const resolvePathFromImportMap = <M extends ImportMap>(path_alias: string, import_map: M): (M[keyof M] | string | undefined) => {
+	// first of all, we normalize the `path_alias` to remove any intermediate directory traversal symbols, such as "./" and "../". required by the specification.
+	// TODO: below, should I strictly stick to using `normalizePosixPath` instead of `normalizePath`? since the later will not be able to match import-map keys that use backslash directory separators (windows).
+	path_alias = normalizePath(path_alias)
+	
+	// now, we look for an exact match of the `path_alias`. if one is not found, then we do a "longest common directory" match instead.
 	const exact_match = import_map[path_alias]
 	if (exact_match) { return exact_match as M[keyof M] }
 

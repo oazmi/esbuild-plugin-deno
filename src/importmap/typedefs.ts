@@ -34,7 +34,7 @@
  * 
  * ### Rules for import maps
  * 
- * here are some rules that your import map record should follow
+ * here are some rules that your import map record should follow:
  * (copied from [MDN](https://developer.mozilla.org/en-US/docs/Web/HTML/Element/script/type/importmap#module_specifier_map)):
  * - none of the _keys_ may be empty.
  * - all of the _values_ must be strings, defining either a valid absolute url or a valid relative url string that starts with `"/"`, `"./"`, or `"../"`.
@@ -42,6 +42,14 @@
  *   a key with a trailing `"/"` can be used as a prefix for when mapping (or remapping) modules addresses.
  * - the object properties' ordering is irrelevant; if multiple keys can match the module specifier, the most specific key is used.
  *   in other words, a specifier "olive/branch/" would match before "olive/".
+ * - any path that is being matched against an import-map _will_ be normalized before being matched.
+ *   this means that the path `"./foo/../js/app.js"` will be normalized and transformed to `"./js/app.js"`,
+ *   before a suitable match is looked up in the import-map.
+ * - your import-map's keys should be **always** be pre-normalized.
+ *   this is because a non-normalized key, such as `"hello/earth/../to/./this/world.txt"`, will never match any possible input path,
+ *   because the input path will always be normalized first, thereby becoming un-matchable with any un-normalized key.
+ *   so, the correct thing to do would be to ensure that your import-map keys are normalize before hand.
+ *   (in the example here, the normalized version of the key would be `"hello/to/this/world.txt"`)
 */
 export type ImportMap = Record<string, string>
 
