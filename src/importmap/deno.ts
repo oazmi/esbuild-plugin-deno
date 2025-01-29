@@ -4,7 +4,8 @@
 */
 
 import { memorize } from "@oazmi/kitchensink/lambda"
-import { json_stringify, object_entries, parsePackageUrl, resolveAsUrl, semverMaxSatisfying, semverParse, semverParseRange, semverToString } from "../deps.ts"
+import { ensureEndSlash, isString, joinPaths, json_stringify, object_assign, object_entries, object_fromEntries, parsePackageUrl, resolveAsUrl, semverMaxSatisfying, semverParse, semverParseRange, semverToString } from "../deps.ts"
+import { RuntimePackageMetadata, type ImportMap } from "./typedefs.ts"
 
 
 /** this is a subset of the "deno.json" file schema, copied from my other project.
@@ -67,6 +68,169 @@ export interface DenoJsonSchema {
 type Exports = string | {
 	/** export aliases must follow the regex "^\.(/.*)?$" */
 	[alias: string]: string
+}
+
+/** an interface for customizing the {@link DenoPackageMetadata.getCustomExportMap} method,
+ * in order to attach optional prefix base paths to the aliases and paths of the package's export-map.
+*/
+export interface GetCustomExportMapConfig {
+	/** the base directory, to which the export-aliases are relative to.
+	 * 
+	 * for instance:
+	 * - if the export map is: `{ "./aliased/path": "./src/mod.ts" }`,
+	 * - and the `baseAliasDir` option is set to "jsr:@scope/lib@version/"
+	 *   (a trailing slash will always be added, unless the alias is exactly `"."`).
+	 * - then, the returned export-map by {@link DenoPackageMetadata.getCustomExportMap} will become:
+	 * ```ts ignore
+	 * { "jsr:@scope/lib@version/aliased/path": "./src/mod.ts" }
+	 * ```
+	 * 
+	 * @defaultValue `"./"` (which, as a result, does not transform the export paths at all)
+	*/
+	baseAliasDir: string
+
+	/** the base directory, to which the export-paths are relative to.
+	 * 
+	 * for instance:
+	 * - if the export map is: `{ "./aliased/path": "./src/mod.ts" }`,
+	 * - and the `basePathDir` option is set to "https://jsr.io/@oazmi/kitchensink/0.9.3/"
+	 *   (a trailing slash will always be added).
+	 * - then, the returned export-map by {@link DenoPackageMetadata.getCustomExportMap} will become:
+	 * ```ts ignore
+	 * { "./aliased/path": "https://jsr.io/@oazmi/kitchensink/0.9.3/src/mod.ts" }
+	 * ```
+	 * 
+	 * @defaultValue `"./"` (which, as a result, does not transform the export paths at all)
+	*/
+	basePathDir: string
+
+	/** ensure that the package's actual export-map aliases and paths are **all** relatively defined.
+	 * 
+	 * @defaultValue `true`
+	*/
+	errorCheck: boolean
+}
+
+const defaultGetCustomExportMapConfig: GetCustomExportMapConfig = {
+	baseAliasDir: "./",
+	basePathDir: "./",
+	errorCheck: true,
+}
+
+export class DenoPackageMetadata extends RuntimePackageMetadata<DenoJsonSchema> {
+	override getName(): string { return this.packageInfo.name! }
+
+	override getVersion(): string { return this.packageInfo.version! }
+
+	getCustomExportMap(config?: Partial<GetCustomExportMapConfig>) {
+		const
+			{ baseAliasDir, basePathDir, errorCheck } = { ...defaultGetCustomExportMapConfig, ...config },
+			base_path_dir = ensureEndSlash(basePathDir),
+			base_alias_dir = ensureEndSlash(baseAliasDir),
+			base_alias_dir_no_trailing_slash = base_alias_dir.slice(0, -1),
+			exports = this.packageInfo.exports ?? {},
+			exports_object = isString(exports) ? (exports.endsWith("/")
+				? { "./": exports }
+				: { ".": exports }
+			) : exports,
+			exports_object_entries = object_entries(exports_object)
+
+		if (errorCheck) {
+			// asserting that all alias keys and paths are defined relatively,
+			// and that all directory aliases point towards a directory.
+			exports_object_entries.forEach(([alias, path]) => {
+				const
+					alias_is_relative = alias.startsWith("./") || alias === ".",
+					path_is_relative = path.startsWith("./"),
+					alias_is_dir = alias.endsWith("/"),
+					path_is_dir = path.endsWith("/")
+				if (!(alias_is_relative && path_is_relative)) {
+					throw new Error(`your export map should only contain relative alias-keys and path-values. current non-relative alias-path pair is:\n"${alias}": "${path}"`)
+				}
+				if (alias_is_dir !== path_is_dir) {
+					throw new Error(`in your export map, both alias-keys and path-values must mutually point towards a directory or a file. current mismatched alias-path pair is:\n"${alias}": "${path}"`)
+				}
+			})
+		}
+
+		const export_map: ImportMap = object_fromEntries(exports_object_entries.map(([relative_alias, relative_path]) => {
+			const
+				is_main_export = relative_alias === ".",
+				alias = is_main_export
+					? base_alias_dir_no_trailing_slash
+					: joinPaths(base_alias_dir, relative_alias),
+				path = joinPaths(base_path_dir, relative_path)
+			return [alias, path]
+		}))
+
+		return export_map
+	}
+
+	// TODO: make this method memorizable via decorators. but I'll have to look into it.
+	override getExportMap(basePathDir = "./"): ImportMap {
+		const
+			name = this.getName(),
+			version = this.getVersion(),
+			baseAliasDir = `jsr:${name}@${version}`,
+			export_map: ImportMap = this.getCustomExportMap({ baseAliasDir, basePathDir, errorCheck: true })
+		// the keys of `export_map` now takes the following form:
+		// - "jsr:@scope/lib@version/pathname"
+		return export_map
+	}
+
+	override getImportMap(): ImportMap {
+		const { imports = {}, importMap: additionalImportMapPath } = this.packageInfo
+		// TODO: in the future, also fetch `additionalImportMapPath`. however, this method will then have to become asynchronous as a result.
+		return { ...imports } // we return a clone, since we don't want people mutating the original import-map.
+	}
+
+	override getInternalMap(basePathDir = "./"): ImportMap {
+		// incorrect input export-map format error checking needs to be done only once
+		let errorCheck = true
+		const
+			name = this.getName(),
+			version = this.getVersion(),
+			local_package_name = name ? name : undefined,
+			jsr_package_name = name ? `jsr:${name}` : undefined,
+			jsr_package_versioned_name = (name && version) ? `jsr:${name}@${version}` : undefined,
+			baseAliasDirs = [local_package_name, jsr_package_name, jsr_package_versioned_name],
+			export_map: ImportMap = {}
+		// assigning the following alias base-paths (if their string is not `undefined`):
+		// - "@scope/lib/pathname"
+		// - "jsr:@scope/lib/pathname"
+		// - "jsr:@scope/lib@version/pathname"
+		baseAliasDirs.forEach((baseAliasDir) => {
+			if (baseAliasDir) {
+				object_assign(export_map, this.getCustomExportMap({ baseAliasDir, basePathDir, errorCheck }))
+				errorCheck = false
+			}
+		})
+
+		return {
+			...export_map,
+			...this.getImportMap(),
+		}
+	}
+
+	static override async fromUrl<
+		SCHEMA extends DenoJsonSchema,
+		INSTANCE = DenoPackageMetadata,
+	>(jsr_package: URL | string): Promise<INSTANCE> {
+		// TODO: ideally, we should also memorize the resulting instance of `DenoPackageMetadata` that gets created via this static method,
+		//   so that subsequent calls with the same `jsr_package` will return an existing instance.
+		//   it'll be nice if we could use a memorization decorator for such a thing, but I don't have any experience with writing them, so I'll look into it in the future.
+		const
+			package_jsonc_path_str = isString(jsr_package) ? jsr_package : jsr_package.href,
+			url_is_jsr_protocol = package_jsonc_path_str.startsWith("jsr:")
+		if (url_is_jsr_protocol) {
+			// by only extracting the hostname (and stripping away any `pathname`),
+			// we get to reduce the number of inputs that our function will memorize.
+			// (since the outputs are invariant of the pathname).
+			const { host } = parsePackageUrl(jsr_package)
+			jsr_package = await memorized_jsrPackageToMetadataUrl(`jsr:${host}`)
+		}
+		return super.fromUrl<SCHEMA, INSTANCE>(jsr_package)
+	}
 }
 
 interface JsrPackageMeta {
