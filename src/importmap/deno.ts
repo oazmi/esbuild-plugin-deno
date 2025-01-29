@@ -1,6 +1,74 @@
 /** a utility submodule for generating import maps of deno and [jsr](https://jsr.io) packages.
  * 
  * @module
+ * 
+ * @example
+ * ```ts
+ * import { assertEquals } from "jsr:@std/assert"
+ * 
+ * const my_deno_json: DenoJsonSchema = {
+ * 	name: "@scope/lib",
+ * 	version: "0.1.0",
+ * 	exports: {
+ * 		".":             "./src/mod.ts",
+ * 		"./hello":       "./src/nyaa.ts",
+ * 		"./world":       "./src/ligma.ts",
+ * 		"./utils/cli/":  "./src/cli/",
+ * 	},
+ * 	imports: {
+ * 		"my-lib":        "jsr:@scope/my-lib",
+ * 		"my-lib-types":  "jsr:@scope/my-lib/typedefs",
+ * 		"npm-pkg":       "npm:boomer-package",
+ * 		"npm-pkg-utils": "npm:boomer-package/utilities",
+ * 	}
+ * }
+ * 
+ * const my_deno_metadata = new DenoPackageMetadata(my_deno_json)
+ * 
+ * // acquiring the import map that it internally recognized by the library itself
+ * assertEquals(my_deno_metadata.getInternalMap(), {
+ * 	"@scope/lib":                      "./src/mod.ts",
+ * 	"@scope/lib/hello":                "./src/nyaa.ts",
+ * 	"@scope/lib/world":                "./src/ligma.ts",
+ * 	"@scope/lib/utils/cli/":           "./src/cli/",
+ * 	"jsr:@scope/lib":                  "./src/mod.ts",
+ * 	"jsr:@scope/lib/hello":            "./src/nyaa.ts",
+ * 	"jsr:@scope/lib/world":            "./src/ligma.ts",
+ * 	"jsr:@scope/lib/utils/cli/":       "./src/cli/",
+ * 	"jsr:@scope/lib@0.1.0":            "./src/mod.ts",
+ * 	"jsr:@scope/lib@0.1.0/hello":      "./src/nyaa.ts",
+ * 	"jsr:@scope/lib@0.1.0/world":      "./src/ligma.ts",
+ * 	"jsr:@scope/lib@0.1.0/utils/cli/": "./src/cli/",
+ * 	"my-lib":                          "jsr:@scope/my-lib",
+ * 	"my-lib-types":                    "jsr:@scope/my-lib/typedefs",
+ * 	"npm-pkg":                         "npm:boomer-package",
+ * 	"npm-pkg-utils":                   "npm:boomer-package/utilities",
+ * })
+ * 
+ * // acquiring the versioned export map
+ * assertEquals(my_deno_metadata.getExportMap(), {
+ * 	"jsr:@scope/lib@0.1.0":            "./src/mod.ts",
+ * 	"jsr:@scope/lib@0.1.0/hello":      "./src/nyaa.ts",
+ * 	"jsr:@scope/lib@0.1.0/world":      "./src/ligma.ts",
+ * 	"jsr:@scope/lib@0.1.0/utils/cli/": "./src/cli/",
+ * })
+ * 
+ * // acquiring the versioned export map, with a different base-path (http)
+ * assertEquals(my_deno_metadata.getExportMap("https://jsr.io/@oazmi/kitchensink/0.9.3/"), {
+ * 	"jsr:@scope/lib@0.1.0":            "https://jsr.io/@oazmi/kitchensink/0.9.3/src/mod.ts",
+ * 	"jsr:@scope/lib@0.1.0/hello":      "https://jsr.io/@oazmi/kitchensink/0.9.3/src/nyaa.ts",
+ * 	"jsr:@scope/lib@0.1.0/world":      "https://jsr.io/@oazmi/kitchensink/0.9.3/src/ligma.ts",
+ * 	"jsr:@scope/lib@0.1.0/utils/cli/": "https://jsr.io/@oazmi/kitchensink/0.9.3/src/cli/",
+ * })
+ * 
+ * // acquiring the import-map (aliased external dependencies) of the library
+ * assertEquals(my_deno_metadata.getImportMap(), {
+ * 	"my-lib":        "jsr:@scope/my-lib",
+ * 	"my-lib-types":  "jsr:@scope/my-lib/typedefs",
+ * 	"npm-pkg":       "npm:boomer-package",
+ * 	"npm-pkg-utils": "npm:boomer-package/utilities",
+ * })
+ * ```
 */
 
 import { memorize } from "@oazmi/kitchensink/lambda"
