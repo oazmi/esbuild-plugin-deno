@@ -56,6 +56,56 @@ import { defaultResolvePath, jsoncParse, resolveAsUrl, type ConstructorOf } from
 */
 export type ImportMap = Record<string, string>
 
+/** this type describes the object entries of an {@link ImportMap} that is sorted in decreasing order of the `alias` key's string length.
+ * 
+ * @example
+ * ```ts
+ * const my_import_map_entries: ImportMapSortedEntries = [
+ * 	["./hello/world/", "https://example.com/hello-world/"],
+ * 	["./hello/abc/",   "https://example.com/hello-abc/"],
+ * 	["./hello/",       "https://example.com/hello-greetings/"],
+ * 	["./hello",        "https://example.com/"],
+ * ]
+ * ```
+*/
+export type ImportMapSortedEntries = Array<[alias: string, path: string]>
+
+/** a general interface used for configuring the behavior of an import-map path-resolving function.
+ * 
+ * the base interface simply allows the user to define the base-directory of relative path-aliases and path-values.
+*/
+export interface ImportMapResolutionConfig {
+	/** the base directory, to which the import/export-map-aliases are relative to.
+	 * 
+	 * for instance:
+	 * - if an export map is: `{ "./aliased/path": "./src/mod.ts" }`,
+	 * - and the `baseAliasDir` option is set to "jsr:@scope/lib@version/"
+	 *   (a trailing slash will always be added, unless the original alias was exactly `"."` or `""`).
+	 * - then, the equivalent export-map that {@link resolvePathFromImportMapEntries} will be resolving with regards to will be:
+	 * ```ts ignore
+	 * { "jsr:@scope/lib@version/aliased/path": "./src/mod.ts" }
+	 * ```
+	 * 
+	 * @defaultValue `""` (an empty string, so that no prefixes are added to the aliases)
+	*/
+	baseAliasDir: string
+
+	/** the base directory, to which the import/export-paths are relative to.
+	 * 
+	 * for instance:
+	 * - if an export map is: `{ "./aliased/path": "./src/mod.ts" }`,
+	 * - and the `basePathDir` option is set to "https://jsr.io/@oazmi/kitchensink/0.9.3/"
+	 *   (a trailing slash will always be added).
+	 * - then, the equivalent export-map that {@link resolvePathFromImportMapEntries} will be resolved with regards to will be:
+	 * ```ts ignore
+	 * { "./aliased/path": "https://jsr.io/@oazmi/kitchensink/0.9.3/src/mod.ts" }
+	 * ```
+	 * 
+	 * @defaultValue `""` (an empty string, so that no prefixes are added to the paths)
+	*/
+	basePathDir: string
+}
+
 /** an abstraction for import-map utilities of a general javascript runtime's package object with the schema `SCHEMA`.
  * - in the case of node, `SCHEMA` would represent `package.json`'s schema.
  * - in the case of deno, `SCHEMA` would represent `deno.json`, `deno.jsonc`, or `jsr.json`'s schema.
