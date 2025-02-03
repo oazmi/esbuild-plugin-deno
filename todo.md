@@ -6,12 +6,13 @@
 
 ## pre-version `0.2.0` todo list
 
-- [ ] optional global import map config at top level of the plugin config
+- [ ] optional global import map config at top level of the "all-in-one" plugin config
 - [ ] rename old cached fetch to `memCachedFetch`
 - [ ] create a filesystem based cached fetch named `fsCachedFetch`
 
 ## pre-version `0.1.1` todo list
 
+- [ ] create an "all-in-one" plugin that is a combination of all of the plugins.
 - [ ] implement cached fetch for resource caching
 - [ ] cached fetch should also retry due to timeout (up to 10 times)
 - [ ] cached fetch should also follow redirects (up to 10 times) (or just set `{ redirect: "follow" }` in `fetch` options)
@@ -23,5 +24,6 @@
       moreover, I think we are supposed to also normalize the import keys, except for the initial dot-slash "./" (or lack-thereof).
       but I'll have to look into the specification carefully to deduce that, since it isn't made clear at the surface level.
 - [x] http plugin
-- [ ] jsr plugin
+- [x] jsr plugin
+- [x] import-map plugin
 - [ ] contemplate which factory functions could potentially require information on `build.initialOptions.absWorkingDir`

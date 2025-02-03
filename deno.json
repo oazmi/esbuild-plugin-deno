@@ -20,7 +20,7 @@
 		".": "./src/mod.ts"
 	},
 	"imports": {
-		"@oazmi/kitchensink": "jsr:@oazmi/kitchensink@0.9.2",
+		"@oazmi/kitchensink": "jsr:@oazmi/kitchensink@0.9.6",
 		"@std/jsonc": "jsr:@std/jsonc@^1.0.1",
 		"@std/semver": "jsr:@std/semver@^1.0.3"
 	},

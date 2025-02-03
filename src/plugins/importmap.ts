@@ -100,7 +100,7 @@ const onResolveImportMapFactory = (config: Partial<ResolveImportMapFactoryConfig
 			...rest_args
 		} = args
 		// if the plugin marker already exists for this entity, then we've already processed it once,
-		// therefore we should return `undefined` so that we don't in an infinite onResolve recursion.
+		// therefore we should return `undefined` so that we don't end in an infinite onResolve recursion.
 		// this way, the next resolver registered to esbuild (or its native resolver) will take up the task for resolving this entity.
 		if (pluginData[pluginDataMarker]) { return undefined }
 		pluginData[pluginDataMarker] = true
