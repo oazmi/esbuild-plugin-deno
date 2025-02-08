@@ -1,11 +1,9 @@
-/** a utility submodule for generating import maps of deno and [jsr](https://jsr.io) packages.
+/** a utility submodule for resolving the import/export-map aliases of deno and [jsr](https://jsr.io) packages.
  * 
  * @module
  * 
  * @example
- * ```ts ignore
- * // TODO: outdated!
- * 
+ * ```ts
  * import { assertEquals } from "jsr:@std/assert"
  * 
  * const my_deno_json: DenoJsonSchema = {
@@ -20,56 +18,68 @@
  * 	imports: {
  * 		"my-lib":        "jsr:@scope/my-lib",
  * 		"my-lib-types":  "jsr:@scope/my-lib/typedefs",
+ * 		"jsr-pkg":       "jsr:@scope/jsr-pkg",
+ * 		"jsr-pkg/":      "jsr:@scope/jsr-pkg/dir/",
  * 		"npm-pkg":       "npm:boomer-package",
  * 		"npm-pkg-utils": "npm:boomer-package/utilities",
  * 	}
  * }
  * 
- * const my_deno_metadata = new DenoPackageMetadata(my_deno_json)
+ * const pkg_metadata = new DenoPackageMetadata(my_deno_json)
  * 
- * // acquiring the import map that it internally recognized by the library itself
- * assertEquals(my_deno_metadata.getInternalMap(), {
- * 	"@scope/lib":                      "./src/mod.ts",
- * 	"@scope/lib/hello":                "./src/nyaa.ts",
- * 	"@scope/lib/world":                "./src/ligma.ts",
- * 	"@scope/lib/utils/cli/":           "./src/cli/",
- * 	"jsr:@scope/lib":                  "./src/mod.ts",
- * 	"jsr:@scope/lib/hello":            "./src/nyaa.ts",
- * 	"jsr:@scope/lib/world":            "./src/ligma.ts",
- * 	"jsr:@scope/lib/utils/cli/":       "./src/cli/",
- * 	"jsr:@scope/lib@0.1.0":            "./src/mod.ts",
- * 	"jsr:@scope/lib@0.1.0/hello":      "./src/nyaa.ts",
- * 	"jsr:@scope/lib@0.1.0/world":      "./src/ligma.ts",
- * 	"jsr:@scope/lib@0.1.0/utils/cli/": "./src/cli/",
- * 	"my-lib":                          "jsr:@scope/my-lib",
- * 	"my-lib-types":                    "jsr:@scope/my-lib/typedefs",
- * 	"npm-pkg":                         "npm:boomer-package",
- * 	"npm-pkg-utils":                   "npm:boomer-package/utilities",
- * })
+ * // aliasing our functions, methods, and configurations for brevity
+ * const
+ * 	eq = assertEquals,
+ * 	resIm = pkg_metadata.resolveImport.bind(pkg_metadata),
+ * 	resEx = pkg_metadata.resolveExport.bind(pkg_metadata),
+ * 	config_1 = { basePathDir: "" },
+ * 	config_2 = { baseAliasDir: "jsr:@scope/lib" }
  * 
- * // acquiring the versioned export map
- * assertEquals(my_deno_metadata.getExportMap(), {
- * 	"jsr:@scope/lib@0.1.0":            "./src/mod.ts",
- * 	"jsr:@scope/lib@0.1.0/hello":      "./src/nyaa.ts",
- * 	"jsr:@scope/lib@0.1.0/world":      "./src/ligma.ts",
- * 	"jsr:@scope/lib@0.1.0/utils/cli/": "./src/cli/",
- * })
  * 
- * // acquiring the versioned export map, with a different base-path (http)
- * assertEquals(my_deno_metadata.getExportMap("https://jsr.io/@oazmi/kitchensink/0.9.3/"), {
- * 	"jsr:@scope/lib@0.1.0":            "https://jsr.io/@oazmi/kitchensink/0.9.3/src/mod.ts",
- * 	"jsr:@scope/lib@0.1.0/hello":      "https://jsr.io/@oazmi/kitchensink/0.9.3/src/nyaa.ts",
- * 	"jsr:@scope/lib@0.1.0/world":      "https://jsr.io/@oazmi/kitchensink/0.9.3/src/ligma.ts",
- * 	"jsr:@scope/lib@0.1.0/utils/cli/": "https://jsr.io/@oazmi/kitchensink/0.9.3/src/cli/",
- * })
+ * // testing out the import alias-path resolution of the package own export-map (i.e. self-referenced imports).
+ * eq(resIm("@scope/lib"),      "https://jsr.io/@scope/lib/0.1.0/src/mod.ts")
+ * eq(resIm("@scope/lib/"),     "https://jsr.io/@scope/lib/0.1.0/src/mod.ts")
+ * eq(resIm("@scope/lib",                          config_1), "./src/mod.ts")
+ * eq(resIm("@scope/lib",             { basePathDir: "./" }), "./src/mod.ts")
+ * // the result below is `undefined` because, internally, `resolveImport` will only concern itself with
+ * // self-references that deno itself recognizes, and not just any arbitrary `baseAliasDir`.
+ * // even though this path alias would get resolved by the `resolveExport` method (which you will see later).
+ * eq(resIm("SELF",                { baseAliasDir: "SELF" }), undefined)
+ * eq(resIm("@scope/lib/hello",                    config_1), "./src/nyaa.ts")
+ * eq(resIm("@scope/lib/world",                    config_1), "./src/ligma.ts")
+ * eq(resIm("@scope/lib/utils/cli/",               config_1), "./src/cli/")
+ * eq(resIm("@scope/lib/utils/cli/script.ts",      config_1), "./src/cli/script.ts")
+ * eq(resIm("@scope/lib/utils/cli/../../hello",    config_1), "./src/nyaa.ts")
+ * eq(resIm("@scope/lib/utils/cli/../../hello.js", config_1), undefined)
+ * eq(resIm("jsr:@scope/lib",                      config_1), "./src/mod.ts")
+ * eq(resIm("jsr:@scope/lib@0.1.0",                config_1), "./src/mod.ts")
+ * eq(resIm(".",                                   config_1), "./src/mod.ts")
+ * eq(resIm("./hello",                             config_1), "./src/nyaa.ts")
  * 
- * // acquiring the import-map (aliased external dependencies) of the library
- * assertEquals(my_deno_metadata.getImportMap(), {
- * 	"my-lib":        "jsr:@scope/my-lib",
- * 	"my-lib-types":  "jsr:@scope/my-lib/typedefs",
- * 	"npm-pkg":       "npm:boomer-package",
- * 	"npm-pkg-utils": "npm:boomer-package/utilities",
- * })
+ * // testing out the import alias-path resolution of the package's externally referenced import-map entries.
+ * eq(resIm("my-lib"),            "jsr:@scope/my-lib")
+ * eq(resIm("my-lib/"),           "jsr:@scope/my-lib/")
+ * eq(resIm("my-lib-types"),      "jsr:@scope/my-lib/typedefs")
+ * eq(resIm("my-lib/funcdefs"),   "jsr:@scope/my-lib/funcdefs")
+ * eq(resIm("jsr-pkg"),           "jsr:@scope/jsr-pkg")
+ * eq(resIm("jsr-pkg/"),          "jsr:@scope/jsr-pkg/dir/")
+ * eq(resIm("jsr-pkg/file"),      "jsr:@scope/jsr-pkg/dir/file")
+ * eq(resIm("npm-pkg"),           "npm:boomer-package")
+ * eq(resIm("npm-pkg-utils"),     "npm:boomer-package/utilities")
+ * eq(resIm("npm-pkg/utils/cli"), "npm:boomer-package/utils/cli")
+ * 
+ * // testing out the alias-path resolution of the package's exported entries.
+ * eq(resEx("jsr:@scope/lib"),                         undefined) // by default, you must provide the version number as well
+ * eq(resEx("jsr:@scope/lib",               config_2), "https://jsr.io/@scope/lib/0.1.0/src/mod.ts")
+ * eq(resEx("jsr:@scope/lib/",              config_2), "https://jsr.io/@scope/lib/0.1.0/src/mod.ts")
+ * eq(resEx("jsr:@scope/lib@0.1.0",         config_1), "./src/mod.ts")
+ * eq(resEx("SELF",         { baseAliasDir: "SELF" }), "https://jsr.io/@scope/lib/0.1.0/src/mod.ts")
+ * eq(resEx("jsr:@scope/lib@0.1.0"),                   "https://jsr.io/@scope/lib/0.1.0/src/mod.ts")
+ * eq(resEx("jsr:@scope/lib@0.1.0/"),                  "https://jsr.io/@scope/lib/0.1.0/src/mod.ts")
+ * eq(resEx("jsr:@scope/lib@0.1.0/hello"),             "https://jsr.io/@scope/lib/0.1.0/src/nyaa.ts")
+ * eq(resEx("jsr:@scope/lib@0.1.0/world"),             "https://jsr.io/@scope/lib/0.1.0/src/ligma.ts")
+ * eq(resEx("jsr:@scope/lib@0.1.0/utils/cli/"),        "https://jsr.io/@scope/lib/0.1.0/src/cli/")
+ * eq(resEx("jsr:@scope/lib@0.1.0/utils/cli/file.js"), "https://jsr.io/@scope/lib/0.1.0/src/cli/file.js")
  * ```
 */
 
