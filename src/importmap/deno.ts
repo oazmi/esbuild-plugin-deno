@@ -3,17 +3,19 @@
  * @module
  * 
  * @example
- * ```ts
+ * ```ts ignore
+ * // TODO: outdated!
+ * 
  * import { assertEquals } from "jsr:@std/assert"
  * 
  * const my_deno_json: DenoJsonSchema = {
  * 	name: "@scope/lib",
  * 	version: "0.1.0",
  * 	exports: {
- * 		".":             "./src/mod.ts",
- * 		"./hello":       "./src/nyaa.ts",
- * 		"./world":       "./src/ligma.ts",
- * 		"./utils/cli/":  "./src/cli/",
+ * 		".":            "./src/mod.ts",
+ * 		"./hello":      "./src/nyaa.ts",
+ * 		"./world":      "./src/ligma.ts",
+ * 		"./utils/cli/": "./src/cli/",
  * 	},
  * 	imports: {
  * 		"my-lib":        "jsr:@scope/my-lib",
@@ -72,8 +74,10 @@
 */
 
 import { memorize } from "@oazmi/kitchensink/lambda"
-import { ensureEndSlash, isString, joinPaths, json_stringify, object_assign, object_entries, object_fromEntries, parsePackageUrl, resolveAsUrl, semverMaxSatisfying, semverParse, semverParseRange, semverToString } from "../deps.ts"
-import { RuntimePackageMetadata, type ImportMap } from "./typedefs.ts"
+import { ensureEndSlash, isString, json_stringify, object_entries, parsePackageUrl, replacePrefix, resolveAsUrl, semverMaxSatisfying, semverParse, semverParseRange, semverToString } from "../deps.ts"
+import { RuntimePackageMetadata } from "./base.ts"
+import { compareImportMapEntriesByLength, type ResolvePathFromImportMapEntriesConfig } from "./funcdefs.ts"
+import type { ImportMapSortedEntries } from "./typedefs.ts"
 
 
 /** this is a subset of the "deno.json" file schema, copied from my other project.
@@ -138,146 +142,79 @@ type Exports = string | {
 	[alias: string]: string
 }
 
-/** an interface for customizing the {@link DenoPackageMetadata.getCustomExportMap} method,
- * in order to attach optional prefix base paths to the aliases and paths of the package's export-map.
-*/
-export interface GetCustomExportMapConfig {
-	/** the base directory, to which the export-aliases are relative to.
-	 * 
-	 * for instance:
-	 * - if the export map is: `{ "./aliased/path": "./src/mod.ts" }`,
-	 * - and the `baseAliasDir` option is set to "jsr:@scope/lib@version/"
-	 *   (a trailing slash will always be added, unless the alias is exactly `"."`).
-	 * - then, the returned export-map by {@link DenoPackageMetadata.getCustomExportMap} will become:
-	 * ```ts ignore
-	 * { "jsr:@scope/lib@version/aliased/path": "./src/mod.ts" }
-	 * ```
-	 * 
-	 * @defaultValue `"./"` (which, as a result, does not transform the export paths at all)
-	*/
-	baseAliasDir: string
-
-	/** the base directory, to which the export-paths are relative to.
-	 * 
-	 * for instance:
-	 * - if the export map is: `{ "./aliased/path": "./src/mod.ts" }`,
-	 * - and the `basePathDir` option is set to "https://jsr.io/@oazmi/kitchensink/0.9.3/"
-	 *   (a trailing slash will always be added).
-	 * - then, the returned export-map by {@link DenoPackageMetadata.getCustomExportMap} will become:
-	 * ```ts ignore
-	 * { "./aliased/path": "https://jsr.io/@oazmi/kitchensink/0.9.3/src/mod.ts" }
-	 * ```
-	 * 
-	 * @defaultValue `"./"` (which, as a result, does not transform the export paths at all)
-	*/
-	basePathDir: string
-
-	/** ensure that the package's actual export-map aliases and paths are **all** relatively defined.
-	 * 
-	 * @defaultValue `true`
-	*/
-	errorCheck: boolean
-}
-
-const defaultGetCustomExportMapConfig: GetCustomExportMapConfig = {
-	baseAliasDir: "./",
-	basePathDir: "./",
-	errorCheck: true,
-}
-
 export class DenoPackageMetadata extends RuntimePackageMetadata<DenoJsonSchema> {
+	protected override readonly importMapSortedEntries: ImportMapSortedEntries
+	protected override readonly exportMapSortedEntries: ImportMapSortedEntries
+
 	override getName(): string { return this.packageInfo.name! }
 
 	override getVersion(): string { return this.packageInfo.version! }
 
-	getCustomExportMap(config?: Partial<GetCustomExportMapConfig>) {
+	constructor(package_object: DenoJsonSchema) {
+		super(package_object)
 		const
-			{ baseAliasDir, basePathDir, errorCheck } = { ...defaultGetCustomExportMapConfig, ...config },
-			base_path_dir = ensureEndSlash(basePathDir),
-			base_alias_dir = ensureEndSlash(baseAliasDir),
-			base_alias_dir_no_trailing_slash = base_alias_dir.slice(0, -1),
-			exports = this.packageInfo.exports ?? {},
+			{ exports = {}, imports = {} } = package_object,
 			exports_object = isString(exports) ? (exports.endsWith("/")
 				? { "./": exports }
 				: { ".": exports }
 			) : exports,
-			exports_object_entries = object_entries(exports_object)
+			imports_object = { ...imports }
 
-		if (errorCheck) {
-			// asserting that all alias keys and paths are defined relatively,
-			// and that all directory aliases point towards a directory.
-			exports_object_entries.forEach(([alias, path]) => {
-				const
-					alias_is_relative = alias.startsWith("./") || alias === ".",
-					path_is_relative = path.startsWith("./"),
-					alias_is_dir = alias.endsWith("/"),
-					path_is_dir = path.endsWith("/")
-				if (!(alias_is_relative && path_is_relative)) {
-					throw new Error(`your export map should only contain relative alias-keys and path-values. current non-relative alias-path pair is:\n"${alias}": "${path}"`)
-				}
-				if (alias_is_dir !== path_is_dir) {
-					throw new Error(`in your export map, both alias-keys and path-values must mutually point towards a directory or a file. current mismatched alias-path pair is:\n"${alias}": "${path}"`)
-				}
-			})
+		// below, we clone all non-directory aliases (such as "jsr:@scope/lib"), into directory aliases as well (i.e. "jsr:@scope/lib/").
+		// this is so that import statements with an alias + subpath (such as "jsr:@scope/lib/my-subpath")
+		// can be resolved by the `resolveImport` method, instead of being declared unresolvable (`undefined`).
+		// this is absolutely necessary for regular operation, although, strictly speaking, we are kind of malforming the original import map entries.
+		for (const [alias, path] of object_entries(imports_object)) {
+			const alias_dir_variant = ensureEndSlash(alias)
+			// only assign the directory variant of the alias if such a key does not already exist in `imports_object`.
+			// because otherwise, we would be overwriting the original package creator's own alias key (which would be intrusive).
+			if (alias !== alias_dir_variant && !(alias_dir_variant in imports_object)) {
+				imports_object[alias_dir_variant] = ensureEndSlash(path)
+			}
 		}
 
-		const export_map: ImportMap = object_fromEntries(exports_object_entries.map(([relative_alias, relative_path]) => {
-			const
-				is_main_export = relative_alias === ".",
-				alias = is_main_export
-					? base_alias_dir_no_trailing_slash
-					: joinPaths(base_alias_dir, relative_alias),
-				path = joinPaths(base_path_dir, relative_path)
-			return [alias, path]
-		}))
-
-		return export_map
+		this.exportMapSortedEntries = object_entries(exports_object).toSorted(compareImportMapEntriesByLength)
+		this.importMapSortedEntries = object_entries(imports_object).toSorted(compareImportMapEntriesByLength)
 	}
 
-	// TODO: make this method memorizable via decorators. but I'll have to look into it.
-	override getExportMap(basePathDir = "./"): ImportMap {
+	override resolveExport(path_alias: string, config?: Partial<ResolvePathFromImportMapEntriesConfig>): string | undefined {
 		const
 			name = this.getName(),
 			version = this.getVersion(),
-			baseAliasDir = `jsr:${name}@${version}`,
-			export_map: ImportMap = this.getCustomExportMap({ baseAliasDir, basePathDir, errorCheck: true })
-		// the keys of `export_map` now takes the following form:
-		// - "jsr:@scope/lib@version/pathname"
-		return export_map
+			{
+				baseAliasDir = `jsr:${name}@${version}`,
+				basePathDir = `https://jsr.io/${name}/${version}`,
+				...rest_config
+			} = config ?? {},
+			residual_path_alias = replacePrefix(path_alias, baseAliasDir)?.replace(/^\/+/, "/")
+		if (residual_path_alias !== undefined) {
+			path_alias = baseAliasDir + (residual_path_alias === "/" ? "" : residual_path_alias)
+		}
+		return super.resolveExport(path_alias, { baseAliasDir, basePathDir, ...rest_config })
 	}
 
-	override getImportMap(): ImportMap {
-		const { imports = {}, importMap: additionalImportMapPath } = this.packageInfo
-		// TODO: in the future, also fetch `additionalImportMapPath`. however, this method will then have to become asynchronous as a result.
-		return { ...imports } // we return a clone, since we don't want people mutating the original import-map.
-	}
-
-	override getInternalMap(basePathDir = "./"): ImportMap {
-		// incorrect input export-map format error checking needs to be done only once
-		let errorCheck = true
+	override resolveImport(path_alias: string, config?: Partial<ResolvePathFromImportMapEntriesConfig>): string | undefined {
 		const
 			name = this.getName(),
 			version = this.getVersion(),
-			local_package_name = name ? name : undefined,
-			jsr_package_name = name ? `jsr:${name}` : undefined,
-			jsr_package_versioned_name = (name && version) ? `jsr:${name}@${version}` : undefined,
-			baseAliasDirs = [local_package_name, jsr_package_name, jsr_package_versioned_name],
-			export_map: ImportMap = {}
-		// assigning the following alias base-paths (if their string is not `undefined`):
+			path_alias_is_relative = path_alias.startsWith("./") || path_alias.startsWith("../"),
+			local_package_reference_aliases = path_alias_is_relative
+				? [""]
+				: [`jsr:${name}@${version}`, `jsr:${name}`, `${name}`]
+
+		// resolving the `path_alias` as a locally self-referenced package export.
+		// here is the list of possible combinations of base alias paths that can be performed within this package to reference its own export endpoints:
 		// - "@scope/lib/pathname"
 		// - "jsr:@scope/lib/pathname"
 		// - "jsr:@scope/lib@version/pathname"
-		baseAliasDirs.forEach((baseAliasDir) => {
-			if (baseAliasDir) {
-				object_assign(export_map, this.getCustomExportMap({ baseAliasDir, basePathDir, errorCheck }))
-				errorCheck = false
-			}
-		})
-
-		return {
-			...export_map,
-			...this.getImportMap(),
+		let locally_resolved_export: string | undefined = undefined
+		for (const base_alias_dir of local_package_reference_aliases) {
+			locally_resolved_export = this.resolveExport(path_alias, { ...config, baseAliasDir: base_alias_dir })
+			if (locally_resolved_export) { break }
 		}
+
+		// if the `path_alias` is not a local export, then resolve it based on the package's import-map
+		return locally_resolved_export ?? super.resolveImport(path_alias, config)
 	}
 
 	static override async fromUrl<
@@ -332,9 +269,7 @@ const jsr_base_url = "https://jsr.io"
  * // so, a query for version "^0.8.0" should return "0.8.6", and "<0.8.6" would return "0.8.5", etc...
  * eq((await fn("jsr:@oazmi/kitchensink@^0.8.0")).href,         "https://jsr.io/@oazmi/kitchensink/0.8.6/deno.json")
  * eq((await fn("jsr:@oazmi/kitchensink@<0.8.6")).href,         "https://jsr.io/@oazmi/kitchensink/0.8.5/deno.json")
- * 
- * // TODO: add support for a range query. currently, my package parser function `parsePackageUrl` from kitchensink fails to handle white spaces in version string.
- * // eq((await fn("jsr:@oazmi/kitchensink@0.8.2 - 0.8.4")).href,  "https://jsr.io/@oazmi/kitchensink/0.8.4/deno.json")
+ * eq((await fn("jsr:@oazmi/kitchensink@0.8.2 - 0.8.4")).href,  "https://jsr.io/@oazmi/kitchensink/0.8.4/deno.json")
  * ```
 */
 export const jsrPackageToMetadataUrl = async (jsr_package: `jsr:${string}` | URL): Promise<URL> => {
