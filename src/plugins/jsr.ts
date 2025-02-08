@@ -4,8 +4,8 @@
 */
 
 import { type esbuild, defaultResolvePath, ensureEndSlash, ensureStartDotSlash, joinPaths, json_stringify, parsePackageUrl } from "../deps.ts"
-import { DenoPackageMetadata } from "../importmap/deno.ts"
-import { resolvePathFromImportMap } from "../importmap/funcdefs.ts"
+import { DenoPackageMetadata } from "../packageman/deno.ts"
+import { resolvePathFromImportMap } from "../importmap/mod.ts"
 import type { CommonPluginData, CommonPluginResolverConfig } from "./typedefs.ts"
 
 

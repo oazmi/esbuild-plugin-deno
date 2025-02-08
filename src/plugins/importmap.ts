@@ -4,7 +4,7 @@
 */
 
 import type { esbuild } from "../deps.ts"
-import { resolvePathFromImportMap } from "../importmap/funcdefs.ts"
+import { resolvePathFromImportMap } from "../importmap/mod.ts"
 import type { ImportMap } from "../importmap/typedefs.ts"
 
 

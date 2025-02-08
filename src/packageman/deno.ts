@@ -86,8 +86,8 @@
 import { memorize } from "@oazmi/kitchensink/lambda"
 import { ensureEndSlash, isString, json_stringify, object_entries, parsePackageUrl, replacePrefix, resolveAsUrl, semverMaxSatisfying, semverParse, semverParseRange, semverToString } from "../deps.ts"
 import { RuntimePackageMetadata } from "./base.ts"
-import { compareImportMapEntriesByLength, type ResolvePathFromImportMapEntriesConfig } from "./funcdefs.ts"
-import type { ImportMapSortedEntries } from "./typedefs.ts"
+import { compareImportMapEntriesByLength, type ResolvePathFromImportMapEntriesConfig } from "../importmap/mod.ts"
+import type { ImportMapSortedEntries } from "../importmap/typedefs.ts"
 
 
 /** this is a subset of the "deno.json" file schema, copied from my other project.
