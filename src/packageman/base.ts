@@ -5,8 +5,8 @@
 */
 
 import { defaultResolvePath, jsoncParse, resolveAsUrl, type ConstructorOf } from "../deps.ts"
-import { resolvePathFromImportMapEntries, type ResolvePathFromImportMapEntriesConfig } from "./funcdefs.ts"
-import type { ImportMapSortedEntries } from "./typedefs.ts"
+import { resolvePathFromImportMapEntries, type ResolvePathFromImportMapEntriesConfig } from "../importmap/mod.ts"
+import type { ImportMapSortedEntries } from "../importmap/typedefs.ts"
 
 
 /** an abstraction for import-map utilities of a general javascript runtime's package object with the schema `SCHEMA`.

@@ -1,10 +1,7 @@
-/** contains type definitions for import map related interfaces.
+/** contains type definitions for import-map related interfaces.
  * 
  * @module
 */
-
-import { defaultResolvePath, jsoncParse, resolveAsUrl, type ConstructorOf } from "../deps.ts"
-
 
 /** an import map is just a key-value dictionary, where the value is an absolute path to a package's resource,
  * and the key associated with it is an alias used by your code to reference the resource's path.
@@ -104,61 +101,4 @@ export interface ImportMapResolutionConfig {
 	 * @defaultValue `""` (an empty string, so that no prefixes are added to the paths)
 	*/
 	basePathDir: string
-}
-
-/** an abstraction for import-map utilities of a general javascript runtime's package object with the schema `SCHEMA`.
- * - in the case of node, `SCHEMA` would represent `package.json`'s schema.
- * - in the case of deno, `SCHEMA` would represent `deno.json`, `deno.jsonc`, or `jsr.json`'s schema.
- * 
- * @template SCHEMA a record type representing the package schema.
-*/
-export abstract class RuntimePackageMetadata<SCHEMA extends Record<string, any>> {
-	/** the fetched/parsed package metadata file's raw contents. */
-	readonly packageInfo: SCHEMA
-
-	/** @param package_object the parsed package metadata as an object.
-	 *   - in the case of node, this would be your json-parsed "package.json" file.
-	 *   - in the case of deno, this would be your json-parsed "deno.json" file.
-	*/
-	constructor(package_object: SCHEMA) {
-		this.packageInfo = package_object
-	}
-
-	/** get the package's name. */
-	abstract getName(): string
-
-	/** get the package's version string. */
-	abstract getVersion(): string
-
-	/** this abstract method must retrieve the export-map exposed to outside libraries when they import this library/package. */
-	abstract getExportMap(): ImportMap
-
-	/** this abstract method must retrieve the import-map of external resources/libraries, which are internally exposed to this package's code. */
-	abstract getImportMap(): ImportMap
-
-	/** retrieve the import-map understood by the package's code internally.
-	 * by default, the base class simply merges the package json's import and export maps together.
-	 * (i.e. {@link getExportMap} and {@link getImportMap} are merged together).
-	*/
-	getInternalMap(): ImportMap {
-		return {
-			...this.getExportMap(),
-			...this.getImportMap(),
-		}
-	}
-
-	/** create an instance of this class by loading a package's json(c) file from a url or local file-system path.
-	 * 
-	 * > [!tip]
-	 * > the constructor uses a "JSONC" parser (from [@std/jsonc](https://jsr.io/@std/jsonc)) for the fetched files.
-	 * > therefore, you may provide links to ".jsonc" files, instead of parsing them yourself before calling the super constructor.
-	*/
-	static async fromUrl<
-		SCHEMA extends Record<string, any>,
-		INSTANCE = RuntimePackageMetadata<SCHEMA>,
-	>(this: ConstructorOf<INSTANCE, [SCHEMA]>, package_jsonc_path: URL | string): Promise<INSTANCE> {
-		package_jsonc_path = resolveAsUrl(package_jsonc_path, defaultResolvePath())
-		const package_object = jsoncParse(await ((await fetch(package_jsonc_path)).text())) as SCHEMA
-		return new this(package_object)
-	}
 }

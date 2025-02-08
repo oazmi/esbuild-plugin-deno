@@ -4,7 +4,7 @@
 */
 
 import { DEBUG, ensureEndSlash, ensureStartDotSlash, joinPaths, json_stringify, resolveAsUrl, type esbuild } from "../deps.ts"
-import { resolvePathFromImportMap } from "../importmap/funcdefs.ts"
+import { resolvePathFromImportMap } from "../importmap/mod.ts"
 import type { ImportMap } from "../importmap/typedefs.ts"
 import { guessHttpResponseLoaders } from "../loadermap/mod.ts"
 import type { CommonPluginData, CommonPluginLoaderConfig, CommonPluginResolverConfig } from "./typedefs.ts"

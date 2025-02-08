@@ -1,4 +1,4 @@
-/** contains utility functions for import-maps
+/** contains utility functions for import-maps.
  * 
  * @module
 */
@@ -6,6 +6,8 @@
 import { ensureEndSlash, ensureStartDotSlash, isAbsolutePath, joinPaths, normalizePath, object_keys, replacePrefix, replaceSuffix } from "../deps.ts"
 import type { ImportMap, ImportMapResolutionConfig, ImportMapSortedEntries } from "./typedefs.ts"
 
+
+export type * from "./typedefs.ts"
 
 /** resolve a potential `path_alias` to its absolutely referenced path from an `import_map`.
  * if the input `path_alias` is not a part of the provided `import_map`, then `undefined` will be returned.
