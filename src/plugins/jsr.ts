@@ -4,7 +4,7 @@
 */
 
 import { type esbuild, defaultResolvePath, ensureEndSlash, ensureStartDotSlash, joinPaths, json_stringify, parsePackageUrl } from "../deps.ts"
-import { DenoPackageMetadata } from "../packageman/deno.ts"
+import { DenoPackage } from "../packageman/deno.ts"
 import { resolvePathFromImportMap } from "../importmap/mod.ts"
 import type { CommonPluginData, CommonPluginResolverConfig } from "./typedefs.ts"
 
@@ -34,7 +34,7 @@ export const jsrPluginSetup = (config: Partial<JsrPluginSetupConfig> = {}): esbu
 				const
 					{ path, pluginData, ...rest_args } = args,
 					{ importMap: _0, ...restPluginData } = (pluginData ?? {}) as CommonPluginData,
-					package_meta = await DenoPackageMetadata.fromUrl(path),
+					package_meta = await DenoPackage.fromUrl(path),
 					name = package_meta.getName(),
 					version = package_meta.getVersion(),
 					base_url = `https://jsr.io/${name}/${version}`,
