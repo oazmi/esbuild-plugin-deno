@@ -1,4 +1,4 @@
-/** this submodule exports the base abstract class {@link RuntimePackageMetadata},
+/** this submodule exports the base abstract class {@link RuntimePackage},
  * that is supposed to be utilized for parsing package metadata, and resolving various import path aliases.
  * 
  * @module
@@ -15,7 +15,7 @@ import type { ImportMapSortedEntries } from "../importmap/typedefs.ts"
  * 
  * @template SCHEMA a record type representing the package schema.
 */
-export abstract class RuntimePackageMetadata<SCHEMA extends Record<string, any>> {
+export abstract class RuntimePackage<SCHEMA extends Record<string, any>> {
 	/** the fetched/parsed package metadata file's raw contents. */
 	protected readonly packageInfo: SCHEMA
 
@@ -78,7 +78,7 @@ export abstract class RuntimePackageMetadata<SCHEMA extends Record<string, any>>
 	*/
 	static async fromUrl<
 		SCHEMA extends Record<string, any>,
-		INSTANCE = RuntimePackageMetadata<SCHEMA>,
+		INSTANCE = RuntimePackage<SCHEMA>,
 	>(this: ConstructorOf<INSTANCE, [SCHEMA]>, package_jsonc_path: URL | string): Promise<INSTANCE> {
 		package_jsonc_path = resolveAsUrl(package_jsonc_path, defaultResolvePath())
 		const package_object = jsoncParse(await ((await fetch(package_jsonc_path)).text())) as SCHEMA

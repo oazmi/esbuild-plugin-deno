@@ -25,7 +25,7 @@
  * 	}
  * }
  * 
- * const pkg_metadata = new DenoPackageMetadata(my_deno_json)
+ * const pkg_metadata = new DenoPackage(my_deno_json)
  * 
  * // aliasing our functions, methods, and configurations for brevity
  * const
@@ -85,9 +85,9 @@
 
 import { memorize } from "@oazmi/kitchensink/lambda"
 import { ensureEndSlash, isString, json_stringify, object_entries, parsePackageUrl, replacePrefix, resolveAsUrl, semverMaxSatisfying, semverParse, semverParseRange, semverToString } from "../deps.ts"
-import { RuntimePackageMetadata } from "./base.ts"
 import { compareImportMapEntriesByLength, type ResolvePathFromImportMapEntriesConfig } from "../importmap/mod.ts"
 import type { ImportMapSortedEntries } from "../importmap/typedefs.ts"
+import { RuntimePackage } from "./base.ts"
 
 
 /** this is a subset of the "deno.json" file schema, copied from my other project.
@@ -152,7 +152,7 @@ type Exports = string | {
 	[alias: string]: string
 }
 
-export class DenoPackageMetadata extends RuntimePackageMetadata<DenoJsonSchema> {
+export class DenoPackage extends RuntimePackage<DenoJsonSchema> {
 	protected override readonly importMapSortedEntries: ImportMapSortedEntries
 	protected override readonly exportMapSortedEntries: ImportMapSortedEntries
 
@@ -193,7 +193,7 @@ export class DenoPackageMetadata extends RuntimePackageMetadata<DenoJsonSchema> 
 			version = this.getVersion(),
 			{
 				baseAliasDir = `jsr:${name}@${version}`,
-				basePathDir = `https://jsr.io/${name}/${version}`,
+				basePathDir = `${jsr_base_url}/${name}/${version}`,
 				...rest_config
 			} = config ?? {},
 			residual_path_alias = replacePrefix(path_alias, baseAliasDir)?.replace(/^\/+/, "/")
@@ -229,9 +229,9 @@ export class DenoPackageMetadata extends RuntimePackageMetadata<DenoJsonSchema> 
 
 	static override async fromUrl<
 		SCHEMA extends DenoJsonSchema,
-		INSTANCE = DenoPackageMetadata,
+		INSTANCE = DenoPackage,
 	>(jsr_package: URL | string): Promise<INSTANCE> {
-		// TODO: ideally, we should also memorize the resulting instance of `DenoPackageMetadata` that gets created via this static method,
+		// TODO: ideally, we should also memorize the resulting instance of `DenoPackage` that gets created via this static method,
 		//   so that subsequent calls with the same `jsr_package` will return an existing instance.
 		//   it'll be nice if we could use a memorization decorator for such a thing, but I don't have any experience with writing them, so I'll look into it in the future.
 		const

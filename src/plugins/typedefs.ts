@@ -5,6 +5,7 @@
 
 import type { DEBUG, esbuild } from "../deps.ts"
 import type { ImportMap } from "../importmap/typedefs.ts"
+import type { RuntimePackage } from "../packageman/base.ts"
 
 
 /** this is the plugin data utilized by most plugins in this library. */
@@ -31,7 +32,7 @@ export interface CommonPluginData {
 	*/
 	originalNamespace: string
 
-	/** specifies the current scope's import map aliases.
+	/** specifies the current scope's import-map aliases (which is usually just the global import-map).
 	 * 
 	 * these will need to be checked by the "unresolver" function to make sure that we don't exit out of our namespace,
 	 * while being asked for resolving the path that is part of the current scope's import map.
@@ -39,16 +40,13 @@ export interface CommonPluginData {
 	 * the keys of this object hold the aliased name of the import, while the values hold the absolute path of the referenced resource.
 	 * 
 	 * for further reading on import maps, see {@link ImportMap}.
-	 * 
-	 * TODO: this feature needs to be implemented, and I might need an efficient way to be able to tell whether a given path
-	 *   string is a super-string of one of the import map keys.
-	 * TODO: I should also merge the `exports` field of `deno.json` into the current scope's import map, since deno does allow
-	 *   a package/library to self reference via one of the following (and it works even when offline):
-	 *   - `@user/library` or `library` (i.e.  package json's (e.g. deno.json, package.json, jsr.json) `name` field)
-	 *   - `jsr:@user/library`
-	 *   - `jsr:@user/library@current_version`
 	*/
 	importMap: ImportMap
+
+	/** specifies the current scope's runtime package manager (such as deno, jsr, npm, node, etc...),
+	 * so that the package's own import and export aliases can be resolved appropriately.
+	*/
+	runtimePackage?: RuntimePackage<any>
 }
 
 /** this is the common configuration interface for resolver functions of most plugins of this library. */
