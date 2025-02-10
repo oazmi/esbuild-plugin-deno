@@ -33,7 +33,8 @@
  * 	resIm = pkg_metadata.resolveImport.bind(pkg_metadata),
  * 	resEx = pkg_metadata.resolveExport.bind(pkg_metadata),
  * 	config_1 = { basePathDir: "" },
- * 	config_2 = { baseAliasDir: "jsr:@scope/lib" }
+ * 	config_2 = { baseAliasDir: "jsr:@scope/lib" },
+ * 	config_3 = { baseAliasDir: "", basePathDir: "" }
  * 
  * 
  * // testing out the import alias-path resolution of the package own export-map (i.e. self-referenced imports).
@@ -73,6 +74,8 @@
  * eq(resEx("jsr:@scope/lib",               config_2), "https://jsr.io/@scope/lib/0.1.0/src/mod.ts")
  * eq(resEx("jsr:@scope/lib/",              config_2), "https://jsr.io/@scope/lib/0.1.0/src/mod.ts")
  * eq(resEx("jsr:@scope/lib@0.1.0",         config_1), "./src/mod.ts")
+ * eq(resEx(".",                            config_3), "./src/mod.ts")
+ * eq(resEx(".",                { baseAliasDir: "" }), "https://jsr.io/@scope/lib/0.1.0/src/mod.ts")
  * eq(resEx("SELF",         { baseAliasDir: "SELF" }), "https://jsr.io/@scope/lib/0.1.0/src/mod.ts")
  * eq(resEx("jsr:@scope/lib@0.1.0"),                   "https://jsr.io/@scope/lib/0.1.0/src/mod.ts")
  * eq(resEx("jsr:@scope/lib@0.1.0/"),                  "https://jsr.io/@scope/lib/0.1.0/src/mod.ts")
