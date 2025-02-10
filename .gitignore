@@ -16,4 +16,4 @@
 /src/license.md
 
 # test artifacts
-/test/dist/
+/test/**/dist/

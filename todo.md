@@ -1,5 +1,9 @@
 # TODO
 
+## pre-version `0.4.0` todo list
+
+- [ ] add granulated tests for each plugin, and combination of plugins (for intertwined path resolution)
+
 ## pre-version `0.3.0` todo list
 
 - [ ] npm plugin (it will probably need access to the filesystem, for esbuild to discover it natively)
