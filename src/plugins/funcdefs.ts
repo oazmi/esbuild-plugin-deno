@@ -3,10 +3,11 @@
  * @module
 */
 
-import { DEBUG, ensureEndSlash, ensureStartDotSlash, joinPaths, json_stringify, resolveAsUrl, type esbuild } from "../deps.ts"
+import { DEBUG, ensureEndSlash, ensureStartDotSlash, joinPaths, json_stringify, pathToPosixPath, resolveAsUrl, type esbuild } from "../deps.ts"
 import { resolvePathFromImportMap } from "../importmap/mod.ts"
 import type { ImportMap } from "../importmap/typedefs.ts"
 import { guessHttpResponseLoaders } from "../loadermap/mod.ts"
+import type { RuntimePackage } from "../packageman/base.ts"
 import type { CommonPluginData, CommonPluginLoaderConfig, CommonPluginResolverConfig } from "./typedefs.ts"
 
 
@@ -43,17 +44,34 @@ export const onResolveFactory = (
 		// - `args.path` is _possibly_ relative when the entity is imported by a another entity
 		// - `args.resolveDir` is almost always an empty string, or a malformed/non-existing path, UNLESS what is being loaded is a node module package.
 		const
-			{ path, resolveDir, importer, namespace, pluginData } = args,
+			{ path, resolveDir, importer, namespace, pluginData = {} } = args,
 			originalNamespace = namespace,
-			importMap = { ...globalImportMap, ...pluginData?.importMap } as ImportMap
-		let resolved_path = resolvePathFromImportMap(path, importMap)
+			importMap = { ...globalImportMap, ...pluginData.importMap } as ImportMap,
+			runtimePackage = pluginData.runtimePackage as RuntimePackage<any> | undefined
+		let resolved_path: string | undefined = undefined
+
+		if (runtimePackage && !path.startsWith("./") && !path.startsWith("../")) {
+			// if the input `path` is an import being performed inside of a package, in addition to not being a relative import,
+			// then use the package manager to resolve the imported path.
+			resolved_path = runtimePackage.resolveImport(path)
+		}
+
 		if (resolved_path === undefined) {
-			// the input `path` is not an alias key of the full `importMap`. thus, we need to resolve `path` by traditional means. 
+			// if there was no package manager, or if it could not resolve our `path`, then try using the `importMap` for resolving.
+			resolved_path = resolvePathFromImportMap(path, importMap)
+		}
+
+		if (resolved_path === undefined) {
+			// the input `path` is neither resolvable by the `runtimePackage`, nor is it an alias key of the full `importMap`.
+			// thus, we need to resolve `path` by traditional means.
 			const dir = isAbsolutePath(importer)
 				? importer
 				: joinPaths(ensureEndSlash(resolveDir), importer)
-			resolved_path = isAbsolutePath(path) ? path : resolvePath(dir, ensureStartDotSlash(path))
+			resolved_path = isAbsolutePath(path)
+				? pathToPosixPath(path) // I don't want to see ugly windows back-slashes in the esbuild resolved-path comments and metafile
+				: resolvePath(dir, ensureStartDotSlash(path))
 		}
+
 		if (DEBUG.LOG && log) { console.log(`[${plugin_ns}] onResolve:`, { path, resolved_path, args, importMap }) }
 		return {
 			path: resolved_path,
@@ -62,6 +80,9 @@ export const onResolveFactory = (
 			//   doing so would let us propagate our `globalImportMap` to all dependencies,
 			//   without them needing to be resolved specifically by _this_ resolver function.
 			//   but it may have unintended consequences, so I'll leave it out for now.
+			// NOTICE: I am intentionally letting any potential `pluginData.originalNamespace` overwrite the `originalNamespace` variable.
+			//   this is because I want the very first namespace to persevere even if the current `path` that is currently being resolved
+			//   goes through several recursive calls (i.e. ping-pongs) between `onResolveFactory`s and `unResolveFactory`s.
 			pluginData: { originalNamespace, ...pluginData } satisfies CommonPluginData
 		}
 	}
@@ -94,7 +115,7 @@ export const unResolveFactory = (
 ): ((args: esbuild.OnResolveArgs) => Promise<esbuild.OnResolveResult>) => {
 	const
 		{ log, namespace: plugin_ns } = config,
-		on_resolve_fn = onResolveFactory({ ...config, log: false, namespace: "oazmi-unresolver-namespace-doesnt-matter" })
+		on_resolve_fn = onResolveFactory({ ...config, log: false, namespace: "oazmi-unresolver-namespace-does-not-matter" })
 
 	// this function resolves either an absolute or relative http href link (provided in the `args`)
 	return async (args: esbuild.OnResolveArgs): Promise<esbuild.OnResolveResult> => {
@@ -103,6 +124,7 @@ export const unResolveFactory = (
 			namespace: _0,
 			pluginData: {
 				importMap,
+				runtimePackage,
 				originalNamespace: namespace,
 				...restPluginData
 			} = {} satisfies Partial<CommonPluginData>,
@@ -115,11 +137,11 @@ export const unResolveFactory = (
 			namespace: _1,
 			pluginData: _2,
 			...rest_resolved_args
-		} = await on_resolve_fn({ path, namespace, ...rest_args, pluginData: { importMap } })
+		} = await on_resolve_fn({ path, namespace, ...rest_args, pluginData: { importMap, runtimePackage } })
 		const naturally_resolved_result = await build.resolve(resolved_abs_path!, {
 			...rest_args,
 			namespace,
-			pluginData: { importMap, ...restPluginData },
+			pluginData: { importMap, runtimePackage, ...restPluginData },
 		})
 		if (DEBUG.LOG && log) { console.log(`[${plugin_ns}] unResolve:`, { path, resolved_abs_path, naturally_resolved_result, rest_resolved_args }) }
 		return { ...rest_resolved_args, ...naturally_resolved_result }
