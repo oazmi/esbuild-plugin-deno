@@ -17,7 +17,17 @@
 		"./npm/"
 	],
 	"exports": {
-		".": "./src/mod.ts"
+		".": "./src/mod.ts",
+		"./importmap": "./src/importmap/mod.ts",
+		"./loadermap": "./src/loadermap/mod.ts",
+		"./packageman/base": "./src/packageman/base.ts",
+		"./packageman/deno": "./src/packageman/deno.ts",
+		"./plugins": "./src/plugins/mod.ts",
+		"./plugins/http": "./src/plugins/http.ts",
+		"./plugins/importmap": "./src/plugins/importmap.ts",
+		"./plugins/jsr": "./src/plugins/jsr.ts",
+		"./plugins/funcdefs": "./src/plugins/funcdefs.ts",
+		"./plugins/typedefs": "./src/plugins/typedefs.ts"
 	},
 	"imports": {
 		"@oazmi/kitchensink": "jsr:@oazmi/kitchensink@0.9.6",

@@ -10,18 +10,18 @@
 
 ## pre-version `0.2.0` todo list
 
-- [ ] optional global import map config at top level of the "all-in-one" plugin config
+- [x] optional global import map config at top level of the "all-in-one" plugin config
 - [ ] rename old cached fetch to `memCachedFetch`
 - [ ] create a filesystem based cached fetch named `fsCachedFetch`
 
 ## pre-version `0.1.1` todo list
 
-- [ ] create an "all-in-one" plugin that is a combination of all of the plugins.
+- [x] create an "all-in-one" plugin that is a combination of all of the plugins.
 - [ ] implement cached fetch for resource caching
 - [ ] cached fetch should also retry due to timeout (up to 10 times)
 - [ ] cached fetch should also follow redirects (up to 10 times) (or just set `{ redirect: "follow" }` in `fetch` options)
 
-## pre-version `0.1.0` todo list
+## (2025-02-10) pre-version `0.1.0` todo list
 
 - [x] import map in `PluginData`
 - [x] inside of `resolvePathFromImportMap`, we should normalize the input `path` first (see [MDN](https://developer.mozilla.org/en-US/docs/Web/HTML/Element/script/type/importmap#module_specifier_map:~:text=A%20module%20specifier%20of%20./foo/../js/app.js%20would%20be%20resolved%20to%20./js/app.js%20before%20matching)).
