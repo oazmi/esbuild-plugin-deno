@@ -141,3 +141,11 @@ export const importMapPluginSetup = (config: Partial<ImportMapPluginSetupConfig>
 		build.onResolve({ filter, namespace: inputNamespace }, onResolveImportMapFactory(pluginResolverConfig, build))
 	})
 }
+
+/** {@inheritDoc importMapPluginSetup} */
+export const importMapPlugin = (config?: Partial<ImportMapPluginSetupConfig>): esbuild.Plugin => {
+	return {
+		name: "oazmi-importmap-plugin",
+		setup: importMapPluginSetup(config),
+	}
+}

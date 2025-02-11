@@ -8,7 +8,7 @@ import { DenoPackage } from "../packageman/deno.ts"
 import type { CommonPluginData, CommonPluginResolverConfig } from "./typedefs.ts"
 
 
-interface JsrPluginSetupConfig {
+export interface JsrPluginSetupConfig {
 	filters: RegExp[]
 	globalImportMap?: CommonPluginResolverConfig["globalImportMap"]
 	resolvePath: CommonPluginResolverConfig["resolvePath"]
@@ -49,4 +49,12 @@ export const jsrPluginSetup = (config: Partial<JsrPluginSetupConfig> = {}): esbu
 			})
 		})
 	})
+}
+
+/** {@inheritDoc jsrPluginSetup} */
+export const jsrPlugin = (config?: Partial<JsrPluginSetupConfig>): esbuild.Plugin => {
+	return {
+		name: "oazmi-jsr-plugin",
+		setup: jsrPluginSetup(config),
+	}
 }

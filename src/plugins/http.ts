@@ -45,3 +45,11 @@ export const httpPluginSetup = (config: Partial<HttpPluginSetupConfig> = {}): es
 		build.onResolve({ filter: /.*/, namespace: plugin_ns }, unResolveFactory(pluginResolverConfig, build))
 	})
 }
+
+/** {@inheritDoc httpPluginSetup} */
+export const httpPlugin = (config?: Partial<HttpPluginSetupConfig>): esbuild.Plugin => {
+	return {
+		name: "oazmi-http-plugin",
+		setup: httpPluginSetup(config),
+	}
+}

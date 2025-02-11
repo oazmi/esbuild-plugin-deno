@@ -1,9 +1,7 @@
 import { promiseTimeout } from "@oazmi/kitchensink/lambda"
 import { parseFilepathInfo } from "@oazmi/kitchensink/pathman"
 import esbuild from "npm:esbuild@0.24.2"
-import { httpPluginSetup } from "../../src/plugins/http.ts"
-import { importMapPluginSetup } from "../../src/plugins/importmap.ts"
-import { jsrPluginSetup } from "../../src/plugins/jsr.ts"
+import { httpPlugin, importMapPlugin, jsrPlugin } from "../../src/mod.ts"
 
 
 Deno.test("test http plugin", async () => {
@@ -35,27 +33,18 @@ Deno.test("test http plugin", async () => {
 		write: false,
 		metafile: true,
 		plugins: [
-			{
-				name: "my-importmap-plugin",
-				setup: importMapPluginSetup({
-					importMap: {
-						"2d-array-utils": "jsr:@oazmi/kitchensink@0.9.2/array2d",
-					}
-				})
-			},
-			{
-				name: "my-http-plugin",
-				setup: httpPluginSetup({
-					globalImportMap: {
-						"2d-array-utils": "https://jsr.io/@oazmi/kitchensink/0.9.2/src/array2d.ts",
-						"https://2d-lib": "https://jsr.io/@oazmi/kitchensink/0.9.2/src/array2d.ts",
-					}
-				})
-			},
-			{
-				name: "my-jsr-plugin",
-				setup: jsrPluginSetup()
-			}
+			importMapPlugin({
+				importMap: {
+					"2d-array-utils": "jsr:@oazmi/kitchensink@0.9.2/array2d",
+				}
+			}),
+			httpPlugin({
+				globalImportMap: {
+					"2d-array-utils": "https://jsr.io/@oazmi/kitchensink/0.9.2/src/array2d.ts",
+					"https://2d-lib": "https://jsr.io/@oazmi/kitchensink/0.9.2/src/array2d.ts",
+				}
+			}),
+			jsrPlugin(),
 		],
 	})
 
