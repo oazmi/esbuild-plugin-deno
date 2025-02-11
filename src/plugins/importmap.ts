@@ -13,7 +13,7 @@ import type { ImportMap } from "../importmap/typedefs.ts"
  * so that it does not infinitely continue getting captured by it recuresively
  * (since the resolver's filter is set to capture all paths by default).
 */
-export const CAPTURED_ALREADY = Symbol()
+export const CAPTURED_ALREADY: unique symbol = Symbol()
 
 /** the generic `pluginData` interface used by the import map plugin.
  * 

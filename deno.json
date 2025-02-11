@@ -139,7 +139,7 @@
 			"description": "evaluate the documentation comment tests and examples inside of the source code."
 		},
 		"publish-jsr": {
-			"command": "deno publish --allow-slow-types",
+			"command": "deno publish",
 			"description": "publish the library to `https://jsr.io`."
 		}
 	}
