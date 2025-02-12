@@ -1,6 +1,6 @@
 {
   "name": "@oazmi/esbuild-plugin-deno",
-  "version": "0.1.1",
+  "version": "0.1.2-a",
   "description": "a suite of portable and non-invasive esbuild plugins for resolving http links, jsr packages, and import-maps, compatible with deno and nodejs",
   "keywords": [
     "esbuild-plugin",
@@ -62,6 +62,10 @@
     "build-iife": "npx esbuild \"./src/mod.ts\" --bundle --format=iife --outfile=\"./dist/@oazmi/esbuild-plugin-deno.iife.js\"",
     "build-iife-minify": "npx esbuild \"./src/mod.ts\" --bundle --minify --format=iife --outfile=\"./dist/@oazmi/esbuild-plugin-deno.iife.min.js\""
   },
+  "bundledDependencies": [
+    "@std/jsonc",
+    "@std/semver"
+  ],
   "dependencies": {
     "esbuild": "0.24.2",
     "@deno/shim-deno": "~0.18.0",
