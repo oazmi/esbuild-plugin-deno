@@ -1,0 +1,81 @@
+{
+  "name": "@oazmi/esbuild-plugin-deno",
+  "version": "0.1.1",
+  "description": "a suite of portable and non-invasive esbuild plugins for resolving http links, jsr packages, and import-maps, compatible with deno and nodejs",
+  "keywords": [
+    "esbuild-plugin",
+    "esbuild",
+    "build-tools",
+    "bundler",
+    "deno",
+    "typescript"
+  ],
+  "author": "Omar Azmi",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/oazmi/esbuild-plugin-deno.git"
+  },
+  "license": "Lulz plz don't steal yet",
+  "bugs": {
+    "url": "https://github.com/oazmi/esbuild-plugin-deno/issues"
+  },
+  "module": "./esm/mod.js",
+  "exports": {
+    ".": {
+      "import": "./esm/mod.js"
+    },
+    "./importmap": {
+      "import": "./esm/importmap/mod.js"
+    },
+    "./loadermap": {
+      "import": "./esm/loadermap/mod.js"
+    },
+    "./packageman/base": {
+      "import": "./esm/packageman/base.js"
+    },
+    "./packageman/deno": {
+      "import": "./esm/packageman/deno.js"
+    },
+    "./plugins": {
+      "import": "./esm/plugins/mod.js"
+    },
+    "./plugins/http": {
+      "import": "./esm/plugins/http.js"
+    },
+    "./plugins/importmap": {
+      "import": "./esm/plugins/importmap.js"
+    },
+    "./plugins/jsr": {
+      "import": "./esm/plugins/jsr.js"
+    },
+    "./plugins/funcdefs": {
+      "import": "./esm/plugins/funcdefs.js"
+    },
+    "./plugins/typedefs": {
+      "import": "./esm/plugins/typedefs.js"
+    }
+  },
+  "scripts": {
+    "build-dist": "npm run build-esm && npm run build-esm-minify && npm run build-iife && npm run build-iife-minify",
+    "build-esm": "npx esbuild \"./src/mod.ts\" --bundle --format=esm --outfile=\"./dist/@oazmi/esbuild-plugin-deno.esm.js\"",
+    "build-esm-minify": "npx esbuild \"./src/mod.ts\" --bundle --minify --format=esm --outfile=\"./dist/@oazmi/esbuild-plugin-deno.esm.min.js\"",
+    "build-iife": "npx esbuild \"./src/mod.ts\" --bundle --format=iife --outfile=\"./dist/@oazmi/esbuild-plugin-deno.iife.js\"",
+    "build-iife-minify": "npx esbuild \"./src/mod.ts\" --bundle --minify --format=iife --outfile=\"./dist/@oazmi/esbuild-plugin-deno.iife.min.js\""
+  },
+  "dependencies": {
+    "esbuild": "0.24.2",
+    "@deno/shim-deno": "~0.18.0",
+    "@oazmi/kitchensink": "npm:@oazmi/kitchensink@0.9.6",
+    "@std/jsonc": "npm:@jsr/std__jsonc@^1.0.1",
+    "@std/semver": "npm:@jsr/std__semver@^1.0.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20.9.0",
+    "typescript": "^5.6.0",
+    "esbuild": "^0.24.2",
+    "typedoc": "^0.27.4",
+    "typedoc-plugin-missing-exports": "^3.1.0",
+    "typedoc-plugin-mermaid": "^1.12.0"
+  },
+  "_generatedBy": "dnt@dev"
+}

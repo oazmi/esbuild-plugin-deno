@@ -1,0 +1,1 @@
+{"$schema":"https://json.schemastore.org/tsconfig","compilerOptions":{"lib":["esnext","dom"],"strict":true,"target":"ESNext","forceConsistentCasingInFileNames":true,"skipLibCheck":true,"moduleResolution":"nodenext"}}
