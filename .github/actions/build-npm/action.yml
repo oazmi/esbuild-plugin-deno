@@ -15,7 +15,7 @@ runs:
 
     - name: deno-task build-npm
       shell: bash
-      run: deno task build-npm --install
+      run: deno task build-npm
 
     - name: deno-task build-npm-dist
       shell: bash

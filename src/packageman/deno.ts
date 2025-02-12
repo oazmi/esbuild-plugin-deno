@@ -87,7 +87,7 @@
 */
 
 import { memorize } from "@oazmi/kitchensink/lambda"
-import { ensureEndSlash, isString, json_stringify, object_entries, parsePackageUrl, replacePrefix, resolveAsUrl, semverMaxSatisfying, semverParse, semverParseRange, semverToString } from "../deps.ts"
+import { defaultFetchConfig, ensureEndSlash, isString, json_stringify, object_entries, parsePackageUrl, replacePrefix, resolveAsUrl, semverMaxSatisfying, semverParse, semverParseRange, semverToString } from "../deps.ts"
 import { compareImportMapEntriesByLength, type ResolvePathFromImportMapEntriesConfig } from "../importmap/mod.ts"
 import type { ImportMapSortedEntries } from "../importmap/typedefs.ts"
 import { RuntimePackage } from "./base.ts"
@@ -292,7 +292,7 @@ export const jsrPackageToMetadataUrl = async (jsr_package: `jsr:${string}` | URL
 
 	const
 		meta_json_url = resolveAsUrl(`@${scope}/${pkg}/meta.json`, jsr_base_url),
-		meta_json = await (await fetch(meta_json_url)).json() as JsrPackageMeta,
+		meta_json = await (await fetch(meta_json_url, defaultFetchConfig)).json() as JsrPackageMeta,
 		unyanked_versions = object_entries(meta_json.versions)
 			.filter(([version_str, { yanked }]) => (!yanked))
 			.map(([version_str]) => semverParse(version_str))
@@ -313,7 +313,7 @@ export const jsrPackageToMetadataUrl = async (jsr_package: `jsr:${string}` | URL
 	// trying to fetch the package's `deno.json` file (via HEAD method), and if it fails (does not exist), then we fetch the `jsr.json` file instead.
 	const urls = [deno_json_url, jsr_json_url]
 	for (const url of urls) {
-		if ((await fetch(url, { method: "HEAD" })).ok) { return url }
+		if ((await fetch(url, { ...defaultFetchConfig, method: "HEAD" })).ok) { return url }
 	}
 
 	throw new Error(`Network Error: couldn't locate "${jsr_package}"'s package json file. searched in the following locations:\n${json_stringify(urls)}`)

@@ -1,7 +1,7 @@
 {
 	"name": "@oazmi/esbuild-plugin-deno",
-	"version": "0.1.0",
-	"description": "a collection of personal utility functions",
+	"version": "0.1.1",
+	"description": "a suite of portable and non-invasive esbuild plugins for resolving http links, jsr packages, and import-maps, compatible with deno and nodejs",
 	"author": "Omar Azmi",
 	"license": "Lulz plz don't steal yet",
 	"repository": {
@@ -50,7 +50,7 @@
 		"singleQuote": false,
 		"lineWidth": 800,
 		"proseWrap": "preserve",
-		"include": ["./src/", "./*.md", "./*.json"]
+		"include": ["./src/", "./test/", "./*.md", "./*.json"]
 	},
 	"compilerOptions": {
 		"lib": ["esnext", "dom", "deno.ns"],
