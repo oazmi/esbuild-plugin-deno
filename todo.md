@@ -4,6 +4,7 @@
 
 - [ ] support for deno and node workspaces.
 - [ ] support for `scopes` in `deno.json` (I haven't got a clue as to what it does anyway).
+- [ ] add a plugin that add support for custom mime type declaration via `import "xyz" with { mime: "my-mime/type" }`.
 
 ## pre-version `0.4.0` todo list
 
@@ -29,6 +30,10 @@
   - `() => window.location.href` (for browsers)
   - `() => request.origin` (for cloudflare workers (but how will we provide it a `request: Request` object statically?))
 - [ ] a function to detect the current runtime, so that it can be later used for predicting the base-project-level scope's `runtimePackage: RuntimePackage` (i.e. is it a `package.json(c)` or `deno.json(c)` or `jsr.json(c)`).
+- [x] add the jsr `"@std/*"` dependencies to the `packageJson.bundledDependencies` field of `deno.json`, because npm does not permit packing of the `.npmrc` file, no matter what.
+      as a result, the client downloading our package will never be able to resolve installation of `@std/jsonc` and `@std/semver`.
+      thus, we bundle these dependencies in our packed npm-distribution.
+      one unfortunate consequence is that it explodes the number of distribution files to `450+`, instead of just `55` files.
 
 ## (2025-02-11) pre-version `0.1.1` todo list
 

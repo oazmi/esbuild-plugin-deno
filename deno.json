@@ -1,6 +1,6 @@
 {
 	"name": "@oazmi/esbuild-plugin-deno",
-	"version": "0.1.1",
+	"version": "0.1.2-a",
 	"description": "a suite of portable and non-invasive esbuild plugins for resolving http links, jsr packages, and import-maps, compatible with deno and nodejs",
 	"author": "Omar Azmi",
 	"license": "Lulz plz don't steal yet",
@@ -69,6 +69,10 @@
 			"typedoc-plugin-missing-exports": "^3.1.0",
 			"typedoc-plugin-mermaid": "^1.12.0"
 		},
+		"bundledDependencies": [
+			"@std/jsonc",
+			"@std/semver"
+		],
 		"keywords": ["esbuild-plugin", "esbuild", "build-tools", "bundler", "deno", "typescript"]
 	},
 	"buildDist": {
@@ -111,6 +115,9 @@
 		"dnt": {
 			"shims": { "deno": true }
 		},
+		"copy": [
+			["./assets/", "./assets/"]
+		],
 		"text": [
 			["./.npmrc", "@jsr:registry=https://npm.jsr.io\n"]
 		]
