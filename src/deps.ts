@@ -1,9 +1,11 @@
+import { getRuntimeCwd, identifyCurrentRuntime } from "@oazmi/kitchensink/crossenv"
 import { getUriScheme, resolvePathFactory } from "@oazmi/kitchensink/pathman"
 
 
 export { json_parse, json_stringify, object_assign, object_entries, object_fromEntries, object_keys, object_values, promise_resolve } from "@oazmi/kitchensink/alias"
 export { InvertibleMap, invertMap } from "@oazmi/kitchensink/collections"
-export { ensureEndSlash, ensureStartDotSlash, joinPaths, normalizePath, parseFilepathInfo, parsePackageUrl, pathToPosixPath, resolveAsUrl } from "@oazmi/kitchensink/pathman"
+export { getRuntimeCwd, identifyCurrentRuntime } from "@oazmi/kitchensink/crossenv"
+export { ensureEndSlash, ensureStartDotSlash, joinPaths, normalizePath, parseFilepathInfo, parsePackageUrl, pathToPosixPath, resolveAsUrl, resolvePathFactory } from "@oazmi/kitchensink/pathman"
 export { replacePrefix, replaceSuffix } from "@oazmi/kitchensink/stringman"
 export { isString } from "@oazmi/kitchensink/struct"
 export type { ConstructorOf, Optional } from "@oazmi/kitchensink/typedefs"
@@ -35,5 +37,5 @@ export const isAbsolutePath = (segment: string): boolean => {
 export const defaultFetchConfig: RequestInit = { redirect: "follow", cache: "force-cache" }
 
 export const
-	getCwd = () => Deno.cwd(),
-	defaultResolvePath = resolvePathFactory(getCwd, isAbsolutePath)
+	defaultGetCwd: string = /*@__PURE__*/ getRuntimeCwd(identifyCurrentRuntime(), true),
+	defaultResolvePath = /*@__PURE__*/ resolvePathFactory(defaultGetCwd, isAbsolutePath)

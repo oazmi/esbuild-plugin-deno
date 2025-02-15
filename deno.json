@@ -1,7 +1,7 @@
 {
 	"name": "@oazmi/esbuild-plugin-deno",
 	"version": "0.1.2-a",
-	"description": "a suite of portable and non-invasive esbuild plugins for resolving http links, jsr packages, and import-maps, compatible with deno and nodejs",
+	"description": "A portable non-invasive suite of esbuild plugins for loading http, jsr, npm, and import-maps. Supports Deno, Node, Bun, Web. Alternate to @luca/esbuild-deno-loader , while compatible with other plugins and native esbuild resolvers (e.g. css loader).",
 	"author": "Omar Azmi",
 	"license": "Lulz plz don't steal yet",
 	"repository": {
@@ -30,7 +30,7 @@
 		"./plugins/typedefs": "./src/plugins/typedefs.ts"
 	},
 	"imports": {
-		"@oazmi/kitchensink": "jsr:@oazmi/kitchensink@0.9.6",
+		"@oazmi/kitchensink": "jsr:@oazmi/kitchensink@0.9.7",
 		"@std/jsonc": "jsr:@std/jsonc@^1.0.1",
 		"@std/semver": "jsr:@std/semver@^1.0.3"
 	},
@@ -58,7 +58,7 @@
 	},
 	"packageJson": {
 		"dependencies": {
-			"@oazmi/kitchensink": "npm:@oazmi/kitchensink@0.9.6",
+			"@oazmi/kitchensink": "npm:@oazmi/kitchensink@0.9.7",
 			"@std/jsonc": "npm:@jsr/std__jsonc@^1.0.1",
 			"@std/semver": "npm:@jsr/std__semver@^1.0.3"
 		},
@@ -112,12 +112,6 @@
 		"dir": "./npm/",
 		"log": "verbose",
 		"install": false,
-		"dnt": {
-			"shims": { "deno": true }
-		},
-		"copy": [
-			["./assets/", "./assets/"]
-		],
 		"text": [
 			["./.npmrc", "@jsr:registry=https://npm.jsr.io\n"]
 		]
