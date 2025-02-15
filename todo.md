@@ -17,6 +17,7 @@
 ## pre-version `0.2.0` todo list
 
 - [x] optional global import map config at top level of the "all-in-one" plugin config
+- [ ] a function to detect the current runtime, so that it can be later used for predicting the base-project-level scope's `runtimePackage: RuntimePackage` (i.e. is it a `package.json(c)` or `deno.json(c)` or `jsr.json(c)`).
 - [ ] rename old cached fetch to `memCachedFetch`
 - [ ] create a filesystem based cached fetch named `fsCachedFetch`
 - [ ] the jsr plugin setup should accept `runtimePackage: DenoPackage | URL | string` configuration option for specifying the current scope/project's `deno.json` file (if there's one).
@@ -29,10 +30,11 @@
   ```
   on the other hand, if the `npm` command is available on the host system, then we can also execute `npm install pkg-name --save-optional` (via `import { exec } from "node:child_process"; await exec("...")`) if it is not already present in `package.json`, or just `npm install pkg-name` if it is present in `package.json`.
 
-## pre-version `0.1.2` todo list
+## (2025-02-14) pre-version `0.1.2` todo list
 
-- [ ] create an `npmSpecifierPlugin` that only strips away the `"npm:"` prefix from an import path, and leaves it up to esbuild to take care of the full-path resolution and loading.
-      but if we do end up having to do the full-path resolution ourselves (to replicate esbuild's operation), we will need to assume that `node_modules` exists in the current-working-directory (i.e. `getCwd()`), and NOT esbuild's `absWorkingDir` build option.
+- [x] create an `npmSpecifierPlugin` that only strips away the `"npm:"` prefix from an import path, and leaves it up to esbuild to take care of the full-path resolution and loading.
+      ~~but if we do end up having to do the full-path resolution ourselves (to replicate esbuild's operation), we will need to assume that `node_modules` exists in the current-working-directory (i.e. `getCwd()`), and NOT esbuild's `absWorkingDir` build option.~~
+	  most of this concern does not matter, since esbuild happily resolves the node-resolution-path starting with the `resolveDir` path argument provided to the built-in resolver function, and it works its way upwards, searching for the `node_modules` folder, and then searching for the package in each.
 - [x] the `denoPlugins` should accept a `getCwd: () => string` configuration option, and base its path resolver function around it.
 - [x] if `DenoPluginsConfig.getCwd` is `undefined`, then, by default, it will try detecting the runtime environment to pick from one of:
   - `() => process.cwd()` (for node and bun)
@@ -40,7 +42,6 @@
   - `() => window.location.href` (for browsers)
   - `() => request.origin` (for cloudflare workers (but how will we provide it a `request: Request` object statically?))
   > this got implemented in [`jsr:@oazmi/kitchensink@0.9.7/crossenv`](https://github.com/omar-azmi/kitchensink_ts/commit/7eab48b1fe8f6f9473ee3e9bfd06ff6cfafec6b5), and was imported here as a dependency.
-- [ ] a function to detect the current runtime, so that it can be later used for predicting the base-project-level scope's `runtimePackage: RuntimePackage` (i.e. is it a `package.json(c)` or `deno.json(c)` or `jsr.json(c)`).
 - [x] add the jsr `"@std/*"` dependencies to the `packageJson.bundledDependencies` field of `deno.json`, because npm does not permit packing of the `.npmrc` file, no matter what.
       as a result, the client downloading our package will never be able to resolve installation of `@std/jsonc` and `@std/semver`.
       thus, we bundle these dependencies in our packed npm-distribution.
