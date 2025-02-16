@@ -1,7 +1,8 @@
 export { json_parse, json_stringify, object_assign, object_entries, object_fromEntries, object_keys, object_values, promise_resolve } from "@oazmi/kitchensink/alias";
 export { InvertibleMap, invertMap } from "@oazmi/kitchensink/collections";
-export { ensureEndSlash, ensureStartDotSlash, joinPaths, normalizePath, parseFilepathInfo, parsePackageUrl, pathToPosixPath, resolveAsUrl } from "@oazmi/kitchensink/pathman";
-export { replacePrefix, replaceSuffix } from "@oazmi/kitchensink/stringman";
+export { getRuntimeCwd, identifyCurrentRuntime } from "@oazmi/kitchensink/crossenv";
+export { ensureEndSlash, ensureStartDotSlash, joinPaths, normalizePath, parseFilepathInfo, parsePackageUrl, pathToPosixPath, resolveAsUrl, resolvePathFactory } from "@oazmi/kitchensink/pathman";
+export { escapeLiteralStringForRegex, replacePrefix, replaceSuffix } from "@oazmi/kitchensink/stringman";
 export { isString } from "@oazmi/kitchensink/struct";
 export type { ConstructorOf, Optional } from "@oazmi/kitchensink/typedefs";
 export { parse as jsoncParse } from "@std/jsonc";
@@ -18,5 +19,5 @@ export declare const enum DEBUG {
 export declare const isAbsolutePath: (segment: string) => boolean;
 /** global configuration for all `fetch` calls. */
 export declare const defaultFetchConfig: RequestInit;
-export declare const getCwd: () => any, defaultResolvePath: any;
+export declare const defaultGetCwd: string, defaultResolvePath: any;
 //# sourceMappingURL=deps.d.ts.map

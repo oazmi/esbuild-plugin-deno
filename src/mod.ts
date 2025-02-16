@@ -8,4 +8,6 @@ export { jsrPlugin } from "./plugins/jsr.js"
 export type { JsrPluginSetupConfig } from "./plugins/jsr.js"
 export { denoPlugins } from "./plugins/mod.js"
 export type { DenoPluginsConfig } from "./plugins/mod.js"
+export { npmSpecifierPlugin } from "./plugins/npm.js"
+export type { NpmSpecifierPluginSetupConfig } from "./plugins/npm.js"
 

@@ -56,7 +56,7 @@ export const onResolveFactory = (config) => {
                 : resolvePath(dir, ensureStartDotSlash(path));
         }
         if (DEBUG.LOG && log) {
-            console.log(`[${plugin_ns}] onResolve:`, { path, resolved_path, args, importMap });
+            console.log(`[${plugin_ns}] onResolve:`, { path, resolved_path, resolveDir, args, importMap });
         }
         return {
             path: resolved_path,

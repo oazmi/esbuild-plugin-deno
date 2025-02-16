@@ -3,3 +3,4 @@ export { httpPlugin } from "./plugins/http.js";
 export { importMapPlugin } from "./plugins/importmap.js";
 export { jsrPlugin } from "./plugins/jsr.js";
 export { denoPlugins } from "./plugins/mod.js";
+export { npmSpecifierPlugin } from "./plugins/npm.js";

@@ -1,9 +1,10 @@
-import * as dntShim from "./_dnt.shims.js";
+import { getRuntimeCwd, identifyCurrentRuntime } from "@oazmi/kitchensink/crossenv";
 import { getUriScheme, resolvePathFactory } from "@oazmi/kitchensink/pathman";
 export { json_parse, json_stringify, object_assign, object_entries, object_fromEntries, object_keys, object_values, promise_resolve } from "@oazmi/kitchensink/alias";
 export { InvertibleMap, invertMap } from "@oazmi/kitchensink/collections";
-export { ensureEndSlash, ensureStartDotSlash, joinPaths, normalizePath, parseFilepathInfo, parsePackageUrl, pathToPosixPath, resolveAsUrl } from "@oazmi/kitchensink/pathman";
-export { replacePrefix, replaceSuffix } from "@oazmi/kitchensink/stringman";
+export { getRuntimeCwd, identifyCurrentRuntime } from "@oazmi/kitchensink/crossenv";
+export { ensureEndSlash, ensureStartDotSlash, joinPaths, normalizePath, parseFilepathInfo, parsePackageUrl, pathToPosixPath, resolveAsUrl, resolvePathFactory } from "@oazmi/kitchensink/pathman";
+export { escapeLiteralStringForRegex, replacePrefix, replaceSuffix } from "@oazmi/kitchensink/stringman";
 export { isString } from "@oazmi/kitchensink/struct";
 export { parse as jsoncParse } from "@std/jsonc";
 export { maxSatisfying as semverMaxSatisfying, minSatisfying as semverMinSatisfying, parse as semverParse, parseRange as semverParseRange, format as semverToString } from "@std/semver";
@@ -28,4 +29,4 @@ export const isAbsolutePath = (segment) => {
 };
 /** global configuration for all `fetch` calls. */
 export const defaultFetchConfig = { redirect: "follow", cache: "force-cache" };
-export const getCwd = () => dntShim.Deno.cwd(), defaultResolvePath = resolvePathFactory(getCwd, isAbsolutePath);
+export const defaultGetCwd = /*@__PURE__*/ getRuntimeCwd(identifyCurrentRuntime(), true), defaultResolvePath = /*@__PURE__*/ resolvePathFactory(defaultGetCwd, isAbsolutePath);
