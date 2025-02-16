@@ -17,9 +17,11 @@ runs:
       shell: bash
       run: deno task build-npm
 
-    - name: deno-task build-npm-dist
-      shell: bash
-      run: deno task build-npm-dist
+    # TODO: right now, we skip creating npm-distribution,
+    #   since using the ".npmrc" file with aliases for jsr breaks things.
+    # - name: deno-task build-npm-dist
+    #   shell: bash
+    #   run: deno task build-npm-dist
 
     - name: create npm branch
       uses: s0/git-publish-subdir-action@develop

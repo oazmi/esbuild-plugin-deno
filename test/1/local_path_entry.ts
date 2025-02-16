@@ -1,3 +1,5 @@
+// @ts-nocheck: disable type checking for file since we use import aliases that only our plugin is capable of resolving.
+
 // the "2d-array-utils" alias below will be resolved via our import-map-plugin, instead of the http-plugin,
 // since we will be in the local "file" namespace when this file is loaded by esbuild.
 import { meshGrid } from "2d-array-utils"
