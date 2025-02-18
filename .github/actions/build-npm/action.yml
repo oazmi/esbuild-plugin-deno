@@ -11,17 +11,15 @@ runs:
     - name: setup node
       uses: actions/setup-node@v3
       with:
-        node-version: 20
+        node-version: 22
 
     - name: deno-task build-npm
       shell: bash
       run: deno task build-npm
 
-    # TODO: right now, we skip creating npm-distribution,
-    #   since using the ".npmrc" file with aliases for jsr breaks things.
-    # - name: deno-task build-npm-dist
-    #   shell: bash
-    #   run: deno task build-npm-dist
+    - name: deno-task build-npm-dist
+      shell: bash
+      run: deno task build-npm-dist
 
     - name: create npm branch
       uses: s0/git-publish-subdir-action@develop

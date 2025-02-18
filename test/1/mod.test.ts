@@ -21,6 +21,11 @@ Deno.test("test http plugin", async () => {
 		out: "entry-" + parseFilepathInfo(path).basename
 	}))
 
+	// TODO: while the `autoInstall` option is not implemented, we must manually trick deno into installing `npm:@oazmi/kitchensink`,
+	//   if it does not already exist in our local `./node_modules/` folder.
+	//   this is done by simply importing the said package, while ensuring that `"nodeModulesDir": "auto"` is enabled in `deno.json`.
+	await import("npm:@oazmi/kitchensink@0.9.7")
+
 	const result = await esbuild.build({
 		absWorkingDir: import.meta.dirname,
 		entryPoints: entry_points,
