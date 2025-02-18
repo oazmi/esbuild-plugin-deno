@@ -11,7 +11,7 @@ export { isString } from "@oazmi/kitchensink/struct"
 export type { ConstructorOf, Optional } from "@oazmi/kitchensink/typedefs"
 export { parse as jsoncParse } from "@std/jsonc"
 export { maxSatisfying as semverMaxSatisfying, minSatisfying as semverMinSatisfying, parse as semverParse, parseRange as semverParseRange, format as semverToString } from "@std/semver"
-export type * as esbuild from "npm:esbuild@0.25.0"
+export type * as esbuild from "npm:esbuild@^0.25.0"
 
 /** flags used for minifying (or eliminating) debugging logs and asserts, when an intelligent bundler, such as `esbuild`, is used. */
 export const enum DEBUG {

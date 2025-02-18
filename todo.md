@@ -4,7 +4,11 @@
 
 - [ ] support for deno and node workspaces.
 - [ ] support for `scopes` in `deno.json` (I haven't got a clue as to what it does anyway).
-- [ ] add a plugin that add support for custom mime type declaration via `import "xyz" with { mime: "my-mime/type" }`.
+- [ ] ~~add a plugin that add support for custom mime type declaration via `import "xyz" with { mime: "my-mime/type" }`.~~
+  > better yet, see the generalized approach in the task below:
+- [ ] add a custom build-options/load-options plugin that can set a custom loader (or perform a separate bundle-build) based on the "with" import attributes.
+- [ ] create a stub `esbuild.PluginBuild` object that can be used for testing the `onResolve` calls of individual plugins.
+      this would allow for the creation of unit tests, and also provide the plugin users with a better understanding of how the resource resolution works.
 
 ## pre-version `0.4.0` todo list
 
@@ -12,14 +16,16 @@
 
 ## pre-version `0.3.0` todo list
 
-- [ ] npm plugin (it will probably need access to the filesystem, for esbuild to discover it natively)
+- [ ] npm-package download plugin (it will probably need access to the filesystem, for esbuild to discover it natively)
 
 ## pre-version `0.2.0` todo list
 
 - [x] optional global import map config at top level of the "all-in-one" plugin config
 - [ ] a function to detect the current runtime, so that it can be later used for predicting the base-project-level scope's `runtimePackage: RuntimePackage` (i.e. is it a `package.json(c)` or `deno.json(c)` or `jsr.json(c)`).
-- [ ] rename old cached fetch to `memCachedFetch`
-- [ ] create a filesystem based cached fetch named `fsCachedFetch`
+- [ ] ~~rename old cached fetch to `memCachedFetch`~~
+  > will not implement right now (maybe in the future).
+- [ ] ~~create a filesystem based cached fetch named `fsCachedFetch`~~
+  > will not implement right now (maybe in the future).
 - [ ] the jsr plugin setup should accept `runtimePackage: DenoPackage | URL | string` configuration option for specifying the current scope/project's `deno.json` file (if there's one).
 - [ ] in either the `jsrPlugin` or a new `npmPlugin`, we should install npm packages via deno, by tricking it into importing the package and storing it into local `node_modules` folder (which WILL require `"nodeModulesDir": "auto"` in the top-level package's `deno.json`) in the following way:
   ```ts
@@ -34,7 +40,7 @@
 
 - [x] create an `npmSpecifierPlugin` that only strips away the `"npm:"` prefix from an import path, and leaves it up to esbuild to take care of the full-path resolution and loading.
       ~~but if we do end up having to do the full-path resolution ourselves (to replicate esbuild's operation), we will need to assume that `node_modules` exists in the current-working-directory (i.e. `getCwd()`), and NOT esbuild's `absWorkingDir` build option.~~
-	  most of this concern does not matter, since esbuild happily resolves the node-resolution-path starting with the `resolveDir` path argument provided to the built-in resolver function, and it works its way upwards, searching for the `node_modules` folder, and then searching for the package in each.
+  > most of this concern does not matter, since esbuild happily resolves the node-resolution-path starting with the `resolveDir` path argument provided to the built-in resolver function, and it works its way upwards, searching for the `node_modules` folder, and then searching for the package in each.
 - [x] the `denoPlugins` should accept a `getCwd: () => string` configuration option, and base its path resolver function around it.
 - [x] if `DenoPluginsConfig.getCwd` is `undefined`, then, by default, it will try detecting the runtime environment to pick from one of:
   - `() => process.cwd()` (for node and bun)

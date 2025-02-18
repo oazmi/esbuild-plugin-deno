@@ -7,6 +7,7 @@ import { DEBUG, defaultResolvePath, ensureEndSlash, type esbuild, escapeLiteralS
 import type { CommonPluginData, CommonPluginResolverConfig } from "./typedefs.ts"
 
 
+/** configuration options for the {@link npmSpecifierPluginSetup} and {@link npmSpecifierPlugin} functions. */
 export interface NpmSpecifierPluginSetupConfig {
 	/** provide a list of prefix specifiers used for npm packages.
 	 * 
@@ -35,12 +36,16 @@ export interface NpmSpecifierPluginSetupConfig {
 	 *   or default to `true` if this config option is set to `"defaultTrue"`.
 	 *   (esbuild exhibits the `"defaultTrue"` behavior by default anyway, so this specific option selection will be kind of redundant).
 	 * TODO: since in effect the `"auto"` option is equivalent to `"defaultTrue"`, I'm uncertain whether I should even keep the `"auto"` option.
+	 * 
+	 * @defaultValue `"auto"`
 	*/
 	sideEffects: boolean | "auto" | "defaultFalse" | "defaultTrue"
 
 	/** auto install missing npm-package (the executed action/technique will vary based on the js-runtime-environment).
 	 * 
 	 * TODO: needs to be implemented. see details in `/todo.md`, under pre-version `0.2.0`.
+	 * 
+	 * @defaultValue `true`
 	*/
 	autoInstall: boolean
 }
@@ -55,6 +60,14 @@ const defaultNpmSpecifierPluginSetupConfig: NpmSpecifierPluginSetupConfig = {
 
 const log = false
 
+/** this plugin lets you redirect resource-paths beginning with an `"npm:"` specifier to your local `node_modules` folder.
+ * after that, the module resolution task is carried by esbuild (for which you must ensure that you've ran `npm install`).
+ * check the interface {@link NpmSpecifierPluginSetupConfig} to understand what configuration options are available to you.
+ * 
+ * example: `"npm:@oazmi/kitchensink@^0.9.8"` will be redirected to `"@oazmi/kitchensink"`.
+ * and yes, the version number does currently get lost as a result.
+ * so you'll have to pray that esbuild ends up in the `node_modules` folder consisting of the correct version, otherwise, rip.
+*/
 export const npmSpecifierPluginSetup = (config: Partial<NpmSpecifierPluginSetupConfig> = {}): esbuild.Plugin["setup"] => {
 	const
 		{ specifiers, globalImportMap, resolvePath, sideEffects, autoInstall } = { ...defaultNpmSpecifierPluginSetupConfig, ...config },
