@@ -19,7 +19,16 @@ const mime_map_entries = object_entries(mimeMap).map(([loader_name, mime_types])
 const extension_map_entries = object_entries(extensionMap).map(([loader_name, extension_types]) => {
     return [loader_name, new Set(extension_types)];
 });
-export const mimeTypeLoaderMap = new InvertibleMap(new Map(mime_map_entries)), extensionTypeLoaderMap = new InvertibleMap(new Map(extension_map_entries));
+/** a pre-defined invertible-mapping between http-header `"content-type"` (aka mime-type) and esbuild's default loader selection.
+ *
+ * the mapping definitions are located in the {@link mimeMap | `./mimes.json`} file.
+*/
+export const mimeTypeLoaderMap = new InvertibleMap(new Map(mime_map_entries));
+/** a pre-defined invertible-mapping between path-extensions (suffix) and esbuild's default loader selection.
+ *
+ * the mapping definitions are located in the {@link extensionMap | `./extensions.json`} file.
+*/
+export const extensionTypeLoaderMap = new InvertibleMap(new Map(extension_map_entries));
 /** guesses the potential esbuild loader types for a given mime type.
  *
  * @param content_type the mime string that you wish to guess the loader of

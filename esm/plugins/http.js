@@ -12,6 +12,10 @@ export const defaultHttpPluginSetupConfig = {
     namespace: "oazmi-http",
     resolvePath: defaultResolvePath,
 };
+/** this plugin intercepts `"http://"` and `"https://"` resource paths,
+ * resolves them if they're from an http importer script, then fetches the requested http resource,
+ * and finally tries guessing the resource's `loader` type by inspecting its `"content-type"` http-header and/or its path extension/suffix.
+*/
 export const httpPluginSetup = (config = {}) => {
     const { acceptLoaders, defaultLoader, filters, globalImportMap, namespace: plugin_ns, resolvePath } = { ...defaultHttpPluginSetupConfig, ...config }, pluginResolverConfig = { isAbsolutePath, namespace: plugin_ns, globalImportMap, resolvePath }, pluginLoaderConfig = { acceptLoaders, defaultLoader, namespace: plugin_ns };
     return (async (build) => {

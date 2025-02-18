@@ -11,6 +11,14 @@ const defaultNpmSpecifierPluginSetupConfig = {
     autoInstall: true,
 };
 const log = false;
+/** this plugin lets you redirect resource-paths beginning with an `"npm:"` specifier to your local `node_modules` folder.
+ * after that, the module resolution task is carried by esbuild (for which you must ensure that you've ran `npm install`).
+ * check the interface {@link NpmSpecifierPluginSetupConfig} to understand what configuration options are available to you.
+ *
+ * example: `"npm:@oazmi/kitchensink@^0.9.8"` will be redirected to `"@oazmi/kitchensink"`.
+ * and yes, the version number does currently get lost as a result.
+ * so you'll have to pray that esbuild ends up in the `node_modules` folder consisting of the correct version, otherwise, rip.
+*/
 export const npmSpecifierPluginSetup = (config = {}) => {
     const { specifiers, globalImportMap, resolvePath, sideEffects, autoInstall } = { ...defaultNpmSpecifierPluginSetupConfig, ...config }, forcedSideEffectsMode = isString(sideEffects) ? undefined : sideEffects;
     return (async (build) => {

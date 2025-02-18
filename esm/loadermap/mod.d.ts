@@ -13,7 +13,16 @@
 import { InvertibleMap, type esbuild } from "../deps.js";
 export type MimeType = string;
 export type ExtensionType = string;
-export declare const mimeTypeLoaderMap: InvertibleMap<esbuild.Loader, string>, extensionTypeLoaderMap: InvertibleMap<esbuild.Loader, string>;
+/** a pre-defined invertible-mapping between http-header `"content-type"` (aka mime-type) and esbuild's default loader selection.
+ *
+ * the mapping definitions are located in the {@link mimeMap | `./mimes.json`} file.
+*/
+export declare const mimeTypeLoaderMap: InvertibleMap<esbuild.Loader, string>;
+/** a pre-defined invertible-mapping between path-extensions (suffix) and esbuild's default loader selection.
+ *
+ * the mapping definitions are located in the {@link extensionMap | `./extensions.json`} file.
+*/
+export declare const extensionTypeLoaderMap: InvertibleMap<esbuild.Loader, string>;
 /** guesses the potential esbuild loader types for a given mime type.
  *
  * @param content_type the mime string that you wish to guess the loader of
