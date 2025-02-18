@@ -3,7 +3,7 @@
  * @module
 */
 
-import { DEBUG, ensureEndSlash, ensureStartDotSlash, joinPaths, json_stringify, pathToPosixPath, resolveAsUrl, type esbuild } from "../deps.ts"
+import { DEBUG, defaultFetchConfig, ensureEndSlash, ensureStartDotSlash, joinPaths, json_stringify, pathToPosixPath, resolveAsUrl, type esbuild } from "../deps.ts"
 import { resolvePathFromImportMap } from "../importmap/mod.ts"
 import type { ImportMap } from "../importmap/typedefs.ts"
 import { guessHttpResponseLoaders } from "../loadermap/mod.ts"
@@ -72,7 +72,7 @@ export const onResolveFactory = (
 				: resolvePath(dir, ensureStartDotSlash(path))
 		}
 
-		if (DEBUG.LOG && log) { console.log(`[${plugin_ns}] onResolve:`, { path, resolved_path, args, importMap }) }
+		if (DEBUG.LOG && log) { console.log(`[${plugin_ns}] onResolve:`, { path, resolved_path, resolveDir, args, importMap }) }
 		return {
 			path: resolved_path,
 			namespace: plugin_ns,
@@ -209,7 +209,7 @@ export const urlLoaderFactory = (
 		const
 			{ path, pluginData } = args,
 			path_url = resolveAsUrl(path),
-			response = await fetch(path_url)
+			response = await fetch(path_url, defaultFetchConfig)
 		if (!response.ok) {
 			throw new Error(`[${plugin_ns}] onLoadUrl: ERROR: network fetch response for url "${path_url.href}" was not ok (${response.status}). response header:\n${json_stringify(response.headers)}`)
 		}

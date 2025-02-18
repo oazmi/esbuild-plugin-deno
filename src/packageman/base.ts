@@ -4,7 +4,7 @@
  * @module
 */
 
-import { defaultResolvePath, jsoncParse, resolveAsUrl, type ConstructorOf } from "../deps.ts"
+import { defaultFetchConfig, defaultResolvePath, jsoncParse, resolveAsUrl, type ConstructorOf } from "../deps.ts"
 import { resolvePathFromImportMapEntries, type ResolvePathFromImportMapEntriesConfig } from "../importmap/mod.ts"
 import type { ImportMapSortedEntries } from "../importmap/typedefs.ts"
 
@@ -81,7 +81,7 @@ export abstract class RuntimePackage<SCHEMA extends Record<string, any>> {
 		INSTANCE = RuntimePackage<SCHEMA>,
 	>(this: ConstructorOf<INSTANCE, [SCHEMA]>, package_jsonc_path: URL | string): Promise<INSTANCE> {
 		package_jsonc_path = resolveAsUrl(package_jsonc_path, defaultResolvePath())
-		const package_object = jsoncParse(await ((await fetch(package_jsonc_path)).text())) as SCHEMA
+		const package_object = jsoncParse(await ((await fetch(package_jsonc_path, defaultFetchConfig)).text())) as SCHEMA
 		return new this(package_object)
 	}
 }
