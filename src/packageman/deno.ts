@@ -25,7 +25,7 @@
  * 	}
  * }
  * 
- * const pkg_metadata = new DenoPackage(my_deno_json)
+ * const pkg_metadata = new DenoPackage(my_deno_json, "")
  * 
  * // aliasing our functions, methods, and configurations for brevity
  * const
@@ -87,7 +87,7 @@
 */
 
 import { memorize } from "@oazmi/kitchensink/lambda"
-import { defaultFetchConfig, ensureEndSlash, isString, json_stringify, object_entries, parsePackageUrl, replacePrefix, resolveAsUrl, semverMaxSatisfying, semverParse, semverParseRange, semverToString } from "../deps.ts"
+import { defaultFetchConfig, ensureEndSlash, isString, json_stringify, normalizePath, object_entries, parsePackageUrl, pathToPosixPath, replacePrefix, resolveAsUrl, semverMaxSatisfying, semverParse, semverParseRange, semverToString } from "../deps.ts"
 import { compareImportMapEntriesByLength, type ResolvePathFromImportMapEntriesConfig } from "../importmap/mod.ts"
 import type { ImportMapSortedEntries } from "../importmap/typedefs.ts"
 import { RuntimePackage } from "./base.ts"
@@ -163,8 +163,13 @@ export class DenoPackage extends RuntimePackage<DenoJsonSchema> {
 
 	override getVersion(): string { return this.packageInfo.version! }
 
-	constructor(package_object: DenoJsonSchema) {
-		super(package_object)
+	override getPath(): string {
+		const package_path = this.packagePath
+		return package_path ? package_path : `${jsr_base_url}/${this.getName()}/${this.getVersion()}/deno.json`
+	}
+
+	constructor(package_object: DenoJsonSchema, package_path: string) {
+		super(package_object, package_path)
 		const
 			{ exports = {}, imports = {} } = package_object,
 			exports_object = isString(exports) ? (exports.endsWith("/")
@@ -194,9 +199,10 @@ export class DenoPackage extends RuntimePackage<DenoJsonSchema> {
 		const
 			name = this.getName(),
 			version = this.getVersion(),
+			package_json_path = pathToPosixPath(this.getPath()),
 			{
 				baseAliasDir = `jsr:${name}@${version}`,
-				basePathDir = `${jsr_base_url}/${name}/${version}`,
+				basePathDir = normalizePath(package_json_path.endsWith("/") ? package_json_path : package_json_path + "/../"),
 				...rest_config
 			} = config ?? {},
 			residual_path_alias = replacePrefix(path_alias, baseAliasDir)?.replace(/^\/+/, "/")
