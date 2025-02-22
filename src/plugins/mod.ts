@@ -7,12 +7,13 @@ import type { esbuild } from "../deps.ts"
 import { defaultGetCwd, isAbsolutePath, resolvePathFactory } from "../deps.ts"
 import { httpPlugin } from "./http.ts"
 import { importMapPlugin, type ImportMapPluginSetupConfig } from "./importmap.ts"
+import { denoInitialDataPlugin, type DenoInitialPluginData } from "./initialdata.ts"
 import { jsrPlugin } from "./jsr.ts"
 import { npmSpecifierPlugin } from "./npm.ts"
 
 
 /** the configuration interface for the deno esbuild plugins suite {@link denoPlugins}. */
-export interface DenoPluginsConfig extends Pick<ImportMapPluginSetupConfig, "importMap"> {
+export interface DenoPluginsConfig extends Pick<ImportMapPluginSetupConfig, "importMap">, Pick<DenoInitialPluginData, "runtimePackage"> {
 	/** provide an optional function (or a static `string`) that returns the absolute path to the current working directory.
 	 * make sure that it always returns a posix-style path (i.e. uses "/" for directory separator, and not "\\").
 	 * 
@@ -29,6 +30,7 @@ export interface DenoPluginsConfig extends Pick<ImportMapPluginSetupConfig, "imp
 }
 
 export const defaultDenoPluginsConfig: DenoPluginsConfig = {
+	runtimePackage: undefined,
 	importMap: {},
 	getCwd: defaultGetCwd,
 }
@@ -42,16 +44,18 @@ export const defaultDenoPluginsConfig: DenoPluginsConfig = {
  * - {@link npmSpecifierPlugin}: provides a resolver that strips away `npm:` specifier prefixes.
 */
 export const denoPlugins = (config?: Partial<DenoPluginsConfig>): [
+	deno_initialdata_plugin: esbuild.Plugin,
 	importmap_plugin: esbuild.Plugin,
 	http_plugin: esbuild.Plugin,
 	jsr_plugin: esbuild.Plugin,
 	npm_specifier_plugin: esbuild.Plugin,
 ] => {
 	const
-		{ importMap, getCwd } = { ...defaultDenoPluginsConfig, ...config },
+		{ runtimePackage, importMap, getCwd } = { ...defaultDenoPluginsConfig, ...config },
 		resolvePath = resolvePathFactory(getCwd, isAbsolutePath)
 
 	return [
+		denoInitialDataPlugin({ pluginData: { runtimePackage } }),
 		importMapPlugin({ importMap }),
 		httpPlugin({ globalImportMap: importMap, resolvePath }),
 		jsrPlugin({ globalImportMap: importMap, resolvePath }),

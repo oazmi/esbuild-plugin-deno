@@ -25,6 +25,7 @@
 		"./plugins": "./src/plugins/mod.ts",
 		"./plugins/http": "./src/plugins/http.ts",
 		"./plugins/importmap": "./src/plugins/importmap.ts",
+		"./plugins/initialdata": "./src/plugins/initialdata.ts",
 		"./plugins/jsr": "./src/plugins/jsr.ts",
 		"./plugins/npm": "./src/plugins/npm.ts",
 		"./plugins/funcdefs": "./src/plugins/funcdefs.ts",

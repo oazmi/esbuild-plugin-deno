@@ -1,7 +1,7 @@
 import { promiseTimeout } from "@oazmi/kitchensink/lambda"
 import { parseFilepathInfo } from "@oazmi/kitchensink/pathman"
 import esbuild from "npm:esbuild@0.25.0"
-import { httpPlugin, importMapPlugin, jsrPlugin, npmSpecifierPlugin } from "../../src/mod.ts"
+import { denoInitialDataPlugin, httpPlugin, importMapPlugin, jsrPlugin, npmSpecifierPlugin } from "../../src/mod.ts"
 
 
 Deno.test("test http plugin", async () => {
@@ -39,6 +39,7 @@ Deno.test("test http plugin", async () => {
 		write: false,
 		metafile: true,
 		plugins: [
+			denoInitialDataPlugin({ pluginData: { runtimePackage: "./deno.json" } }),
 			importMapPlugin({
 				importMap: {
 					"2d-array-utils": "jsr:@oazmi/kitchensink@0.9.2/array2d",
