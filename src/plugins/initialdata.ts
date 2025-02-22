@@ -7,7 +7,11 @@
  * @module
 */
 
-import { normalizePath, type esbuild } from "../deps.ts"
+import { defaultResolvePath, isAbsolutePath, isString, normalizePath, resolveAsUrl, type esbuild } from "../deps.ts"
+import { RuntimePackage } from "../packageman/base.ts"
+import { DenoPackage } from "../packageman/deno.ts"
+import { unResolveFactory } from "./funcdefs.ts"
+import type { CommonPluginData, CommonPluginResolverConfig } from "./typedefs.ts"
 
 
 /** a symbol that gets implanted into resolving-entry's `pluginData`,
@@ -70,17 +74,17 @@ export interface ResolveInitialDataFactoryConfig<T = any> {
 
 /** the configuration interface for the initial-data esbuild plugin {@link initialDataPluginSetup}. */
 export interface InitialDataPluginSetupConfig<T = any> extends ResolveInitialDataFactoryConfig<T> {
-	/** specify the regex filter to use for your initial-data-injection plugin.
+	/** specify the regex filters to use for your initial-data-injection plugin.
 	 * 
-	 * @defaultValue `RegExp(".*")` (captures all input entities)
+	 * @defaultValue `[RegExp(".*"),]` (which captures all input entities)
 	*/
-	filter: esbuild.OnResolveOptions["filter"]
+	filters: Array<esbuild.OnResolveOptions["filter"]>
 
 	/** specify the namespace filter to use for your initial-data-injection plugin.
 	 * 
 	 * @defaultValue `undefined` (captures all inputs in the default namespace, which is either `"file"`, `""`, or `undefined`)
 	*/
-	inputNamespace?: esbuild.OnResolveOptions["namespace"]
+	namespace?: esbuild.OnResolveOptions["namespace"]
 }
 
 const defaultResolveInitialDataFactoryConfig: ResolveInitialDataFactoryConfig<any> = {
@@ -92,8 +96,8 @@ const defaultResolveInitialDataFactoryConfig: ResolveInitialDataFactoryConfig<an
 
 const defaultInitialDataPluginSetupConfig: InitialDataPluginSetupConfig<any> = {
 	...defaultResolveInitialDataFactoryConfig,
-	filter: /.*/,
-	inputNamespace: undefined,
+	filters: [/.*/],
+	namespace: undefined,
 }
 
 const onResolveInitialDataFactory = <T>(config: Partial<ResolveInitialDataFactoryConfig<T>>, build: esbuild.PluginBuild) => {
@@ -144,13 +148,15 @@ const onResolveInitialDataFactory = <T>(config: Partial<ResolveInitialDataFactor
 */
 export const initialDataPluginSetup = <T = any>(config: Partial<InitialDataPluginSetupConfig<T>> = {}): esbuild.Plugin["setup"] => {
 	const
-		{ filter, inputNamespace, ...rest_config } = { ...defaultInitialDataPluginSetupConfig, ...config },
+		{ filters, namespace, ...rest_config } = { ...defaultInitialDataPluginSetupConfig, ...config },
 		pluginResolverConfig: Partial<ResolveInitialDataFactoryConfig<T>> = rest_config
 
 	return (async (build: esbuild.PluginBuild): Promise<void> => {
 		const { absWorkingDir, outdir, outfile, entryPoints, write, loader } = build.initialOptions
 
-		build.onResolve({ filter, namespace: inputNamespace }, onResolveInitialDataFactory(pluginResolverConfig, build))
+		filters.forEach((filter) => {
+			build.onResolve({ filter, namespace }, onResolveInitialDataFactory(pluginResolverConfig, build))
+		})
 	})
 }
 
@@ -160,4 +166,77 @@ export const initialDataPlugin = <T = any>(config?: Partial<InitialDataPluginSet
 		name: "oazmi-initialdata-plugin",
 		setup: initialDataPluginSetup<T>(config),
 	}
+}
+
+export interface DenoInitialPluginData extends Partial<Omit<CommonPluginData, "runtimePackage">> {
+	runtimePackage?: RuntimePackage<any> | URL | string
+}
+
+export interface DenoInitialDataPluginSetupConfig extends InitialDataPluginSetupConfig<DenoInitialPluginData>, Omit<CommonPluginResolverConfig, "namespace"> { }
+
+const defaultDenoInitialDataPluginSetupConfig: DenoInitialDataPluginSetupConfig = {
+	...defaultInitialDataPluginSetupConfig,
+	resolvePath: defaultResolvePath,
+	isAbsolutePath: isAbsolutePath,
+}
+
+export const denoInitialDataPluginSetup = (config: Partial<DenoInitialDataPluginSetupConfig> = {}): esbuild.Plugin["setup"] => {
+	const
+		{ filters, namespace, ...rest_config_1 } = { ...defaultDenoInitialDataPluginSetupConfig, ...config },
+		{ isAbsolutePath, resolvePath, log: _0, globalImportMap: _1, ...rest_config_2 } = rest_config_1,
+		{ pluginData, ...partialPluginResolverConfig }: ResolveInitialDataFactoryConfig<DenoInitialPluginData> = rest_config_2,
+		initial_plugin_data_promise = commonPluginResolverConfig_to_denoInitialPluginData({ isAbsolutePath, resolvePath }, pluginData)
+
+	return (async (build: esbuild.PluginBuild): Promise<void> => {
+		const
+			{ absWorkingDir, outdir, outfile, entryPoints, write, loader } = build.initialOptions,
+			initial_plugin_data = await initial_plugin_data_promise,
+			pluginResolverConfig: ResolveInitialDataFactoryConfig<Partial<CommonPluginData>> = { ...partialPluginResolverConfig, pluginData: initial_plugin_data }
+
+		filters.forEach((filter) => {
+			build.onResolve({ filter, namespace }, onResolveInitialDataFactory(pluginResolverConfig, build))
+			build.onResolve({ filter, namespace }, async (args: esbuild.OnResolveArgs): Promise<esbuild.OnResolveResult | undefined> => {
+				const
+					{ path, pluginData = {}, ...rest_args } = args,
+					runtimePackage = pluginData.runtimePackage as RuntimePackage<any> | undefined
+				if (runtimePackage && !path.startsWith("./") && !path.startsWith("../")) {
+					// if the input `path` is an import being performed inside of a package, in addition to not being a relative import,
+					// then use the package manager to resolve the imported path.
+					const resolved_path = runtimePackage.resolveImport(path)
+					if (resolved_path) {
+						return build.resolve(resolved_path, { ...rest_args, pluginData, namespace: "oazmi-temp-namespace-1" })
+					}
+				}
+				return undefined
+			})
+			build.onResolve({ filter: /.*/, namespace: "oazmi-temp-namespace-1" }, unResolveFactory({ isAbsolutePath, resolvePath, namespace: "" }, build))
+		})
+	})
+}
+
+/** {@inheritDoc denoInitialDataPluginSetup} */
+export const denoInitialDataPlugin = (config?: Partial<DenoInitialDataPluginSetupConfig>): esbuild.Plugin => {
+	return {
+		name: "oazmi-deno-initialdata-plugin",
+		setup: denoInitialDataPluginSetup(config),
+	}
+}
+
+export const commonPluginResolverConfig_to_denoInitialPluginData = async (
+	config: Pick<CommonPluginResolverConfig, "isAbsolutePath" | "resolvePath">,
+	plugin_data: Partial<DenoInitialPluginData> = {},
+): Promise<Partial<CommonPluginData>> => {
+	const
+		{ isAbsolutePath, resolvePath } = config,
+		{ runtimePackage } = plugin_data,
+		denoPackage = runtimePackage === undefined ? undefined
+			: runtimePackage instanceof RuntimePackage ? runtimePackage
+				: await DenoPackage.fromUrl(isString(runtimePackage)
+					? resolveAsUrl(isAbsolutePath(runtimePackage)
+						? runtimePackage
+						: resolvePath(runtimePackage)
+					)
+					: runtimePackage
+				)
+	return { ...plugin_data, runtimePackage: denoPackage }
 }
