@@ -86,7 +86,7 @@ console.log(meshGrid([1, 2, 3], [0, -1, -2, -3, -4]), cumulativeSum([1, 2, 3, 4]
 export { http, https }
 ```
 
-entry points 3 to 7:
+remote entry points 3 to 7:
 
 ```ts
 // jsr-file version range:  "jsr:@oazmi/kitchensink@^0.9.2/array1d"
