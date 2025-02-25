@@ -5,9 +5,11 @@
 import { defaultGetCwd, isAbsolutePath, resolvePathFactory } from "../deps.js";
 import { httpPlugin } from "./http.js";
 import { importMapPlugin } from "./importmap.js";
+import { denoInitialDataPlugin } from "./initialdata.js";
 import { jsrPlugin } from "./jsr.js";
 import { npmSpecifierPlugin } from "./npm.js";
 export const defaultDenoPluginsConfig = {
+    runtimePackage: undefined,
     importMap: {},
     getCwd: defaultGetCwd,
 };
@@ -20,8 +22,9 @@ export const defaultDenoPluginsConfig = {
  * - {@link npmSpecifierPlugin}: provides a resolver that strips away `npm:` specifier prefixes.
 */
 export const denoPlugins = (config) => {
-    const { importMap, getCwd } = { ...defaultDenoPluginsConfig, ...config }, resolvePath = resolvePathFactory(getCwd, isAbsolutePath);
+    const { runtimePackage, importMap, getCwd } = { ...defaultDenoPluginsConfig, ...config }, resolvePath = resolvePathFactory(getCwd, isAbsolutePath);
     return [
+        denoInitialDataPlugin({ pluginData: { runtimePackage } }),
         importMapPlugin({ importMap }),
         httpPlugin({ globalImportMap: importMap, resolvePath }),
         jsrPlugin({ globalImportMap: importMap, resolvePath }),

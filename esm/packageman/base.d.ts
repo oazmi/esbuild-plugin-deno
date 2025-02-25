@@ -13,6 +13,12 @@ import type { ImportMapSortedEntries } from "../importmap/typedefs.js";
  * @template SCHEMA a record type representing the package schema.
 */
 export declare abstract class RuntimePackage<SCHEMA extends Record<string, any>> {
+    /** the path or url of the package json(c) file.
+     *
+     * the {@link RuntimePackage | base class} does nothing with this information;
+     * it is just there so that subclasses can make uses of this information (usually for resolving relative paths).
+    */
+    protected readonly packagePath: string;
     /** the fetched/parsed package metadata file's raw contents. */
     protected readonly packageInfo: SCHEMA;
     /** the import-map entries of the package, sorted from the largest key-alias to the shortest.
@@ -31,11 +37,17 @@ export declare abstract class RuntimePackage<SCHEMA extends Record<string, any>>
      *   - in the case of node, this would be your json-parsed "package.json" file.
      *   - in the case of deno, this would be your json-parsed "deno.json" file.
     */
-    constructor(package_object: SCHEMA);
+    constructor(package_object: SCHEMA, package_path: string);
     /** get the package's name. */
     abstract getName(): string;
     /** get the package's version string. */
     abstract getVersion(): string;
+    /** get the path/url to the package's json(c) file.
+     *
+     * the {@link RuntimePackage | base class} does nothing with this information;
+     * it is just there so that subclasses can make uses of this information (usually for resolving relative paths).
+    */
+    getPath(): string;
     /** this method tries to resolve the provided export `path_alias` of this package,
      * to an absolutely referenced path to the resource (using the internal {@link exportMapSortedEntries}).
      * if no exported resources match the given `path_alias`, then `undefined` will be returned.
@@ -59,6 +71,6 @@ export declare abstract class RuntimePackage<SCHEMA extends Record<string, any>>
      * > the constructor uses a "JSONC" parser (from [@std/jsonc](https://jsr.io/@std/jsonc)) for the fetched files.
      * > therefore, you may provide links to ".jsonc" files, instead of parsing them yourself before calling the super constructor.
     */
-    static fromUrl<SCHEMA extends Record<string, any>, INSTANCE = RuntimePackage<SCHEMA>>(this: ConstructorOf<INSTANCE, [SCHEMA]>, package_jsonc_path: URL | string): Promise<INSTANCE>;
+    static fromUrl<SCHEMA extends Record<string, any>, INSTANCE = RuntimePackage<SCHEMA>>(this: ConstructorOf<INSTANCE, [SCHEMA, string]>, package_jsonc_path: URL | string): Promise<INSTANCE>;
 }
 //# sourceMappingURL=base.d.ts.map

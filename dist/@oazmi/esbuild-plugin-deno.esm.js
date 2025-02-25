@@ -1980,33 +1980,31 @@ var importMapPlugin = (config) => {
   };
 };
 
-// node_modules/@oazmi/kitchensink/esm/lambda.js
-var THROTTLE_REJECT = /* @__PURE__ */ Symbol(DEBUG.MINIFY || "a rejection by a throttled function");
-var TIMEOUT = /* @__PURE__ */ Symbol(DEBUG.MINIFY || "a timeout by an awaited promiseTimeout function");
-var memorizeCore = (fn, weak_ref = false) => {
-  const memory = weak_ref ? new HybridWeakMap() : /* @__PURE__ */ new Map(), get = bindMethodToSelfByName(memory, "get"), set = bindMethodToSelfByName(memory, "set"), has = bindMethodToSelfByName(memory, "has"), memorized_fn = (arg) => {
-    const arg_exists = has(arg), value = arg_exists ? get(arg) : fn(arg);
-    if (!arg_exists) {
-      set(arg, value);
-    }
-    return value;
-  };
-  return { fn: memorized_fn, memory };
-};
-var memorize = (fn) => {
-  return memorizeCore(fn).fn;
-};
-
 // src/packageman/base.ts
 var RuntimePackage = class {
+  /** the path or url of the package json(c) file.
+   * 
+   * the {@link RuntimePackage | base class} does nothing with this information;
+   * it is just there so that subclasses can make uses of this information (usually for resolving relative paths).
+  */
+  packagePath;
   /** the fetched/parsed package metadata file's raw contents. */
   packageInfo;
   /** @param package_object the parsed package metadata as an object.
    *   - in the case of node, this would be your json-parsed "package.json" file.
    *   - in the case of deno, this would be your json-parsed "deno.json" file.
   */
-  constructor(package_object) {
+  constructor(package_object, package_path) {
     this.packageInfo = package_object;
+    this.packagePath = package_path;
+  }
+  /** get the path/url to the package's json(c) file.
+   * 
+   * the {@link RuntimePackage | base class} does nothing with this information;
+   * it is just there so that subclasses can make uses of this information (usually for resolving relative paths).
+  */
+  getPath() {
+    return this.packagePath;
   }
   /** this method tries to resolve the provided export `path_alias` of this package,
    * to an absolutely referenced path to the resource (using the internal {@link exportMapSortedEntries}).
@@ -2038,8 +2036,25 @@ var RuntimePackage = class {
   static async fromUrl(package_jsonc_path) {
     package_jsonc_path = resolveAsUrl(package_jsonc_path, defaultResolvePath());
     const package_object = parse(await (await fetch(package_jsonc_path, defaultFetchConfig)).text());
-    return new this(package_object);
+    return new this(package_object, package_jsonc_path.href);
   }
+};
+
+// node_modules/@oazmi/kitchensink/esm/lambda.js
+var THROTTLE_REJECT = /* @__PURE__ */ Symbol(DEBUG.MINIFY || "a rejection by a throttled function");
+var TIMEOUT = /* @__PURE__ */ Symbol(DEBUG.MINIFY || "a timeout by an awaited promiseTimeout function");
+var memorizeCore = (fn, weak_ref = false) => {
+  const memory = weak_ref ? new HybridWeakMap() : /* @__PURE__ */ new Map(), get = bindMethodToSelfByName(memory, "get"), set = bindMethodToSelfByName(memory, "set"), has = bindMethodToSelfByName(memory, "has"), memorized_fn = (arg) => {
+    const arg_exists = has(arg), value = arg_exists ? get(arg) : fn(arg);
+    if (!arg_exists) {
+      set(arg, value);
+    }
+    return value;
+  };
+  return { fn: memorized_fn, memory };
+};
+var memorize = (fn) => {
+  return memorizeCore(fn).fn;
 };
 
 // src/packageman/deno.ts
@@ -2052,8 +2067,12 @@ var DenoPackage = class extends RuntimePackage {
   getVersion() {
     return this.packageInfo.version;
   }
-  constructor(package_object) {
-    super(package_object);
+  getPath() {
+    const package_path = this.packagePath;
+    return package_path ? package_path : `${jsr_base_url}/${this.getName()}/${this.getVersion()}/deno.json`;
+  }
+  constructor(package_object, package_path) {
+    super(package_object, package_path);
     const { exports = {}, imports = {} } = package_object, exports_object = isString(exports) ? exports.endsWith("/") ? { "./": exports } : { ".": exports } : exports, imports_object = { ...imports };
     for (const [alias, path] of object_entries(imports_object)) {
       const alias_dir_variant = ensureEndSlash(alias);
@@ -2065,9 +2084,9 @@ var DenoPackage = class extends RuntimePackage {
     this.importMapSortedEntries = object_entries(imports_object).toSorted(compareImportMapEntriesByLength);
   }
   resolveExport(path_alias, config) {
-    const name = this.getName(), version = this.getVersion(), {
+    const name = this.getName(), version = this.getVersion(), package_json_path = pathToPosixPath(this.getPath()), {
       baseAliasDir = `jsr:${name}@${version}`,
-      basePathDir = `${jsr_base_url}/${name}/${version}`,
+      basePathDir = normalizePath(package_json_path.endsWith("/") ? package_json_path : package_json_path + "/../"),
       ...rest_config
     } = config ?? {}, residual_path_alias = replacePrefix(path_alias, baseAliasDir)?.replace(/^\/+/, "/");
     if (residual_path_alias !== void 0) {
@@ -2120,6 +2139,80 @@ var jsrPackageToMetadataUrl = async (jsr_package) => {
 ${json_stringify(urls)}`);
 };
 var memorized_jsrPackageToMetadataUrl = memorize(jsrPackageToMetadataUrl);
+
+// src/plugins/initialdata.ts
+var CAPTURED_ALREADY2 = Symbol();
+var defaultResolveInitialDataFactoryConfig = {
+  pluginData: {},
+  pluginDataMarker: CAPTURED_ALREADY2,
+  captureDependencies: true,
+  onResolveArgs: {}
+};
+var defaultInitialDataPluginSetupConfig = {
+  ...defaultResolveInitialDataFactoryConfig,
+  filters: [/.*/],
+  namespace: void 0
+};
+var onResolveInitialDataFactory = (config, build) => {
+  const { pluginData: initialPluginData, pluginDataMarker, captureDependencies, onResolveArgs } = { ...defaultResolveInitialDataFactoryConfig, ...config }, captured_resolved_paths = /* @__PURE__ */ new Set();
+  return async (args) => {
+    const { path, pluginData = {}, ...rest_args } = args, merged_plugin_data = { ...initialPluginData, ...pluginData }, { kind, importer } = rest_args;
+    if (kind !== "entry-point" && !captured_resolved_paths.has(normalizePath(importer))) {
+      return void 0;
+    }
+    if (merged_plugin_data[pluginDataMarker]) {
+      return void 0;
+    }
+    merged_plugin_data[pluginDataMarker] = true;
+    const resolved_result = await build.resolve(path, { ...rest_args, ...onResolveArgs, pluginData: merged_plugin_data });
+    if (resolved_result.pluginData === void 0) {
+      resolved_result.pluginData = merged_plugin_data;
+    }
+    if (captureDependencies) {
+      captured_resolved_paths.add(normalizePath(resolved_result.path));
+    }
+    return { ...resolved_result, pluginData: merged_plugin_data };
+  };
+};
+var defaultDenoInitialDataPluginSetupConfig = {
+  ...defaultInitialDataPluginSetupConfig,
+  resolvePath: defaultResolvePath,
+  isAbsolutePath: isAbsolutePath2
+};
+var denoInitialDataPluginSetup = (config = {}) => {
+  const { filters, namespace, ...rest_config_1 } = { ...defaultDenoInitialDataPluginSetupConfig, ...config }, { isAbsolutePath: isAbsolutePath3, resolvePath, log: _0, globalImportMap: _1, ...rest_config_2 } = rest_config_1, { pluginData, ...partialPluginResolverConfig } = rest_config_2, initial_plugin_data_promise = commonPluginResolverConfig_to_denoInitialPluginData({ isAbsolutePath: isAbsolutePath3, resolvePath }, pluginData);
+  return async (build) => {
+    const { absWorkingDir, outdir, outfile, entryPoints, write, loader } = build.initialOptions, initial_plugin_data = await initial_plugin_data_promise, pluginResolverConfig = { ...partialPluginResolverConfig, pluginData: initial_plugin_data };
+    filters.forEach((filter) => {
+      build.onResolve({ filter, namespace }, onResolveInitialDataFactory(pluginResolverConfig, build));
+      build.onResolve({ filter, namespace }, async (args) => {
+        const { path, pluginData: pluginData2 = {}, ...rest_args } = args, runtimePackage = pluginData2.runtimePackage;
+        if (runtimePackage && !path.startsWith("./") && !path.startsWith("../")) {
+          const resolved_path = runtimePackage.resolveImport(path);
+          if (resolved_path) {
+            return build.resolve(resolved_path, { ...rest_args, pluginData: pluginData2, namespace: "oazmi-temp-namespace-1" });
+          }
+        }
+        return void 0;
+      });
+      build.onResolve({ filter: /.*/, namespace: "oazmi-temp-namespace-1" }, unResolveFactory({ isAbsolutePath: isAbsolutePath3, resolvePath, namespace: "" }, build));
+    });
+  };
+};
+var denoInitialDataPlugin = (config) => {
+  return {
+    name: "oazmi-deno-initialdata-plugin",
+    setup: denoInitialDataPluginSetup(config)
+  };
+};
+var commonPluginResolverConfig_to_denoInitialPluginData = async (config, plugin_data = {}) => {
+  const { isAbsolutePath: isAbsolutePath3, resolvePath } = config, { runtimePackage } = plugin_data, denoPackage = runtimePackage === void 0 ? void 0 : runtimePackage instanceof RuntimePackage ? runtimePackage : await DenoPackage.fromUrl(
+    isString(runtimePackage) ? resolveAsUrl(
+      isAbsolutePath3(runtimePackage) ? runtimePackage : resolvePath(runtimePackage)
+    ) : runtimePackage
+  );
+  return { ...plugin_data, runtimePackage: denoPackage };
+};
 
 // src/plugins/jsr.ts
 var defaultJsrPluginSetupConfig = {
@@ -2202,12 +2295,14 @@ var npmSpecifierPlugin = (config) => {
 
 // src/plugins/mod.ts
 var defaultDenoPluginsConfig = {
+  runtimePackage: void 0,
   importMap: {},
   getCwd: defaultGetCwd
 };
 var denoPlugins = (config) => {
-  const { importMap, getCwd } = { ...defaultDenoPluginsConfig, ...config }, resolvePath = resolvePathFactory(getCwd, isAbsolutePath2);
+  const { runtimePackage, importMap, getCwd } = { ...defaultDenoPluginsConfig, ...config }, resolvePath = resolvePathFactory(getCwd, isAbsolutePath2);
   return [
+    denoInitialDataPlugin({ pluginData: { runtimePackage } }),
     importMapPlugin({ importMap }),
     httpPlugin({ globalImportMap: importMap, resolvePath }),
     jsrPlugin({ globalImportMap: importMap, resolvePath }),
@@ -2215,6 +2310,7 @@ var denoPlugins = (config) => {
   ];
 };
 export {
+  denoInitialDataPlugin,
   denoPlugins,
   httpPlugin,
   importMapPlugin,

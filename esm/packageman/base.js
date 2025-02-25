@@ -12,15 +12,28 @@ import { resolvePathFromImportMapEntries } from "../importmap/mod.js";
  * @template SCHEMA a record type representing the package schema.
 */
 export class RuntimePackage {
+    /** the path or url of the package json(c) file.
+     *
+     * the {@link RuntimePackage | base class} does nothing with this information;
+     * it is just there so that subclasses can make uses of this information (usually for resolving relative paths).
+    */
+    packagePath;
     /** the fetched/parsed package metadata file's raw contents. */
     packageInfo;
     /** @param package_object the parsed package metadata as an object.
      *   - in the case of node, this would be your json-parsed "package.json" file.
      *   - in the case of deno, this would be your json-parsed "deno.json" file.
     */
-    constructor(package_object) {
+    constructor(package_object, package_path) {
         this.packageInfo = package_object;
+        this.packagePath = package_path;
     }
+    /** get the path/url to the package's json(c) file.
+     *
+     * the {@link RuntimePackage | base class} does nothing with this information;
+     * it is just there so that subclasses can make uses of this information (usually for resolving relative paths).
+    */
+    getPath() { return this.packagePath; }
     /** this method tries to resolve the provided export `path_alias` of this package,
      * to an absolutely referenced path to the resource (using the internal {@link exportMapSortedEntries}).
      * if no exported resources match the given `path_alias`, then `undefined` will be returned.
@@ -51,6 +64,6 @@ export class RuntimePackage {
     static async fromUrl(package_jsonc_path) {
         package_jsonc_path = resolveAsUrl(package_jsonc_path, defaultResolvePath());
         const package_object = jsoncParse(await ((await fetch(package_jsonc_path, defaultFetchConfig)).text()));
-        return new this(package_object);
+        return new this(package_object, package_jsonc_path.href);
     }
 }

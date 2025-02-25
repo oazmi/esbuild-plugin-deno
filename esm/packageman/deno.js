@@ -25,7 +25,7 @@
  * 	}
  * }
  *
- * const pkg_metadata = new DenoPackage(my_deno_json)
+ * const pkg_metadata = new DenoPackage(my_deno_json, "")
  *
  * // aliasing our functions, methods, and configurations for brevity
  * const
@@ -86,7 +86,7 @@
  * ```
 */
 import { memorize } from "@oazmi/kitchensink/lambda";
-import { defaultFetchConfig, ensureEndSlash, isString, json_stringify, object_entries, parsePackageUrl, replacePrefix, resolveAsUrl, semverMaxSatisfying, semverParse, semverParseRange, semverToString } from "../deps.js";
+import { defaultFetchConfig, ensureEndSlash, isString, json_stringify, normalizePath, object_entries, parsePackageUrl, pathToPosixPath, replacePrefix, resolveAsUrl, semverMaxSatisfying, semverParse, semverParseRange, semverToString } from "../deps.js";
 import { compareImportMapEntriesByLength } from "../importmap/mod.js";
 import { RuntimePackage } from "./base.js";
 export class DenoPackage extends RuntimePackage {
@@ -94,8 +94,12 @@ export class DenoPackage extends RuntimePackage {
     exportMapSortedEntries;
     getName() { return this.packageInfo.name; }
     getVersion() { return this.packageInfo.version; }
-    constructor(package_object) {
-        super(package_object);
+    getPath() {
+        const package_path = this.packagePath;
+        return package_path ? package_path : `${jsr_base_url}/${this.getName()}/${this.getVersion()}/deno.json`;
+    }
+    constructor(package_object, package_path) {
+        super(package_object, package_path);
         const { exports = {}, imports = {} } = package_object, exports_object = isString(exports) ? (exports.endsWith("/")
             ? { "./": exports }
             : { ".": exports }) : exports, imports_object = { ...imports };
@@ -115,7 +119,7 @@ export class DenoPackage extends RuntimePackage {
         this.importMapSortedEntries = object_entries(imports_object).toSorted(compareImportMapEntriesByLength);
     }
     resolveExport(path_alias, config) {
-        const name = this.getName(), version = this.getVersion(), { baseAliasDir = `jsr:${name}@${version}`, basePathDir = `${jsr_base_url}/${name}/${version}`, ...rest_config } = config ?? {}, residual_path_alias = replacePrefix(path_alias, baseAliasDir)?.replace(/^\/+/, "/");
+        const name = this.getName(), version = this.getVersion(), package_json_path = pathToPosixPath(this.getPath()), { baseAliasDir = `jsr:${name}@${version}`, basePathDir = normalizePath(package_json_path.endsWith("/") ? package_json_path : package_json_path + "/../"), ...rest_config } = config ?? {}, residual_path_alias = replacePrefix(path_alias, baseAliasDir)?.replace(/^\/+/, "/");
         if (residual_path_alias !== undefined) {
             path_alias = baseAliasDir + (residual_path_alias === "/" ? "" : residual_path_alias);
         }

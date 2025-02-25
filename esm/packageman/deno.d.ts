@@ -25,7 +25,7 @@
  * 	}
  * }
  *
- * const pkg_metadata = new DenoPackage(my_deno_json)
+ * const pkg_metadata = new DenoPackage(my_deno_json, "")
  *
  * // aliasing our functions, methods, and configurations for brevity
  * const
@@ -145,7 +145,8 @@ export declare class DenoPackage extends RuntimePackage<DenoJsonSchema> {
     protected readonly exportMapSortedEntries: ImportMapSortedEntries;
     getName(): string;
     getVersion(): string;
-    constructor(package_object: DenoJsonSchema);
+    getPath(): string;
+    constructor(package_object: DenoJsonSchema, package_path: string);
     resolveExport(path_alias: string, config?: Partial<ResolvePathFromImportMapEntriesConfig>): string | undefined;
     resolveImport(path_alias: string, config?: Partial<ResolvePathFromImportMapEntriesConfig>): string | undefined;
     static fromUrl<SCHEMA extends DenoJsonSchema, INSTANCE = DenoPackage>(jsr_package: URL | string): Promise<INSTANCE>;

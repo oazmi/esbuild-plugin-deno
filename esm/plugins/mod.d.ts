@@ -4,8 +4,9 @@
 */
 import type { esbuild } from "../deps.js";
 import { type ImportMapPluginSetupConfig } from "./importmap.js";
+import { type DenoInitialPluginData } from "./initialdata.js";
 /** the configuration interface for the deno esbuild plugins suite {@link denoPlugins}. */
-export interface DenoPluginsConfig extends Pick<ImportMapPluginSetupConfig, "importMap"> {
+export interface DenoPluginsConfig extends Pick<ImportMapPluginSetupConfig, "importMap">, Pick<DenoInitialPluginData, "runtimePackage"> {
     /** provide an optional function (or a static `string`) that returns the absolute path to the current working directory.
      * make sure that it always returns a posix-style path (i.e. uses "/" for directory separator, and not "\\").
      *
@@ -29,5 +30,5 @@ export declare const defaultDenoPluginsConfig: DenoPluginsConfig;
  * - {@link jsrPlugin}: provides a `jsr:` to `https://jsr.io/` path-resolver.
  * - {@link npmSpecifierPlugin}: provides a resolver that strips away `npm:` specifier prefixes.
 */
-export declare const denoPlugins: (config?: Partial<DenoPluginsConfig>) => [importmap_plugin: esbuild.Plugin, http_plugin: esbuild.Plugin, jsr_plugin: esbuild.Plugin, npm_specifier_plugin: esbuild.Plugin];
+export declare const denoPlugins: (config?: Partial<DenoPluginsConfig>) => [deno_initialdata_plugin: esbuild.Plugin, importmap_plugin: esbuild.Plugin, http_plugin: esbuild.Plugin, jsr_plugin: esbuild.Plugin, npm_specifier_plugin: esbuild.Plugin];
 //# sourceMappingURL=mod.d.ts.map
