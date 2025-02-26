@@ -41,7 +41,7 @@
   > will not implement right now (maybe in the future).
 - [x] the jsr plugin setup should accept `runtimePackage: DenoPackage | URL | string` configuration option for specifying the current scope/project's `deno.json` file (if there's one).
   > instead of this, in version `0.1.4 (2025-02-22)` I had implemented an "initial plugin-data" plugin that injected the user's current project's `DenoPackage` into `pluginData.runtimePackage`, for all entry-points, and their dependencies.
-- [x] in either the `jsrPlugin` or a new `npmPlugin`, we should install npm packages via deno, by tricking it into importing the package and storing it into local `node_modules` folder (which WILL require `"nodeModulesDir": "auto"` in the top-level package's `deno.json`) in the following way:
+- [ ] in either the `jsrPlugin` or a new `npmPlugin`, we should install npm packages via deno, by tricking it into importing the package and storing it into local `node_modules` folder (which WILL require `"nodeModulesDir": "auto"` in the top-level package's `deno.json`) in the following way:
   ```ts
   const dynamic_export_script = `export * as myLib from "npm:@${pkg.scope}/${pkg.name}@${pkg.version}"`
   const dynamic_export_script_blob = new Blob([dynamic_export_script], { type: "text/javascript" })
