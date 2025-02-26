@@ -1,9 +1,42 @@
-import { defaultResolvePath, ensureEndSlash, ensureStartDotSlash, isAbsolutePath, joinPaths, noop, pathToPosixPath } from "../deps.ts"
+/** this submodule contains a namespaced esbuild plugin that resolves paths based on the three strategies:
+ * _runtime-package_ resolution, _import-map_ resolution, and _absolute-path_ resolution.
+ * 
+ * > [!note]
+ * > the default namespace you should use in your plugins to call this pipeline of resolvers is {@link resolversPluginNamespace}.
+ * > otherwise, if you want, you can customize the namespace of this plugin by specifying it in the `config.namespace` option.
+ * 
+ * below is a summary what the path resolution procedure of this plugin entails, given a certain esbuild input {@link OnResolveArgs | `args`}:
+ * 1. first, if {@link RuntimePackage | `args.pluginData.runtimePackage`} exists,
+ *    then the plugin tries to resolve the input `args.path` through the use of the {@link RuntimePackage.resolveImport} method.
+ *    - if it succeeds (i.e. `args.path` was an alias/import-map specified in the package file),
+ *      then the resolved path, along with the original `args.pluginData`, is returned.
+ *    - otherwise, if it fails, then the next path resolution takes place (import-map).
+ * 2. next, if either {@link ImportMap | `args.pluginData.importMap`} exists,
+ *    or {@link ImportMapResolverConfig.globalImportMap | `config.importMap.globalImportMap`} exists,
+ *    then the plugin will try to resolve the input `args.path` with respect to these import-maps,
+ *    through the use of the {@link resolvePathFromImportMap} function.
+ *    - if it succeeds (i.e. `args.path` was part of the import-map(s)),
+ *      then the resolved path, along with the original `args.pluginData`, is returned.
+ *    - otherwise, if it fails, then the next path resolution will take place (node-modules).
+ * 3. TODO: namespaced node-modules resolution needs to be implemented
+ * 4. finally, when all else has failed and we've made it to here, and `args.path` is a relative path:
+ *    - then we'll simply compute the absolute path of the input `args.path` by combining it with `args.importer`, and `args.resolveDir`.
+ *      - if neither of those two arguments are non-empty strings, then we will resort to using esbuild's `absWorkingDir` build option.
+ *      - if `absWorkingDir` was itself not specified, then we will fallback to the runtime's current-working-directory as the base directory of `args.path`.
+ *    - and again, the original `args.pluginData` is returned along with the result, so that the child dependnecies can inherit it.
+ * 
+ * DONE: TODO: we should use `absWorkingDir` as the base path for relative path instead of `getCwd()`,
+ *   however, if `absWorkingDir` is itself a relative path, then we shall resolve it with respect to `getCwd()`.
+ * 
+ * @module
+*/
+
+import { DEBUG, defaultResolvePath, ensureEndSlash, ensureStartDotSlash, isAbsolutePath, joinPaths, noop, pathToPosixPath } from "../deps.ts"
 import { resolvePathFromImportMap } from "../importmap/mod.ts"
 import type { ImportMap } from "../importmap/typedefs.ts"
 import type { RuntimePackage } from "../packageman/base.ts"
 import type { CommonPluginData, DeepPartial, EsbuildPlugin, EsbuildPluginBuild, EsbuildPluginSetup, OnResolveCallback } from "./typedefs.ts"
-import { resolversPluginNamespace } from "./typedefs.ts"
+import { resolversPluginNamespace, type OnResolveArgs } from "./typedefs.ts"
 
 
 /** configuration for the runtime-package resolver in {@link resolverPluginSetup},
@@ -106,6 +139,12 @@ export interface ResolverPluginSetupConfig {
 	 * as the filter-category plugins rely on that specific namespace to have their intercepted entities resolved as absolute-paths.
 	*/
 	namespace: string
+
+	/** enable logging of the input arguments and resolved paths, when {@link DEBUG.LOG} is ennabled.
+	 * 
+	 * @defaultValue `false`
+	*/
+	log: boolean
 }
 
 const defaultResolverPluginSetupConfig: ResolverPluginSetupConfig = {
@@ -114,10 +153,13 @@ const defaultResolverPluginSetupConfig: ResolverPluginSetupConfig = {
 	nodeModules: defaultNodeModulesResolverConfig,
 	relativePath: defaultRelativePathResolverConfig,
 	namespace: resolversPluginNamespace,
+	log: false,
 }
 
 /** this is a 4-in-1 namespaced-plugin that assists in resolving esbuild paths,
  * based on {@link CommonPluginData | `pluginData`}, esbuild's native-resolver, and relative path resolver.
+ * 
+ * for details on what gets resolved an how, refer to the documentation comments of this submodule ({@link "resolvers"}).
  * 
  * the way it is intended to be used is by being called indirectly via `build.resolve`, after specifying the correct namespace of this plugin.
  * 
@@ -172,6 +214,7 @@ export const resolverPluginSetup = (config?: DeepPartial<ResolverPluginSetupConf
 		nodeModules: _nodeModulesResolverConfig,
 		relativePath: _relativePathResolverConfig,
 		namespace: plugin_ns,
+		log,
 	} = { ...defaultResolverPluginSetupConfig, ...config }
 	const
 		runtimePackageResolverConfig = { ...defaultRuntimePackageResolverConfig, ..._runtimePackageResolverConfig },
@@ -183,6 +226,10 @@ export const resolverPluginSetup = (config?: DeepPartial<ResolverPluginSetupConf
 		plugin_filter = /.*/
 
 	return async (build: EsbuildPluginBuild): Promise<void> => {
+		// if `build.initialOptions.absWorkingDir` is itself a relative path, then we'll resolve it relative to the current-working-directory,
+		// via the `resolvePath` function inside of the `relativePathResolver`.
+		const absWorkingDir = pathToPosixPath(build.initialOptions.absWorkingDir ?? "./")
+
 		// first comes the runtime-package-manager resolver, if it is enabled, that is.
 		const runtimePackageResolver: OnResolveCallback = (runtimePackageResolverConfig.enabled === false) ? noop : async (args) => {
 			if (args.pluginData?.resolverConfig?.useRuntimePackage === false) { return }
@@ -194,6 +241,10 @@ export const resolverPluginSetup = (config?: DeepPartial<ResolverPluginSetupConf
 				resolved_path = runtimePackage && !path.startsWith("./") && !path.startsWith("../")
 					? runtimePackage.resolveImport(path)
 					: undefined
+			if (DEBUG.LOG && log) {
+				console.log("[runtime-package] resolving:", path)
+				if (resolved_path) { console.log(">> successfully resolved to:", resolved_path) }
+			}
 			return resolved_path ? {
 				path: resolved_path,
 				namespace: output_ns,
@@ -211,6 +262,10 @@ export const resolverPluginSetup = (config?: DeepPartial<ResolverPluginSetupConf
 				// if the input `path` is an import being performed inside of a package, in addition to not being a relative import,
 				// then use the package manager to resolve the imported path.
 				resolved_path = resolvePathFromImportMap(path, importMap)
+			if (DEBUG.LOG && log) {
+				console.log("[import-map]      resolving:", path)
+				if (resolved_path) { console.log(">> successfully resolved to:", resolved_path) }
+			}
 			return resolved_path ? {
 				path: resolved_path,
 				namespace: output_ns,
@@ -219,6 +274,8 @@ export const resolverPluginSetup = (config?: DeepPartial<ResolverPluginSetupConf
 		}
 
 		// TODO: third attempt at resolving the path should be made by esbuild's native `node_modules` resolver, but that will be implemented later.
+		// NOTE: I recently noticed that esbuild uses the "file" namespace for `node_modules` resolution. can I utilize that namespace here?
+		//   what if other plugins use the same namespace as well, how will I avoid their interception in that case?
 		const nodeModulesResolver: OnResolveCallback = (nodeModulesResolverConfig.enabled === false) ? noop : async (args) => {
 			if (args.pluginData?.resolverConfig?.useNodeModules === false) { return }
 			console.warn(`TODO: a namespaced wrapper for esbuild's native resolver for "node_modules" packages/aliases has not been implemented yet.`)
@@ -231,12 +288,17 @@ export const resolverPluginSetup = (config?: DeepPartial<ResolverPluginSetupConf
 			if (args.pluginData?.resolverConfig?.useRelativePath === false) { return }
 			const
 				{ path, importer, resolveDir, pluginData = {} } = args,
+				resolve_dir = resolvePath(ensureEndSlash(resolveDir ? resolveDir : absWorkingDir)),
 				dir = isAbsolutePath(importer)
 					? importer
-					: joinPaths(ensureEndSlash(resolveDir), importer),
+					: joinPaths(resolve_dir, importer),
 				resolved_path = isAbsolutePath(path)
 					? pathToPosixPath(path) // I don't want to see ugly windows back-slashes in the esbuild resolved-path comments and metafile
 					: resolvePath(dir, ensureStartDotSlash(path))
+			if (DEBUG.LOG && log) {
+				console.log("[absolute-path]   resolving:", path)
+				if (resolved_path) { console.log(">> successfully resolved to:", resolved_path) }
+			}
 			return {
 				path: resolved_path,
 				namespace: output_ns,
@@ -252,7 +314,9 @@ export const resolverPluginSetup = (config?: DeepPartial<ResolverPluginSetupConf
 }
 
 /** {@inheritDoc resolverPluginSetup} */
-export const resolverPlugin: EsbuildPlugin = {
-	name: "oazmi-plugindata-resolvers",
-	setup: resolverPluginSetup(),
+export const resolverPlugin = (config?: DeepPartial<ResolverPluginSetupConfig>): EsbuildPlugin => {
+	return {
+		name: "oazmi-plugindata-resolvers",
+		setup: resolverPluginSetup(config),
+	}
 }
