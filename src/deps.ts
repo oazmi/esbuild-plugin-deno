@@ -7,8 +7,8 @@ export { InvertibleMap, invertMap } from "@oazmi/kitchensink/collections"
 export { getRuntimeCwd, identifyCurrentRuntime } from "@oazmi/kitchensink/crossenv"
 export { ensureEndSlash, ensureStartDotSlash, joinPaths, normalizePath, parseFilepathInfo, parsePackageUrl, pathToPosixPath, resolveAsUrl, resolvePathFactory } from "@oazmi/kitchensink/pathman"
 export { escapeLiteralStringForRegex, replacePrefix, replaceSuffix } from "@oazmi/kitchensink/stringman"
-export { isString } from "@oazmi/kitchensink/struct"
-export type { ConstructorOf, Optional } from "@oazmi/kitchensink/typedefs"
+export { isArray, isString } from "@oazmi/kitchensink/struct"
+export type { ConstructorOf, DeepPartial, MaybePromise, Optional } from "@oazmi/kitchensink/typedefs"
 export { parse as jsoncParse } from "@std/jsonc"
 export { maxSatisfying as semverMaxSatisfying, minSatisfying as semverMinSatisfying, parse as semverParse, parseRange as semverParseRange, format as semverToString } from "@std/semver"
 export type * as esbuild from "npm:esbuild@^0.25.0"
@@ -39,3 +39,5 @@ export const defaultFetchConfig: RequestInit = { redirect: "follow", cache: "for
 export const
 	defaultGetCwd: string = /*@__PURE__*/ getRuntimeCwd(identifyCurrentRuntime(), true),
 	defaultResolvePath = /*@__PURE__*/ resolvePathFactory(defaultGetCwd, isAbsolutePath)
+
+export const noop = (() => undefined)
