@@ -5,6 +5,7 @@ import type { resolverPlugin } from "./resolvers.ts"
 
 
 export const resolversPluginNamespace = "oazmi-resolvers-pipeline"
+export const defaultEsbuildNamespaces = [undefined, "", "file"]
 
 /** this is the common plugin data utilized by the resolvers in {@link resolverPlugin} esbuild-plugin. */
 export interface CommonPluginData {
@@ -46,6 +47,8 @@ export interface CommonPluginData {
 		*/
 		useRelativePath?: boolean
 	}
+
+	[capture_marker: symbol]: boolean
 }
 
 // TODO: fix the implementation in kitchensink
