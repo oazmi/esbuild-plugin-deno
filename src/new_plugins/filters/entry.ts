@@ -1,7 +1,50 @@
-import { normalizePath } from "../../deps.ts"
+/** this filter plugin intercepts all entities, injects plugin-data (if the entrity is an entry-point, or a dependency thereof),
+ * and then makes them go through the {@link resolverPlugin} set of resolvers, in order to obtain the absolute path to the resource.
+ * 
+ * > [!important]
+ * > you **must** include the {@link resolverPlugin} somewhere in your esbuild build-options,
+ * > otherwise this plugin will not be able to resolve any path on its own.
+ * 
+ * > [!tip]
+ * > while the placement order of the {@link resolverPlugin} does not matter (invariant behavior),
+ * > placing it at the front would reduce the number of redundant `onResolve` callbacks received by this plugin,
+ * > which then need to be bounced-back to prevent an indefinite `onResolve` recursion.
+ * > 
+ * > you may wonder how this plugin does not spiral into an endless recursion of `onResolve` callbacks,
+ * > when it uses the "capture-all" filter that spans throughout all namespaces, meanwhile using `build.resove()`.
+ * > 
+ * > that's because upon the interception of a new entity, we insert a unique `symbol` marker into the `pluginData`,
+ * > which when detected again, halts the plugin from processing it further (by returning `undefined`).
+ * > 
+ * > moreover, this plugin validates that the `args.namespace` it receives must be one of `[undefined, "", "file"]`
+ * > (see {@link defaultEsbuildNamespaces}), otherwise it will terminate processing it any further.
+ * > this check is put in place to prevent this plugin from treading into the territory of other plugins' namespaces,
+ * > which would potentially ruin their logic and `pluginData`.
+ * 
+ * TODO: add config option for `acceptNamespaces`, which should default to `defaultEsbuildNamespaces`.
+ *   why? because it is possible that some external plugin may want to utiize this plugin's path-resolution power in their own namespace as well.
+ * 
+ * @module
+*/
+
+import { isString, normalizePath, resolveAsUrl } from "../../deps.ts"
+import { RuntimePackage } from "../../packageman/base.ts"
+import { DenoPackage } from "../../packageman/deno.ts"
+import type { resolverPlugin } from "../resolvers.ts"
 import type { CommonPluginData, EsbuildPlugin, EsbuildPluginBuild, EsbuildPluginSetup, OnResolveArgs } from "../typedefs.ts"
 import { defaultEsbuildNamespaces, resolversPluginNamespace } from "../typedefs.ts"
 
+
+/** this is a slightly modified version of {@link CommonPluginData},
+ * which accepts a path or url to your "deno.json" file under the `runtimePackage` property.
+*/
+export interface InitialPluginData extends Omit<CommonPluginData, "runtimePackage"> {
+	/** specify your project's top-level runtime package manager object,
+	 * or provide the path to the package json(c) file (such as "deno.json", "jsr.jsonc", "package.json", etc...),
+	 * so that your project's import and export aliases can be resolved appropriately.
+	*/
+	runtimePackage?: RuntimePackage<any> | URL | string
+}
 
 /** configuration options for the {@link entryPluginSetup} esbuild-setup factory function. */
 export interface EntryPluginSetupConfig {
@@ -11,8 +54,8 @@ export interface EntryPluginSetupConfig {
 	*/
 	filters: RegExp[]
 
-	/** {@inheritDoc CommonPluginData} */
-	pluginData?: Partial<CommonPluginData>
+	/** {@inheritDoc InitialPluginData} */
+	pluginData?: Partial<InitialPluginData>
 
 	/** specify if you wish for the dependencies of the captured `"entry-points"` to be captured as well?
 	 * 
@@ -39,12 +82,23 @@ const defaultEntryPluginSetup: EntryPluginSetupConfig = {
 /** TODO: add description */
 export const entryPluginSetup = (config?: Partial<EntryPluginSetupConfig>): EsbuildPluginSetup => {
 	const
-		{ filters, pluginData: initialPluginData, captureDependencies } = { ...defaultEntryPluginSetup, ...config },
+		{ filters, pluginData: _initialPluginData, captureDependencies } = { ...defaultEntryPluginSetup, ...config },
 		captured_resolved_paths = new Set<string>(),
 		ALREADY_CAPTURED_BY_INJECTOR: unique symbol = Symbol(),
 		ALREADY_CAPTURED_BY_RESOLVER: unique symbol = Symbol()
 
 	return async (build: EsbuildPluginBuild) => {
+		const
+			{ runtimePackage: initialRuntimePackage, ...rest_initialPluginData } = _initialPluginData ?? {},
+			initialPluginData: Partial<CommonPluginData> = rest_initialPluginData
+
+		build.onStart(async () => {
+			// here we resolve the path to the "deno.json" file if `initialRuntimePackage` is either a url or a local path.
+			// to resolve non-url-based file paths, we'll use the namespace of {@link resolverPlugin}
+			// to carry out the path resolution inside of the {@link resolveRuntimePackage} function.
+			initialPluginData.runtimePackage = await resolveRuntimePackage(build, initialRuntimePackage)
+		})
+
 		const entryPluginDataInjector = async (args: OnResolveArgs) => {
 			// if the plugin marker already exists for this entity, then we've already processed it once,
 			// therefore we should return `undefined` so that we don't end in an infinite onResolve recursion.
@@ -114,4 +168,24 @@ export const entryPlugin = (config?: Partial<EntryPluginSetupConfig>): EsbuildPl
 		name: "oazmi-entry",
 		setup: entryPluginSetup(config),
 	}
+}
+
+/** a utility function that resolves the path/url to your runtime-package json file (such as "deno.json"),
+ * then creates a {@link DenoPackage} instance of out of it (which is needed for the initial `pluginData`, and then inherited by the dependencies).
+*/
+const resolveRuntimePackage = async (build: EsbuildPluginBuild, initialRuntimePackage: InitialPluginData["runtimePackage"]): Promise<RuntimePackage<any> | undefined> => {
+	const
+		denoPackageJson_exists = initialRuntimePackage !== undefined,
+		denoPackageJson_isRuntimePackage = initialRuntimePackage instanceof RuntimePackage,
+		denoPackageJson_url = (!denoPackageJson_exists || denoPackageJson_isRuntimePackage) ? undefined
+			: isString(initialRuntimePackage)
+				? resolveAsUrl((await build.resolve(initialRuntimePackage, {
+					kind: "entry-point",
+					namespace: resolversPluginNamespace,
+				})).path)
+				: initialRuntimePackage
+	const denoPackage = !denoPackageJson_exists ? undefined
+		: denoPackageJson_isRuntimePackage ? initialRuntimePackage
+			: await DenoPackage.fromUrl(denoPackageJson_url!)
+	return denoPackage
 }
