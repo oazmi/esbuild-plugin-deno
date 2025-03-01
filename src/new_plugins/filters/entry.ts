@@ -118,6 +118,10 @@ export const entryPluginSetup = (config?: Partial<EntryPluginSetupConfig>): Esbu
 			// therefore we should return `undefined` so that we don't end in an infinite onResolve recursion.
 			// this way, the next resolver registered to esbuild (or its native resolver) will take up the task for resolving this entity.
 			if ((args.pluginData ?? {})[ALREADY_CAPTURED_BY_INJECTOR]) { return }
+			// moreover, if the entity explicitly does not want to use the initial plugin-data injection for itself, then we'll not do so.
+			// as a consequence, all of this entity's dependency will also lose the ability to acquire the initial plugin-data,
+			// since their parent `args.importer` will not be registered onto `captured_resolved_paths` (even if they don't have `useInitialPluginData` set to `false`).
+			if (args.pluginData?.resolverConfig?.useInitialPluginData === false) { return }
 			// NOTE: for some reason, not specifying the `namespace` in the `build.onResolve` function, or setting it to just `""` will capture ALL namespaces!
 			//   which is why it is absolutely essential to use the validation below,
 			//   otherwise these resolvers will even capture the `PLUGIN_NAMESPACE.RESOLVER_PIPELINE` namespace, resulting in an infinite loop.
