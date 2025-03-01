@@ -4,7 +4,12 @@ import type { RuntimePackage } from "../packageman/base.ts"
 import type { resolverPlugin } from "./resolvers.ts"
 
 
-export const resolversPluginNamespace = "oazmi-resolvers-pipeline"
+/** a central enum containing the list of esbuild namespaces used by the plugins in this library. */
+export const enum PLUGIN_NAMESPACE {
+	RESOLVER_PIPELINE = "oazmi-resolver-pipeline",
+	LOADER_HTTP = "oazmi-loader-http",
+}
+
 export const defaultEsbuildNamespaces = [undefined, "", "file"]
 
 /** this is the common plugin data utilized by the resolvers in {@link resolverPlugin} esbuild-plugin. */

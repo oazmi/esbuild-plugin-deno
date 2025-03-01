@@ -58,7 +58,7 @@
     - these plugins will capture input entities from the default namespace through the use of filters (such as "jsr:", "https?://", "npm:", etc...).
     - if applicable, the plugin will inject the appropriate `pluginData` into the entity's `args`.
     - now, to resolve the path, the filter plugin will call `build.resolve` with the `namespace` set to the entry-namespace of the _resolver plugins_ (the second new category), so that it passes through a pipeline of modularized `pluginData` resolvers.
-      for the time being, let's assume that the resolver plugins' pipeline's entry namespace is called `"oazmi-resolvers-pipeline"`.
+      for the time being, let's assume that the resolver plugins' pipeline's entry namespace is called `"oazmi-resolver-pipeline"`.
     - if the pipeline of resolvers do return a successful result, we'll return that result after changing the namespace back to the default one, or a different one that is required by some specific loader (such as the url-fetcher-loader).
     - if the pipeline was unsuccessful, we'll do one of the following:
       - if the `args.path` being loaded is not something ambiguous, such as beginning with "jsr:", "http://", or "npm:" specifiers, then maybe all it needs is some kind of conversion. for instance:
@@ -67,7 +67,7 @@
       - if the path is ambiguous (for instance, is `args.path = "react.css"` referring to the importer's `"./react.css"`, or the `"{resolveDir}/node_modules/react.css/"` npm package?), then try resolving it with esbuild's native path resolver, otherwise join the path with the importer's path.
       - if for some reason, neither of the two cases above apply, we should return `undefined` to let some other plugin take care of this entity.
   - [ ] the second category of plugins will be the _resolver_ plugins.
-    - these plugins will only exist in a specific namespace (let's say `"oazmi-resolvers-pipeline"`), and their filter will be usually set to "capture all" (i.e. `RegExp(".*")`).
+    - these plugins will only exist in a specific namespace (let's say `"oazmi-resolver-pipeline"`), and their filter will be usually set to "capture all" (i.e. `RegExp(".*")`).
     - essentially, it will be a collection of three/four resolvers:
       - the first will take care of resolving with respect to `pluginData.importMap`.
       - the second will take care of resolving with respect to `pluginData.runtimePackage`.
