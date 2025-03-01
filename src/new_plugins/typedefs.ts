@@ -10,7 +10,15 @@ export const enum PLUGIN_NAMESPACE {
 	LOADER_HTTP = "oazmi-loader-http",
 }
 
+/** a list of default namespaces that esbuild uses for native/entry-point resolution. */
 export const defaultEsbuildNamespaces = [undefined, "", "file"]
+
+/** a list of all esbuild content type loaders. */
+export const allEsbuildLoaders: Array<EsbuildLoaderType> = [
+	"base64", "binary", "copy", "css", "dataurl",
+	"default", "empty", "file", "js", "json",
+	"jsx", "local-css", "text", "ts", "tsx",
+]
 
 /** this is the common plugin data utilized by the resolvers in {@link resolverPlugin} esbuild-plugin. */
 export interface CommonPluginData {
@@ -56,15 +64,18 @@ export interface CommonPluginData {
 	[capture_marker: symbol]: boolean
 }
 
-// TODO: fix the implementation in kitchensink
+// TODO: import the fixed the implementation from kitchensink
 export type DeepPartial<T> = T extends (Function | Array<any> | String | BigInt | Number | Boolean | Symbol)
 	? T : T extends Record<string, any>
 	? { [P in keyof T]?: DeepPartial<T[P]> } : T
 
 export type OnResolveArgs = Omit<esbuild.OnResolveArgs, "pluginData"> & { pluginData?: CommonPluginData }
 export type OnLoadArgs = Omit<esbuild.OnLoadArgs, "pluginData"> & { pluginData?: CommonPluginData }
-export type OnResolveCallback = (args: OnResolveArgs) => MaybePromise<esbuild.OnResolveResult | null | undefined>
-export type OnLoadCallback = (args: OnLoadArgs) => MaybePromise<esbuild.OnLoadResult | null | undefined>
+export type OnResolveResult = esbuild.OnResolveResult
+export type OnLoadResult = esbuild.OnLoadResult
+export type OnResolveCallback = (args: OnResolveArgs) => MaybePromise<OnResolveResult | null | undefined>
+export type OnLoadCallback = (args: OnLoadArgs) => MaybePromise<OnLoadResult | null | undefined>
 export type EsbuildPlugin = esbuild.Plugin
 export type EsbuildPluginSetup = esbuild.Plugin["setup"]
 export type EsbuildPluginBuild = esbuild.PluginBuild
+export type EsbuildLoaderType = esbuild.Loader
