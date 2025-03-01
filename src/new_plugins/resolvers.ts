@@ -2,7 +2,7 @@
  * _runtime-package_ resolution, _import-map_ resolution, and _absolute-path_ resolution.
  * 
  * > [!note]
- * > the default namespace you should use in your plugins to call this pipeline of resolvers is {@link resolversPluginNamespace}.
+ * > the default namespace you should use in your plugins to call this pipeline of resolvers is {@link PLUGIN_NAMESPACE.RESOLVER_PIPELINE}.
  * > otherwise, if you want, you can customize the namespace of this plugin by specifying it in the `config.namespace` option.
  * 
  * below is a summary what the path resolution procedure of this plugin entails, given a certain esbuild input {@link OnResolveArgs | `args`}:
@@ -25,9 +25,6 @@
  *      - if `absWorkingDir` was itself not specified, then we will fallback to the runtime's current-working-directory as the base directory of `args.path`.
  *    - and again, the original `args.pluginData` is returned along with the result, so that the child dependnecies can inherit it.
  * 
- * DONE: TODO: we should use `absWorkingDir` as the base path for relative path instead of `getCwd()`,
- *   however, if `absWorkingDir` is itself a relative path, then we shall resolve it with respect to `getCwd()`.
- * 
  * @module
 */
 
@@ -36,7 +33,7 @@ import { resolvePathFromImportMap } from "../importmap/mod.ts"
 import type { ImportMap } from "../importmap/typedefs.ts"
 import type { RuntimePackage } from "../packageman/base.ts"
 import type { CommonPluginData, DeepPartial, EsbuildPlugin, EsbuildPluginBuild, EsbuildPluginSetup, OnResolveCallback } from "./typedefs.ts"
-import { resolversPluginNamespace, type OnResolveArgs } from "./typedefs.ts"
+import { PLUGIN_NAMESPACE, type OnResolveArgs } from "./typedefs.ts"
 
 
 /** configuration for the runtime-package resolver in {@link resolverPluginSetup},
@@ -135,8 +132,9 @@ export interface ResolverPluginSetupConfig {
 
 	/** specify the input-namespace on which the resolver-pipeline will operate on.
 	 * 
-	 * it is best if you don't modify it to something besides the default value {@link resolversPluginNamespace},
-	 * as the filter-category plugins rely on that specific namespace to have their intercepted entities resolved as absolute-paths.
+	 * > [!caution]
+	 * > it is best if you don't modify it to something besides the default value {@link PLUGIN_NAMESPACE.RESOLVER_PIPELINE},
+	 * > as the filter-category plugins rely on that specific namespace to have their intercepted entities resolved as absolute-paths.
 	*/
 	namespace: string
 
@@ -152,7 +150,7 @@ const defaultResolverPluginSetupConfig: ResolverPluginSetupConfig = {
 	importMap: defaultImportMapResolverConfig,
 	nodeModules: defaultNodeModulesResolverConfig,
 	relativePath: defaultRelativePathResolverConfig,
-	namespace: resolversPluginNamespace,
+	namespace: PLUGIN_NAMESPACE.RESOLVER_PIPELINE,
 	log: false,
 }
 
@@ -166,9 +164,9 @@ const defaultResolverPluginSetupConfig: ResolverPluginSetupConfig = {
  * @example
  * ```ts
  * import type { EsbuildPlugin, EsbuildPluginBuild, OnLoadArgs, OnResolveArgs } from "./typedefs.ts"
- * import { resolversPluginNamespace } from "./typedefs.ts"
+ * import { PLUGIN_NAMESPACE.RESOLVER_PIPELINE } from "./typedefs.ts"
  * 
- * const THIS_plugins_namespace = resolversPluginNamespace // == "oazmi-resolvers-pipeline"
+ * const THIS_plugins_namespace = PLUGIN_NAMESPACE.RESOLVER_PIPELINE // == "oazmi-resolver-pipeline"
  * 
  * const myShinyPlugin: EsbuildPlugin = {
  * 	name: "my-shiny-plugin",

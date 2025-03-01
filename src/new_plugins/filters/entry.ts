@@ -21,9 +21,6 @@
  * > this check is put in place to prevent this plugin from treading into the territory of other plugins' namespaces,
  * > which would potentially ruin their logic and `pluginData`.
  * 
- * TODO: add config option for `acceptNamespaces`, which should default to `defaultEsbuildNamespaces`.
- *   why? because it is possible that some external plugin may want to utiize this plugin's path-resolution power in their own namespace as well.
- * 
  * @module
 */
 
@@ -31,8 +28,8 @@ import { isString, normalizePath, resolveAsUrl } from "../../deps.ts"
 import { RuntimePackage } from "../../packageman/base.ts"
 import { DenoPackage } from "../../packageman/deno.ts"
 import type { resolverPlugin } from "../resolvers.ts"
-import type { CommonPluginData, EsbuildPlugin, EsbuildPluginBuild, EsbuildPluginSetup, OnResolveArgs } from "../typedefs.ts"
-import { defaultEsbuildNamespaces, resolversPluginNamespace } from "../typedefs.ts"
+import type { CommonPluginData, EsbuildPlugin, EsbuildPluginBuild, EsbuildPluginSetup, OnResolveArgs, OnResolveCallback } from "../typedefs.ts"
+import { defaultEsbuildNamespaces, PLUGIN_NAMESPACE } from "../typedefs.ts"
 
 
 /** this is a slightly modified version of {@link CommonPluginData},
@@ -71,18 +68,35 @@ export interface EntryPluginSetupConfig {
 	 * @defaultValue `true`
 	*/
 	captureDependencies: boolean
+
+	/** specify which `namespace`s should be intercepted by the entry-point plugin.
+	 * all other `namespace`s will not be processed by this plugin.
+	 * 
+	 * if you want your plugin to receive pre-resolved absolute paths under some `namespace`,
+	 * instead of having to resolve the path yourself by joining paths and inspecting `pluginData`,
+	 * then simply include it in this configuration property.
+	 * 
+	 * @defaultValue `[undefined, "", "file"]` (also {@link PLUGIN_NAMESPACE.LOADER_HTTP} gets added later on)
+	*/
+	acceptNamespaces: Array<string | undefined>
 }
 
 const defaultEntryPluginSetup: EntryPluginSetupConfig = {
 	filters: [/.*/],
 	pluginData: undefined,
 	captureDependencies: true,
+	acceptNamespaces: defaultEsbuildNamespaces,
 }
 
-/** TODO: add description */
+/** this filter plugin intercepts all entities, injects plugin-data (if the entrity is an entry-point, or a dependency thereof),
+ * and then makes them go through the {@link resolverPlugin} set of resolvers, in order to obtain the absolute path to the resource.
+ * 
+ * for more details see the submodule comments: {@link "entry"}.
+*/
 export const entryPluginSetup = (config?: Partial<EntryPluginSetupConfig>): EsbuildPluginSetup => {
 	const
-		{ filters, pluginData: _initialPluginData, captureDependencies } = { ...defaultEntryPluginSetup, ...config },
+		{ filters, pluginData: _initialPluginData, captureDependencies, acceptNamespaces: _acceptNamespaces } = { ...defaultEntryPluginSetup, ...config },
+		acceptNamespaces = new Set([..._acceptNamespaces, PLUGIN_NAMESPACE.LOADER_HTTP]),
 		captured_resolved_paths = new Set<string>(),
 		ALREADY_CAPTURED_BY_INJECTOR: unique symbol = Symbol(),
 		ALREADY_CAPTURED_BY_RESOLVER: unique symbol = Symbol()
@@ -99,15 +113,15 @@ export const entryPluginSetup = (config?: Partial<EntryPluginSetupConfig>): Esbu
 			initialPluginData.runtimePackage = await resolveRuntimePackage(build, initialRuntimePackage)
 		})
 
-		const entryPluginDataInjector = async (args: OnResolveArgs) => {
+		const entryPluginDataInjector: OnResolveCallback = async (args: OnResolveArgs) => {
 			// if the plugin marker already exists for this entity, then we've already processed it once,
 			// therefore we should return `undefined` so that we don't end in an infinite onResolve recursion.
 			// this way, the next resolver registered to esbuild (or its native resolver) will take up the task for resolving this entity.
 			if ((args.pluginData ?? {})[ALREADY_CAPTURED_BY_INJECTOR]) { return }
 			// NOTE: for some reason, not specifying the `namespace` in the `build.onResolve` function, or setting it to just `""` will capture ALL namespaces!
 			//   which is why it is absolutely essential to use the validation below,
-			//   otherwise these resolvers will even capture the `resolversPluginNamespace` namespace, resulting in an infinite loop.
-			if (!defaultEsbuildNamespaces.includes(args.namespace)) { return }
+			//   otherwise these resolvers will even capture the `PLUGIN_NAMESPACE.RESOLVER_PIPELINE` namespace, resulting in an infinite loop.
+			if (!acceptNamespaces.has(args.namespace)) { return }
 			const
 				{ path, pluginData = {}, ...rest_args } = args,
 				merged_plugin_data = { ...initialPluginData, ...pluginData, [ALREADY_CAPTURED_BY_INJECTOR]: true },
@@ -135,12 +149,12 @@ export const entryPluginSetup = (config?: Partial<EntryPluginSetupConfig>): Esbu
 			return resolved_result
 		}
 
-		const absolutePathResolver = async (args: OnResolveArgs) => {
+		const absolutePathResolver: OnResolveCallback = async (args: OnResolveArgs) => {
 			if ((args.pluginData ?? {})[ALREADY_CAPTURED_BY_RESOLVER]) { return }
-			if (!defaultEsbuildNamespaces.includes(args.namespace)) { return }
+			if (!acceptNamespaces.has(args.namespace)) { return }
 			const
 				{ path, namespace: original_ns, ...rest_args } = args,
-				abs_result = await build.resolve(path, { ...rest_args, namespace: resolversPluginNamespace })
+				abs_result = await build.resolve(path, { ...rest_args, namespace: PLUGIN_NAMESPACE.RESOLVER_PIPELINE })
 			const
 				{ path: abs_path, pluginData: abs_pluginData = {}, namespace: _0 } = abs_result,
 				next_pluginData = { ...abs_pluginData, [ALREADY_CAPTURED_BY_RESOLVER]: true },
@@ -152,6 +166,7 @@ export const entryPluginSetup = (config?: Partial<EntryPluginSetupConfig>): Esbu
 			// we must also disable the `ALREADY_CAPTURED_BY_RESOLVER` marker, since the `resolved_result` is ready to go to the loader,
 			// however, we don't want the dependencies (which will inherit the `pluginData`) to have their capture marker set to `true`,
 			// since they haven't actually been captured by this resolver yet.
+			resolved_result.pluginData = { ...resolved_result.pluginData, [ALREADY_CAPTURED_BY_RESOLVER]: false }
 			return resolved_result
 		}
 
@@ -181,7 +196,7 @@ const resolveRuntimePackage = async (build: EsbuildPluginBuild, initialRuntimePa
 			: isString(initialRuntimePackage)
 				? resolveAsUrl((await build.resolve(initialRuntimePackage, {
 					kind: "entry-point",
-					namespace: resolversPluginNamespace,
+					namespace: PLUGIN_NAMESPACE.RESOLVER_PIPELINE,
 				})).path)
 				: initialRuntimePackage
 	const denoPackage = !denoPackageJson_exists ? undefined
