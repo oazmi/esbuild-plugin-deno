@@ -1,6 +1,7 @@
 import type { esbuild, MaybePromise } from "../deps.ts"
 import type { ImportMap } from "../importmap/typedefs.ts"
 import type { RuntimePackage } from "../packageman/base.ts"
+import type { entryPlugin } from "./filters/entry.ts"
 import type { resolverPlugin } from "./resolvers.ts"
 
 
@@ -36,6 +37,15 @@ export interface CommonPluginData {
 
 	/** you may control which resolvers to disable through the use of this property. */
 	resolverConfig?: {
+		/** enable or disable the initial `pluginData` injection (performed by the {@link entryPlugin}) for the current entity.
+		 * setting this to `false` is needed when switching the scope to a new package,
+		 * so that your current initial runtime-package and import-maps do not interfere/overwite the intended plugin data.
+		 * (for instance, this will be needed when moving to a self-contained remote jsr-package scope, away from your filesystem).
+		 * 
+		 * @defaultValue `true` (enabled)
+		*/
+		useInitialPluginData?: boolean
+
 		/** enable or disable import-map resolution for the current entity.
 		 * 
 		 * @defaultValue `true` (enabled)
