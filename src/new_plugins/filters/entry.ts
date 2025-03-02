@@ -201,6 +201,7 @@ const resolveRuntimePackage = async (build: EsbuildPluginBuild, initialRuntimePa
 				? resolveAsUrl((await build.resolve(initialRuntimePackage, {
 					kind: "entry-point",
 					namespace: PLUGIN_NAMESPACE.RESOLVER_PIPELINE,
+					pluginData: { resolverConfig: { useInitialPluginData: false, useNodeModules: false } } satisfies CommonPluginData,
 				})).path)
 				: initialRuntimePackage
 	const denoPackage = !denoPackageJson_exists ? undefined

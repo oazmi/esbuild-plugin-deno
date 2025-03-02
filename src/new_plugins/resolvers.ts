@@ -278,9 +278,36 @@ export const resolverPluginSetup = (config?: DeepPartial<ResolverPluginSetupConf
 		const { resolvePath, isAbsolutePath } = relativePathResolverConfig
 		const node_modules_resolver = nodeModulesResolverFactory({ absWorkingDir: resolvePath(ensureEndSlash(absWorkingDir)) }, build)
 		const nodeModulesResolver: OnResolveCallback = (nodeModulesResolverConfig.enabled === false) ? noop : async (args) => {
-			if (args.pluginData?.resolverConfig?.useNodeModules === false) { return }
-			console.warn(`TODO: a namespaced wrapper for esbuild's native resolver for "node_modules" packages/aliases has not been implemented yet.`)
-			return undefined
+			const { path, resolveDir, importer, pluginData = {} } = args
+			if (pluginData.resolverConfig?.useNodeModules === false) { return }
+			// for the sake of speed, we don't bother esbuild for resolving relative paths,
+			// since the next resolver (`relativePathResolver`) will do this simple task much faster, without reading the filesystem.
+			if (
+				(pluginData.resolverConfig?.useRelativePath !== false)
+				&& (path.startsWith("./") || path.startsWith("../") || isAbsolutePath(path))
+			) { return }
+			const
+				resolve_dir = resolvePath(ensureEndSlash(resolveDir ? resolveDir : absWorkingDir)),
+				module_path_alias = pathToPosixPath(path),
+				native_results_promise = node_modules_resolver({
+					importer,
+					path: module_path_alias,
+					resolveDir: resolve_dir,
+				})
+
+			const { path: resolved_path, namespace: _0, pluginData: _1, ...rest_results } = await (native_results_promise
+				.catch((): Partial<OnResolveResult> => { return {} })
+			)
+			if (DEBUG.LOG && log) {
+				console.log("[node-module]     resolving:", path)
+				if (resolved_path) { console.log(">> successfully resolved to:", resolved_path) }
+			}
+			return resolved_path ? {
+				...rest_results,
+				path: resolved_path,
+				namespace: output_ns,
+				pluginData: { ...pluginData } satisfies CommonPluginData,
+			} : undefined
 		}
 
 		// final attempt at resolving the path is made by simply joining potentially relative paths with the `importer` (if enabled).
@@ -358,7 +385,7 @@ const nodeModulesResolverFactory = (
 				importer_dir_as_local_path = fileUrlToLocalPath(importer_dir_as_uri)
 
 			build.onResolve({ filter: /.*/ }, async (args) => {
-				if (args.pluginData?.[ALREADY_CAPTURED] === true) { console.log(args); return }
+				if (args.pluginData?.[ALREADY_CAPTURED] === true) { return }
 				const
 					{ path: input_path, resolveDir: _resolveDir = "", pluginData: _0 } = args,
 					dir = _resolveDir === "" ? fallbackResolveDir : _resolveDir,
