@@ -9,7 +9,7 @@
 - [ ] add a custom build-options/load-options plugin that can set a custom loader (or perform a separate bundle-build) based on the "with" import attributes.
 - [ ] create a stub `esbuild.PluginBuild` object that can be used for testing the `onResolve` calls of individual plugins.
       this would allow for the creation of unit tests, and also provide the plugin users with a better understanding of how the resource resolution works.
-- [ ] prototype a new `node_modules` resolver plugin that can be namespaced and provide a full node-module-resolution, without actually implementing the directory scanning algorithm.
+- [x] (2025-03-02) prototype a new `node_modules` resolver plugin that can be namespaced and provide a full node-module-resolution, without actually implementing the directory scanning algorithm.
       we'll do this sneakily by calling `build.esbuild.build()` inside the `build.onResolve`'s callback,
       and set the build args to: `entryPoints = ["node-module path to resolve"]`, `absWorkingDir = "the original absWorkingDir`,
       in addition to inserting an `onLoad` plugin into the build args that captures the full path (`args.path`) and the resolution-directory (`args.resolveDir`).
