@@ -28,11 +28,11 @@
  * @module
 */
 
-import { DEBUG, defaultResolvePath, ensureEndSlash, ensureStartDotSlash, isAbsolutePath, joinPaths, noop, pathToPosixPath } from "../deps.ts"
+import { DEBUG, defaultResolvePath, ensureEndSlash, ensureStartDotSlash, fileUrlToLocalPath, getUriScheme, isAbsolutePath, joinPaths, noop, pathToPosixPath, promise_outside, resolveAsUrl } from "../deps.ts"
 import { resolvePathFromImportMap } from "../importmap/mod.ts"
 import type { ImportMap } from "../importmap/typedefs.ts"
 import type { RuntimePackage } from "../packageman/base.ts"
-import type { CommonPluginData, DeepPartial, EsbuildPlugin, EsbuildPluginBuild, EsbuildPluginSetup, OnResolveCallback } from "./typedefs.ts"
+import type { CommonPluginData, DeepPartial, EsbuildPlugin, EsbuildPluginBuild, EsbuildPluginSetup, OnResolveCallback, OnResolveResult } from "./typedefs.ts"
 import { PLUGIN_NAMESPACE, type OnResolveArgs } from "./typedefs.ts"
 
 
@@ -75,7 +75,9 @@ export interface ImportMapResolverConfig {
 export interface NodeModulesResolverConfig {
 	/** enable or disable `node_modules` resolution.
 	 * 
-	 * @defaultValue `false` (disabled) - TODO: this needs to be worked on
+	 * @defaultValue `true` (enabled).
+	 *   however, the default `pluginData.resolverConfig.useNodeModules` option is set to `false`,
+	 *   meaning that it will only work when the user explicitly sets their `pluginData.resolverConfig.useNodeModules` to `true`.
 	*/
 	enabled: boolean
 }
@@ -107,8 +109,7 @@ const
 		globalImportMap: {},
 	},
 	defaultNodeModulesResolverConfig: NodeModulesResolverConfig = {
-		// TODO: requires an implementation of the namespaced-esbuild-native-resolver, as specified in `/todo.md`'s bucket list.
-		enabled: false,
+		enabled: true,
 	},
 	defaultRelativePathResolverConfig: RelativePathResolverConfig = {
 		enabled: true,
@@ -274,6 +275,8 @@ export const resolverPluginSetup = (config?: DeepPartial<ResolverPluginSetupConf
 		// TODO: third attempt at resolving the path should be made by esbuild's native `node_modules` resolver, but that will be implemented later.
 		// NOTE: I recently noticed that esbuild uses the "file" namespace for `node_modules` resolution. can I utilize that namespace here?
 		//   what if other plugins use the same namespace as well, how will I avoid their interception in that case?
+		const { resolvePath, isAbsolutePath } = relativePathResolverConfig
+		const node_modules_resolver = nodeModulesResolverFactory({ absWorkingDir: resolvePath(ensureEndSlash(absWorkingDir)) }, build)
 		const nodeModulesResolver: OnResolveCallback = (nodeModulesResolverConfig.enabled === false) ? noop : async (args) => {
 			if (args.pluginData?.resolverConfig?.useNodeModules === false) { return }
 			console.warn(`TODO: a namespaced wrapper for esbuild's native resolver for "node_modules" packages/aliases has not been implemented yet.`)
@@ -281,7 +284,6 @@ export const resolverPluginSetup = (config?: DeepPartial<ResolverPluginSetupConf
 		}
 
 		// final attempt at resolving the path is made by simply joining potentially relative paths with the `importer` (if enabled).
-		const { resolvePath, isAbsolutePath } = relativePathResolverConfig
 		const relativePathResolver: OnResolveCallback = (relativePathResolverConfig.enabled === false) ? noop : async (args) => {
 			if (args.pluginData?.resolverConfig?.useRelativePath === false) { return }
 			const
@@ -316,5 +318,84 @@ export const resolverPlugin = (config?: DeepPartial<ResolverPluginSetupConfig>):
 	return {
 		name: "oazmi-plugindata-resolvers",
 		setup: resolverPluginSetup(config),
+	}
+}
+
+interface NodeModulesResolverFactoryConfig {
+	absWorkingDir: string
+}
+
+interface NodeModulesResolverInternalPluginSetupFactoryConfig {
+	fallbackResolveDir: string
+	importer?: string
+	resolve: PromiseWithResolvers<OnResolveResult>["resolve"]
+	reject: PromiseWithResolvers<OnResolveResult>["reject"]
+}
+
+/** this factory function creates a path-resolver function that mimics esbuild's native-resolver's behavior.
+ * 
+ * the slyish way how it works is that we create a new build process to query esbuild what it would hypothetically do if so and so input arguments were given,
+ * then through a custom inner plugin, we capture esbuild's response (the resolved path), and return it back to the user.
+*/
+const nodeModulesResolverFactory = (
+	config: NodeModulesResolverFactoryConfig,
+	build: EsbuildPluginBuild
+): ((args: Pick<OnResolveArgs, "path" | "resolveDir" | "importer">) => Promise<OnResolveResult>) => {
+	const { absWorkingDir } = config
+
+	const internalPluginSetup = (config: NodeModulesResolverInternalPluginSetupFactoryConfig): EsbuildPluginSetup => {
+		return (build: EsbuildPluginBuild) => {
+			const
+				ALREADY_CAPTURED = Symbol(),
+				plugin_ns = "the-void",
+				{ resolve, reject, fallbackResolveDir, importer = "" } = config,
+				// below, in case the original `importer` had used a "file://" uri, we convert it back into a local path,
+				// otherwise we strip away the importer, since it will not be suitable for usage as `resolveDir`,
+				// since esbuild only understands local filesystem paths - no file/http uris.
+				importer_dir_as_uri = (importer === "" || getUriScheme(importer) === "relative")
+					? undefined
+					: resolveAsUrl("./", importer),
+				importer_dir_as_local_path = fileUrlToLocalPath(importer_dir_as_uri)
+
+			build.onResolve({ filter: /.*/ }, async (args) => {
+				if (args.pluginData?.[ALREADY_CAPTURED] === true) { console.log(args); return }
+				const
+					{ path: input_path, resolveDir: _resolveDir = "", pluginData: _0 } = args,
+					dir = _resolveDir === "" ? fallbackResolveDir : _resolveDir,
+					resolveDir = importer_dir_as_local_path ?? dir,
+					{ path, external, namespace, sideEffects, suffix } = await build.resolve(input_path, {
+						kind: "entry-point",
+						resolveDir,
+						pluginData: { [ALREADY_CAPTURED]: true },
+					})
+				resolve({ path: pathToPosixPath(path), external, namespace, sideEffects, suffix })
+				return { path: "does-not-matter.js", namespace: plugin_ns }
+			})
+
+			build.onLoad({ filter: /.*/, namespace: plugin_ns }, () => ({ contents: "", loader: "empty" }))
+		}
+	}
+
+	return async (args: Pick<OnResolveArgs, "path" | "resolveDir" | "importer">) => {
+		const
+			{ path, resolveDir = "", importer } = args,
+			fallbackResolveDir = resolveDir === "" ? absWorkingDir : resolveDir,
+			[promise, resolve, reject] = promise_outside<OnResolveResult>(),
+			internalPlugin: EsbuildPlugin = {
+				name: "native-esbuild-resolver-capture",
+				setup: internalPluginSetup({ resolve, reject, fallbackResolveDir, importer }),
+			}
+
+		await (build.esbuild.build({
+			entryPoints: [path],
+			absWorkingDir: absWorkingDir,
+			bundle: false,
+			minify: false,
+			write: false,
+			outdir: "./temp/",
+			plugins: [internalPlugin],
+		})).catch(() => { reject("esbuild's native resolver failed to resolve the path") })
+
+		return promise
 	}
 }
