@@ -18,7 +18,17 @@
  *    - if it succeeds (i.e. `args.path` was part of the import-map(s)),
  *      then the resolved path, along with the original `args.pluginData`, is returned.
  *    - otherwise, if it fails, then the next path resolution will take place (node-modules).
- * 3. TODO: namespaced node-modules resolution needs to be implemented
+ * 3. up ahead, we let esbuild's native resolver give a shot at resolving `args.path` as a node-module package,
+ *    if and only if the path is neither a relative path (i.e. doesn't begin with `"./"` or `"../"`),
+ *    nor is it an absolute path (such as "http://example.com/...", or "C:/users/...").
+ *    this is because these scenarios can be handled much quicker by the next path-resolver that follows this one
+ *    (since that one does not perform filesystem read/scan operations, unlike esbuild's native resolver).
+ *    - if it succeeds (i.e. `args.path` was indeed some package inside some `"./node_modules/"` folder up the directory tree),
+ *      then the resolved absolute filesystem path of the resource will be returned.
+ *    - otherwise, if it fails, then the next path resolution will take place (path-joining).
+ *    > [!tip]
+ *    > under the hood, this function uses the {@link nodeModulesResolverFactory} function that initializes a mock build process,
+ *    > which lets us indirectly query esbuild for the resolved path to the resource (if any).
  * 4. finally, when all else has failed and we've made it to here, and `args.path` is a relative path:
  *    - then we'll simply compute the absolute path of the input `args.path` by combining it with `args.importer`, and `args.resolveDir`.
  *      - if neither of those two arguments are non-empty strings, then we will resort to using esbuild's `absWorkingDir` build option.
@@ -272,9 +282,7 @@ export const resolverPluginSetup = (config?: DeepPartial<ResolverPluginSetupConf
 			} : undefined
 		}
 
-		// TODO: third attempt at resolving the path should be made by esbuild's native `node_modules` resolver, but that will be implemented later.
-		// NOTE: I recently noticed that esbuild uses the "file" namespace for `node_modules` resolution. can I utilize that namespace here?
-		//   what if other plugins use the same namespace as well, how will I avoid their interception in that case?
+		// third attempt at resolving the path should be made by esbuild's native `node_modules` resolver.
 		const { resolvePath, isAbsolutePath } = relativePathResolverConfig
 		const node_modules_resolver = nodeModulesResolverFactory({ absWorkingDir: resolvePath(ensureEndSlash(absWorkingDir)) }, build)
 		const nodeModulesResolver: OnResolveCallback = (nodeModulesResolverConfig.enabled === false) ? noop : async (args) => {
