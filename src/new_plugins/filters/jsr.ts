@@ -25,13 +25,13 @@ export interface JsrPluginSetupConfig {
 	*/
 	filters: RegExp[]
 
-	/** specify which `namespace`s should be intercepted by the http-point plugin.
+	/** specify which `namespace`s should be intercepted by the jsr-plugin.
 	 * all other `namespace`s will not be processed by this plugin.
 	 * 
 	 * if you have a plugin with a custom loader that works under some `"custom-namespace"`,
-	 * you can include your `"custom-namespace"` here, so that if it performs an http-import,
-	 * that import path will be captured by this plugin, and then consequently fetched by this plugin's http-loader.
-	 * but do note that the namespace of the loaded resource will switch to this plugin's loader {@link namespace}
+	 * you can include your `"custom-namespace"` here, so that if it performs a jsr-specifier import,
+	 * that import path will be captured by this plugin, and then consequently fetched by the http-loader plugin.
+	 * but do note that the namespace of the loaded resource will switch to the http-plugin's loader {@link namespace}
 	 * (which defaults to {@link PLUGIN_NAMESPACE.LOADER_HTTP}), instead of your `"custom-namespace"`.
 	 * 
 	 * @defaultValue `[undefined, "", "file"]` (also this plugin's {@link namespace} gets added later on)

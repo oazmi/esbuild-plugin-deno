@@ -136,7 +136,7 @@ export interface HttpPluginSetupConfig {
 	/** {@inheritDoc UrlLoaderFactoryConfig.acceptLoaders} */
 	acceptLoaders?: undefined | Array<EsbuildLoaderType>
 
-	/** specify which `namespace`s should be intercepted by the http-point plugin.
+	/** specify which `namespace`s should be intercepted by the http-plugin.
 	 * all other `namespace`s will not be processed by this plugin.
 	 * 
 	 * if you have a plugin with a custom loader that works under some `"custom-namespace"`,

@@ -32,7 +32,7 @@ This permits it portablility across any runtime environment (web, deno, node, bu
 - {@link "mod"!importMapPlugin}: provides import-map alias path-resolving for entry-points and esbuild's native resolvers (i.e. when in the default namespace).
 - {@link "mod"!httpPlugin}: provides `http://` and `https://` path-resolving and resource-fetching loader.
 - {@link "mod"!jsrPlugin}: provides a `jsr:` specifier to `https://jsr.io/` path-resolver.
-- {@link "mod"!npmSpecifierPlugin}: provides an `npm:` specifier to a node-package-alias path resolver,
+- {@link "mod"!npmPlugin}: provides an `npm:` specifier to a node-modules package-path resolver,
   so that esbuild can look for the node module in the filesystem by itself.
 - {@link "mod"!denoPlugins}: cumulation of the four plugins above, so that you can bundle code that deno natively understands.
 
