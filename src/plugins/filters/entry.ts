@@ -91,7 +91,7 @@ const defaultEntryPluginSetup: EntryPluginSetupConfig = {
 /** this filter plugin intercepts all entities, injects plugin-data (if the entrity is an entry-point, or a dependency thereof),
  * and then makes them go through the {@link resolverPlugin} set of resolvers, in order to obtain the absolute path to the resource.
  * 
- * for more details see the submodule comments: {@link "entry"}.
+ * for more details see the submodule comments: {@link "plugins/filters/entry"}.
 */
 export const entryPluginSetup = (config?: Partial<EntryPluginSetupConfig>): EsbuildPluginSetup => {
 	const
