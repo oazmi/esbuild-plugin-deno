@@ -168,7 +168,7 @@ const defaultResolverPluginSetupConfig: ResolverPluginSetupConfig = {
 /** this is a 4-in-1 namespaced-plugin that assists in resolving esbuild paths,
  * based on {@link CommonPluginData | `pluginData`}, esbuild's native-resolver, and relative path resolver.
  * 
- * for details on what gets resolved an how, refer to the documentation comments of this submodule ({@link "resolvers"}).
+ * for details on what gets resolved an how, refer to the documentation comments of this submodule ({@link "plugins/resolvers"}).
  * 
  * the way it is intended to be used is by being called indirectly via `build.resolve`, after specifying the correct namespace of this plugin.
  * 

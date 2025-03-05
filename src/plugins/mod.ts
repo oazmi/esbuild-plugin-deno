@@ -55,9 +55,10 @@ const defaultDenoPluginsConfig: DenoPluginsConfig = {
  * it is effectively a cumulation of the following three plugins (ordered from highest resolving priority to lowest):
  * - {@link entryPlugin}: provides `pluginData` to all entry-points and their dependencies,
  *   in addition to pre-resolving all paths implicitly through the {@link resolverPlugin}.
- * - {@link httpPlugin}: provides `http://` and `https://` path-resolving and resource-fetching loader.
+ * - {@link httpPlugin}: provides `http://`, `https://`, and `file://` path-resolving and resource-fetching loader.
  * - {@link jsrPlugin}: provides a `jsr:` to `https://jsr.io/` path-resolver.
- * - {@link npmPlugin}: provides a resolver that strips away `npm:` specifier prefixes, so that package-resources can be obtained from your `./node_modules/` folder.
+ * - {@link npmPlugin}: provides a resolver that strips away `npm:` specifier prefixes,
+ *   so that package-resources can be obtained from your `./node_modules/` folder.
  * - {@link resolverPlugin}: a namespaced plugin that provides the backbone pipeline for resolving the paths of all of the plugins above.
 */
 export const denoPlugins = (config?: Partial<DenoPluginsConfig>): [
