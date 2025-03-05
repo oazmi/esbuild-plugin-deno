@@ -1,0 +1,22 @@
+{
+	"imports": {
+		"@oazmi/kitchensink": "jsr:@oazmi/kitchensink@0.9.8",
+		"@std/jsonc": "jsr:@std/jsonc@^1.0.1",
+		"@std/semver": "jsr:@std/semver@^1.0.3",
+		"@remote-file-alias": "https://jsr.io/@oazmi/kitchensink/0.9.8/src/pathman.ts",
+		"@local-file-alias": "./aliased_file.ts"
+	},
+	"nodeModulesDir": "auto",
+	"fmt": {
+		"useTabs": true,
+		"semiColons": false,
+		"singleQuote": false,
+		"lineWidth": 800,
+		"proseWrap": "preserve",
+		"include": ["./*.ts", "./*.json"]
+	},
+	"compilerOptions": {
+		"lib": ["esnext", "dom", "deno.ns"],
+		"strict": true
+	}
+}

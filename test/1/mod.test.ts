@@ -1,24 +1,31 @@
 import { promiseTimeout } from "@oazmi/kitchensink/lambda"
 import { parseFilepathInfo } from "@oazmi/kitchensink/pathman"
 import esbuild from "npm:esbuild@0.25.0"
-import { denoInitialDataPlugin, httpPlugin, importMapPlugin, jsrPlugin, npmSpecifierPlugin } from "../../src/mod.ts"
+import { entryPlugin } from "../../src/plugins/filters/entry.ts"
+import { httpPlugin } from "../../src/plugins/filters/http.ts"
+import { jsrPlugin } from "../../src/plugins/filters/jsr.ts"
+import { npmPlugin } from "../../src/plugins/filters/npm.ts"
+import { resolverPlugin } from "../../src/plugins/resolvers.ts"
+// import { denoPlugins } from "../../src/plugins/mod.ts"
 
 
 Deno.test("test http plugin", async () => {
 	const entry_points = [
-		"./local_path_entry.ts", // this will be resolved and loaded by esbuild natively (although it will initially pass though the import-map-plugin resolver)
+		"@remote-file-alias",    // this remote-file alias will be resolved by the "deno.json" file in the current directory
+		"@local-file-alias",     // this local-file alias will be resolved by the "deno.json" file in the current directory
+		"./local_path_entry.ts", // this will be loaded by esbuild natively (although it will initially pass though the entry-plugin's resolver pipeline)
 		"file://" + import.meta.dirname + "/file_uri_entry.ts", // this will be resolved and loaded by our http-plugin
 		// "https://jsr.io/@oazmi/kitchensink/0.9.2/src/array1d.ts",
 		"jsr:@oazmi/kitchensink@^0.9.2/array1d", // this will be resolved by our jsr-plugin, and loaded by the http-plugin
-		"https://2d-lib", // this will bundle via our `globalImportMap` setting inside of the http-plugin
-		"2d-array-utils", // this will bundle via our `importMap` setting inside of our import-map-plugin
+		"https://2d-lib", // this will bundle via our `importMap` setting inside of the entry plugin's `initialPluginData`
+		"2d-array-utils", // this will bundle via our `globalImportMap` setting inside of our resolvers-pipeline plugin
 		// "https://jsr.io/@oazmi/kitchensink/0.9.3/src/struct.ts",
 		"jsr:@oazmi/kitchensink/struct",         // this will be resolved to the latest version of the package by our jsr-plugin
-		"npm:@oazmi/kitchensink/stringman",      // this will be resolved to whatever-is-available-version of the package (in the `node_modules` directory) by our npm-specifier-plugin
+		"npm:@oazmi/kitchensink/stringman",      // this will be resolved to whatever-is-available-version of the package (in the `node_modules` directory) by our npm-plugin
 		"https://raw.githubusercontent.com/jenil/chota/7d780731421fc987d8f7a1c8f66c730d8573684c/src/chota.css", // http-plugin resolution and loading
 	].map((path) => ({
 		in: path,
-		out: "entry-" + parseFilepathInfo(path).basename
+		out: "entry-" + parseFilepathInfo(path).basename,
 	}))
 
 	// TODO: while the `autoInstall` option is not implemented, we must manually trick deno into installing `npm:@oazmi/kitchensink`,
@@ -39,20 +46,28 @@ Deno.test("test http plugin", async () => {
 		write: false,
 		metafile: true,
 		plugins: [
-			denoInitialDataPlugin({ pluginData: { runtimePackage: "./deno.json" } }),
-			importMapPlugin({
-				importMap: {
-					"2d-array-utils": "jsr:@oazmi/kitchensink@0.9.2/array2d",
+			npmPlugin(),
+			entryPlugin({
+				pluginData: {
+					runtimePackage: "./deno.json",
+					importMap: { "https://2d-lib": "https://jsr.io/@oazmi/kitchensink/0.9.2/src/array2d.ts" },
+					resolverConfig: { useNodeModules: false },
 				}
 			}),
-			httpPlugin({
-				globalImportMap: {
-					"2d-array-utils": "https://jsr.io/@oazmi/kitchensink/0.9.2/src/array2d.ts",
-					"https://2d-lib": "https://jsr.io/@oazmi/kitchensink/0.9.2/src/array2d.ts",
-				}
-			}),
+			httpPlugin(),
 			jsrPlugin(),
-			npmSpecifierPlugin(),
+			resolverPlugin({ log: false, importMap: { globalImportMap: { "2d-array-utils": "https://jsr.io/@oazmi/kitchensink/0.9.2/src/array2d.ts" } } }),
+
+			// simpler alternative:
+			//
+			// ...denoPlugins({
+			// 	globalImportMap: { "2d-array-utils": "https://jsr.io/@oazmi/kitchensink/0.9.2/src/array2d.ts" },
+			// 	pluginData: {
+			// 		runtimePackage: "./deno.json",
+			// 		importMap: { "https://2d-lib": "https://jsr.io/@oazmi/kitchensink/0.9.2/src/array2d.ts" },
+			// 		resolverConfig: { useNodeModules: false },
+			// 	},
+			// })
 		],
 	})
 

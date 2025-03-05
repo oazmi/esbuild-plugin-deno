@@ -1,16 +1,18 @@
 # distribution builds and documentation builds
 /dist/
 /docs/
-/node_modules/
 /npm/
 /temp/
 /package.json
 /tsconfig.json
 
+# cache files and directories
+node_modules/
+
 # version lock files
-/deno.lock
-/deno.d.ts
-/package-lock.json
+deno.lock
+deno.d.ts
+package-lock.json
 
 # automatic file clones
 /src/readme.md
