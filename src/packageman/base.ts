@@ -16,6 +16,13 @@ import type { ImportMapSortedEntries } from "../importmap/typedefs.ts"
  * @template SCHEMA a record type representing the package schema.
 */
 export abstract class RuntimePackage<SCHEMA extends Record<string, any>> {
+	/** the path or url of the package json(c) file.
+	 * 
+	 * the {@link RuntimePackage | base class} does nothing with this information;
+	 * it is just there so that subclasses can make uses of this information (usually for resolving relative paths).
+	*/
+	protected readonly packagePath: string
+
 	/** the fetched/parsed package metadata file's raw contents. */
 	protected readonly packageInfo: SCHEMA
 
@@ -37,8 +44,9 @@ export abstract class RuntimePackage<SCHEMA extends Record<string, any>> {
 	 *   - in the case of node, this would be your json-parsed "package.json" file.
 	 *   - in the case of deno, this would be your json-parsed "deno.json" file.
 	*/
-	constructor(package_object: SCHEMA) {
+	constructor(package_object: SCHEMA, package_path: string) {
 		this.packageInfo = package_object
+		this.packagePath = package_path
 	}
 
 	/** get the package's name. */
@@ -46,6 +54,13 @@ export abstract class RuntimePackage<SCHEMA extends Record<string, any>> {
 
 	/** get the package's version string. */
 	abstract getVersion(): string
+
+	/** get the path/url to the package's json(c) file.
+	 * 
+	 * the {@link RuntimePackage | base class} does nothing with this information;
+	 * it is just there so that subclasses can make uses of this information (usually for resolving relative paths).
+	*/
+	getPath(): string { return this.packagePath }
 
 	/** this method tries to resolve the provided export `path_alias` of this package,
 	 * to an absolutely referenced path to the resource (using the internal {@link exportMapSortedEntries}).
@@ -79,9 +94,9 @@ export abstract class RuntimePackage<SCHEMA extends Record<string, any>> {
 	static async fromUrl<
 		SCHEMA extends Record<string, any>,
 		INSTANCE = RuntimePackage<SCHEMA>,
-	>(this: ConstructorOf<INSTANCE, [SCHEMA]>, package_jsonc_path: URL | string): Promise<INSTANCE> {
+	>(this: ConstructorOf<INSTANCE, [SCHEMA, string]>, package_jsonc_path: URL | string): Promise<INSTANCE> {
 		package_jsonc_path = resolveAsUrl(package_jsonc_path, defaultResolvePath())
 		const package_object = jsoncParse(await ((await fetch(package_jsonc_path, defaultFetchConfig)).text())) as SCHEMA
-		return new this(package_object)
+		return new this(package_object, package_jsonc_path.href)
 	}
 }
