@@ -4,9 +4,9 @@
  * @module
 */
 
-import { defaultGetCwd, ensureEndSlash, escapeLiteralStringForRegex, isString, parsePackageUrl, pathToPosixPath, replacePrefix } from "../../deps.ts"
+import { defaultGetCwd, ensureEndSlash, escapeLiteralStringForRegex, isString, parsePackageUrl, pathToPosixPath, replacePrefix, type DeepPartial } from "../../deps.ts"
 import type { resolverPlugin } from "../resolvers.ts"
-import type { CommonPluginData, DeepPartial, EsbuildPlugin, EsbuildPluginBuild, EsbuildPluginSetup, OnResolveArgs, OnResolveCallback } from "../typedefs.ts"
+import type { CommonPluginData, EsbuildPlugin, EsbuildPluginBuild, EsbuildPluginSetup, OnResolveArgs, OnResolveCallback } from "../typedefs.ts"
 import { defaultEsbuildNamespaces, PLUGIN_NAMESPACE } from "../typedefs.ts"
 
 

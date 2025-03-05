@@ -9,7 +9,7 @@ export { memorize } from "@oazmi/kitchensink/lambda"
 export { ensureEndSlash, ensureStartDotSlash, getUriScheme, joinPaths, normalizePath, parseFilepathInfo, parsePackageUrl, pathToPosixPath, resolveAsUrl, resolvePathFactory } from "@oazmi/kitchensink/pathman"
 export { escapeLiteralStringForRegex, replacePrefix, replaceSuffix } from "@oazmi/kitchensink/stringman"
 export { isArray, isString } from "@oazmi/kitchensink/struct"
-export type { ConstructorOf, DeepPartial, MaybePromise, Optional } from "@oazmi/kitchensink/typedefs"
+export type { ConstructorOf, MaybePromise, Optional } from "@oazmi/kitchensink/typedefs"
 export { parse as jsoncParse } from "@std/jsonc"
 export { maxSatisfying as semverMaxSatisfying, minSatisfying as semverMinSatisfying, parse as semverParse, parseRange as semverParseRange, format as semverToString } from "@std/semver"
 export type * as esbuild from "npm:esbuild@^0.25.0"
@@ -49,3 +49,8 @@ export const fileUrlToLocalPath = (file_url?: URL): string | undefined => {
 		corrected_local_path = local_path_with_leading_slash.replace(windows_local_path_correction_regex, "$1:/")
 	return corrected_local_path
 }
+
+// TODO: import the fixed the implementation from kitchensink
+export type DeepPartial<T> = T extends (Function | Array<any> | String | BigInt | Number | Boolean | Symbol)
+	? T : T extends Record<string, any>
+	? { [P in keyof T]?: DeepPartial<T[P]> } : T
