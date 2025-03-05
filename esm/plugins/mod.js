@@ -3,31 +3,41 @@
  * @module
 */
 import { defaultGetCwd, isAbsolutePath, resolvePathFactory } from "../deps.js";
-import { httpPlugin } from "./http.js";
-import { importMapPlugin } from "./importmap.js";
-import { denoInitialDataPlugin } from "./initialdata.js";
-import { jsrPlugin } from "./jsr.js";
-import { npmSpecifierPlugin } from "./npm.js";
-export const defaultDenoPluginsConfig = {
-    runtimePackage: undefined,
-    importMap: {},
+import { entryPlugin } from "./filters/entry.js";
+import { httpPlugin } from "./filters/http.js";
+import { jsrPlugin } from "./filters/jsr.js";
+import { npmPlugin } from "./filters/npm.js";
+import { resolverPlugin } from "./resolvers.js";
+import { defaultEsbuildNamespaces } from "./typedefs.js";
+const defaultDenoPluginsConfig = {
+    pluginData: {},
+    log: false,
+    globalImportMap: {},
     getCwd: defaultGetCwd,
+    acceptNamespaces: defaultEsbuildNamespaces,
 };
 /** creates an array esbuild plugins that can resolve imports in the same way deno can.
  *
  * it is effectively a cumulation of the following three plugins (ordered from highest resolving priority to lowest):
- * - {@link importMapPlugin}: provides import-map alias path-resolving for entry-points and esbuild's native resolvers (i.e. when in the default namespace).
- * - {@link httpPlugin}: provides `http://` and `https://` path-resolving and resource-fetching loader.
+ * - {@link entryPlugin}: provides `pluginData` to all entry-points and their dependencies,
+ *   in addition to pre-resolving all paths implicitly through the {@link resolverPlugin}.
+ * - {@link httpPlugin}: provides `http://`, `https://`, and `file://` path-resolving and resource-fetching loader.
  * - {@link jsrPlugin}: provides a `jsr:` to `https://jsr.io/` path-resolver.
- * - {@link npmSpecifierPlugin}: provides a resolver that strips away `npm:` specifier prefixes.
+ * - {@link npmPlugin}: provides a resolver that strips away `npm:` specifier prefixes,
+ *   so that package-resources can be obtained from your `./node_modules/` folder.
+ * - {@link resolverPlugin}: a namespaced plugin that provides the backbone pipeline for resolving the paths of all of the plugins above.
 */
 export const denoPlugins = (config) => {
-    const { runtimePackage, importMap, getCwd } = { ...defaultDenoPluginsConfig, ...config }, resolvePath = resolvePathFactory(getCwd, isAbsolutePath);
+    const { acceptNamespaces, getCwd, globalImportMap, log, pluginData } = { ...defaultDenoPluginsConfig, ...config }, resolvePath = resolvePathFactory(getCwd, isAbsolutePath);
     return [
-        denoInitialDataPlugin({ pluginData: { runtimePackage } }),
-        importMapPlugin({ importMap }),
-        httpPlugin({ globalImportMap: importMap, resolvePath }),
-        jsrPlugin({ globalImportMap: importMap, resolvePath }),
-        npmSpecifierPlugin({ globalImportMap: importMap, resolvePath }),
+        entryPlugin({ pluginData, acceptNamespaces }),
+        httpPlugin({ acceptNamespaces }),
+        jsrPlugin({ acceptNamespaces }),
+        npmPlugin({ acceptNamespaces }),
+        resolverPlugin({
+            log,
+            importMap: { globalImportMap: globalImportMap },
+            relativePath: { resolvePath: resolvePath },
+        }),
     ];
 };

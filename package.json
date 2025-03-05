@@ -1,6 +1,6 @@
 {
   "name": "@oazmi/esbuild-plugin-deno",
-  "version": "0.1.4",
+  "version": "0.2.0",
   "description": "A portable non-invasive suite of esbuild plugins for loading http, jsr, npm, and import-maps. Supports Deno, Node, Bun, Web. Alternate to @luca/esbuild-deno-loader , while compatible with other plugins and native esbuild resolvers (e.g. css loader).",
   "keywords": [
     "esbuild-plugin",
@@ -39,23 +39,20 @@
     "./plugins": {
       "import": "./esm/plugins/mod.js"
     },
-    "./plugins/http": {
-      "import": "./esm/plugins/http.js"
+    "./plugins/filters/entry": {
+      "import": "./esm/plugins/filters/entry.js"
     },
-    "./plugins/importmap": {
-      "import": "./esm/plugins/importmap.js"
+    "./plugins/filters/http": {
+      "import": "./esm/plugins/filters/http.js"
     },
-    "./plugins/initialdata": {
-      "import": "./esm/plugins/initialdata.js"
+    "./plugins/filters/jsr": {
+      "import": "./esm/plugins/filters/jsr.js"
     },
-    "./plugins/jsr": {
-      "import": "./esm/plugins/jsr.js"
+    "./plugins/filters/npm": {
+      "import": "./esm/plugins/filters/npm.js"
     },
-    "./plugins/npm": {
-      "import": "./esm/plugins/npm.js"
-    },
-    "./plugins/funcdefs": {
-      "import": "./esm/plugins/funcdefs.js"
+    "./plugins/resolvers": {
+      "import": "./esm/plugins/resolvers.js"
     },
     "./plugins/typedefs": {
       "import": "./esm/plugins/typedefs.js"

@@ -85,10 +85,10 @@
  * eq(resEx("jsr:@scope/lib@0.1.0/utils/cli/file.js"), "https://jsr.io/@scope/lib/0.1.0/src/cli/file.js")
  * ```
 */
-import { memorize } from "@oazmi/kitchensink/lambda";
-import { defaultFetchConfig, ensureEndSlash, isString, json_stringify, normalizePath, object_entries, parsePackageUrl, pathToPosixPath, replacePrefix, resolveAsUrl, semverMaxSatisfying, semverParse, semverParseRange, semverToString } from "../deps.js";
+import { defaultFetchConfig, ensureEndSlash, isString, json_stringify, memorize, normalizePath, object_entries, parsePackageUrl, pathToPosixPath, replacePrefix, resolveAsUrl, semverMaxSatisfying, semverParse, semverParseRange, semverToString } from "../deps.js";
 import { compareImportMapEntriesByLength } from "../importmap/mod.js";
 import { RuntimePackage } from "./base.js";
+const get_dir_path_of_file_path = (file_path) => normalizePath(file_path.endsWith("/") ? file_path : file_path + "/../");
 export class DenoPackage extends RuntimePackage {
     importMapSortedEntries;
     exportMapSortedEntries;
@@ -119,14 +119,14 @@ export class DenoPackage extends RuntimePackage {
         this.importMapSortedEntries = object_entries(imports_object).toSorted(compareImportMapEntriesByLength);
     }
     resolveExport(path_alias, config) {
-        const name = this.getName(), version = this.getVersion(), package_json_path = pathToPosixPath(this.getPath()), { baseAliasDir = `jsr:${name}@${version}`, basePathDir = normalizePath(package_json_path.endsWith("/") ? package_json_path : package_json_path + "/../"), ...rest_config } = config ?? {}, residual_path_alias = replacePrefix(path_alias, baseAliasDir)?.replace(/^\/+/, "/");
+        const name = this.getName(), version = this.getVersion(), package_json_path = pathToPosixPath(this.getPath()), { baseAliasDir = `jsr:${name}@${version}`, basePathDir = get_dir_path_of_file_path(package_json_path), ...rest_config } = config ?? {}, residual_path_alias = replacePrefix(path_alias, baseAliasDir)?.replace(/^\/+/, "/");
         if (residual_path_alias !== undefined) {
             path_alias = baseAliasDir + (residual_path_alias === "/" ? "" : residual_path_alias);
         }
         return super.resolveExport(path_alias, { baseAliasDir, basePathDir, ...rest_config });
     }
     resolveImport(path_alias, config) {
-        const name = this.getName(), version = this.getVersion(), path_alias_is_relative = path_alias.startsWith("./") || path_alias.startsWith("../"), local_package_reference_aliases = path_alias_is_relative
+        const name = this.getName(), version = this.getVersion(), package_json_path = pathToPosixPath(this.getPath()), basePathDir = get_dir_path_of_file_path(package_json_path), path_alias_is_relative = path_alias.startsWith("./") || path_alias.startsWith("../"), local_package_reference_aliases = path_alias_is_relative
             ? [""]
             : [`jsr:${name}@${version}`, `jsr:${name}`, `${name}`];
         // resolving the `path_alias` as a locally self-referenced package export.
@@ -141,8 +141,10 @@ export class DenoPackage extends RuntimePackage {
                 break;
             }
         }
-        // if the `path_alias` is not a local export, then resolve it based on the package's import-map
-        return locally_resolved_export ?? super.resolveImport(path_alias, config);
+        // if the `path_alias` is not a local export, then resolve it based on the package's import-map.
+        // do note that if the import-map specifies an entry where the alias's path directs to a relative path (for instance: `"@server": "./src/server.ts"`),
+        // then we would want the base-path to be the directory of the "deno.json" file (acquired via `this.getPath()`)
+        return locally_resolved_export ?? super.resolveImport(path_alias, { ...config, basePathDir });
     }
     static async fromUrl(jsr_package) {
         // TODO: ideally, we should also memorize the resulting instance of `DenoPackage` that gets created via this static method,

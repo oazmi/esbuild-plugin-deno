@@ -86,8 +86,7 @@
  * ```
 */
 
-import { memorize } from "@oazmi/kitchensink/lambda"
-import { defaultFetchConfig, ensureEndSlash, isString, json_stringify, normalizePath, object_entries, parsePackageUrl, pathToPosixPath, replacePrefix, resolveAsUrl, semverMaxSatisfying, semverParse, semverParseRange, semverToString } from "../deps.js"
+import { defaultFetchConfig, ensureEndSlash, isString, json_stringify, memorize, normalizePath, object_entries, parsePackageUrl, pathToPosixPath, replacePrefix, resolveAsUrl, semverMaxSatisfying, semverParse, semverParseRange, semverToString } from "../deps.js"
 import { compareImportMapEntriesByLength, type ResolvePathFromImportMapEntriesConfig } from "../importmap/mod.js"
 import type { ImportMapSortedEntries } from "../importmap/typedefs.js"
 import { RuntimePackage } from "./base.js"
@@ -155,6 +154,8 @@ type Exports = string | {
 	[alias: string]: string
 }
 
+const get_dir_path_of_file_path = (file_path: string) => normalizePath(file_path.endsWith("/") ? file_path : file_path + "/../")
+
 export class DenoPackage extends RuntimePackage<DenoJsonSchema> {
 	protected override readonly importMapSortedEntries: ImportMapSortedEntries
 	protected override readonly exportMapSortedEntries: ImportMapSortedEntries
@@ -202,7 +203,7 @@ export class DenoPackage extends RuntimePackage<DenoJsonSchema> {
 			package_json_path = pathToPosixPath(this.getPath()),
 			{
 				baseAliasDir = `jsr:${name}@${version}`,
-				basePathDir = normalizePath(package_json_path.endsWith("/") ? package_json_path : package_json_path + "/../"),
+				basePathDir = get_dir_path_of_file_path(package_json_path),
 				...rest_config
 			} = config ?? {},
 			residual_path_alias = replacePrefix(path_alias, baseAliasDir)?.replace(/^\/+/, "/")
@@ -216,6 +217,8 @@ export class DenoPackage extends RuntimePackage<DenoJsonSchema> {
 		const
 			name = this.getName(),
 			version = this.getVersion(),
+			package_json_path = pathToPosixPath(this.getPath()),
+			basePathDir = get_dir_path_of_file_path(package_json_path),
 			path_alias_is_relative = path_alias.startsWith("./") || path_alias.startsWith("../"),
 			local_package_reference_aliases = path_alias_is_relative
 				? [""]
@@ -232,8 +235,10 @@ export class DenoPackage extends RuntimePackage<DenoJsonSchema> {
 			if (locally_resolved_export) { break }
 		}
 
-		// if the `path_alias` is not a local export, then resolve it based on the package's import-map
-		return locally_resolved_export ?? super.resolveImport(path_alias, config)
+		// if the `path_alias` is not a local export, then resolve it based on the package's import-map.
+		// do note that if the import-map specifies an entry where the alias's path directs to a relative path (for instance: `"@server": "./src/server.ts"`),
+		// then we would want the base-path to be the directory of the "deno.json" file (acquired via `this.getPath()`)
+		return locally_resolved_export ?? super.resolveImport(path_alias, { ...config, basePathDir })
 	}
 
 	static override async fromUrl<

@@ -36,6 +36,27 @@ if (!Uint8Array.prototype.findLast) {
   };
 }
 
+// node_modules/@oazmi/kitchensink/esm/alias.js
+var json_constructor = JSON;
+var object_constructor = Object;
+var symbol_constructor = Symbol;
+var json_stringify = /* @__PURE__ */ (() => json_constructor.stringify)();
+var object_assign = /* @__PURE__ */ (() => object_constructor.assign)();
+var object_entries = /* @__PURE__ */ (() => object_constructor.entries)();
+var object_keys = /* @__PURE__ */ (() => object_constructor.keys)();
+var promise_outside = () => {
+  let resolve, reject;
+  const promise = new Promise((_resolve, _reject) => {
+    resolve = _resolve;
+    reject = _reject;
+  });
+  return [promise, resolve, reject];
+};
+var symbol_iterator = /* @__PURE__ */ (() => symbol_constructor.iterator)();
+var symbol_toStringTag = /* @__PURE__ */ (() => symbol_constructor.toStringTag)();
+var dom_encodeURI = encodeURI;
+var dom_decodeURI = decodeURI;
+
 // node_modules/@oazmi/kitchensink/esm/_dnt.shims.js
 var dntGlobals = {};
 var dntGlobalThis = createMergeProxy(globalThis, dntGlobals);
@@ -92,19 +113,6 @@ function createMergeProxy(baseObj, extObj) {
     }
   });
 }
-
-// node_modules/@oazmi/kitchensink/esm/alias.js
-var json_constructor = JSON;
-var object_constructor = Object;
-var symbol_constructor = Symbol;
-var json_stringify = /* @__PURE__ */ (() => json_constructor.stringify)();
-var object_assign = /* @__PURE__ */ (() => object_constructor.assign)();
-var object_entries = /* @__PURE__ */ (() => object_constructor.entries)();
-var object_keys = /* @__PURE__ */ (() => object_constructor.keys)();
-var symbol_iterator = /* @__PURE__ */ (() => symbol_constructor.iterator)();
-var symbol_toStringTag = /* @__PURE__ */ (() => symbol_constructor.toStringTag)();
-var dom_encodeURI = encodeURI;
-var dom_decodeURI = decodeURI;
 
 // node_modules/@oazmi/kitchensink/esm/deps.js
 var DEBUG;
@@ -575,6 +583,23 @@ var HybridWeakMap = class {
   }
 };
 var TREE_VALUE_UNSET = /* @__PURE__ */ Symbol(DEBUG.MINIFY || "represents an unset value for a tree");
+
+// node_modules/@oazmi/kitchensink/esm/lambda.js
+var THROTTLE_REJECT = /* @__PURE__ */ Symbol(DEBUG.MINIFY || "a rejection by a throttled function");
+var TIMEOUT = /* @__PURE__ */ Symbol(DEBUG.MINIFY || "a timeout by an awaited promiseTimeout function");
+var memorizeCore = (fn, weak_ref = false) => {
+  const memory = weak_ref ? new HybridWeakMap() : /* @__PURE__ */ new Map(), get = bindMethodToSelfByName(memory, "get"), set = bindMethodToSelfByName(memory, "set"), has = bindMethodToSelfByName(memory, "has"), memorized_fn = (arg) => {
+    const arg_exists = has(arg), value = arg_exists ? get(arg) : fn(arg);
+    if (!arg_exists) {
+      set(arg, value);
+    }
+    return value;
+  };
+  return { fn: memorized_fn, memory };
+};
+var memorize = (fn) => {
+  return memorizeCore(fn).fn;
+};
 
 // node_modules/@std/jsonc/parse.js
 function parse(text) {
@@ -1623,6 +1648,15 @@ var isAbsolutePath2 = (segment) => {
 var defaultFetchConfig = { redirect: "follow", cache: "force-cache" };
 var defaultGetCwd = /* @__PURE__ */ getRuntimeCwd(identifyCurrentRuntime(), true);
 var defaultResolvePath = /* @__PURE__ */ resolvePathFactory(defaultGetCwd, isAbsolutePath2);
+var noop = () => void 0;
+var windows_local_path_correction_regex = /^[\/\\]([a-z])\:[\/\\]/i;
+var fileUrlToLocalPath = (file_url) => {
+  if (!file_url?.protocol.startsWith("file:")) {
+    return;
+  }
+  const local_path_with_leading_slash = pathToPosixPath(dom_decodeURI(file_url.pathname)), corrected_local_path = local_path_with_leading_slash.replace(windows_local_path_correction_regex, "$1:/");
+  return corrected_local_path;
+};
 
 // src/importmap/mod.ts
 var resolvePathFromImportMap = (path_alias, import_map) => {
@@ -1678,6 +1712,244 @@ var resolvePathFromImportMapEntries = (path_alias, import_map_entries, config) =
       }
     }
   }
+};
+
+// src/packageman/base.ts
+var RuntimePackage = class {
+  /** the path or url of the package json(c) file.
+   * 
+   * the {@link RuntimePackage | base class} does nothing with this information;
+   * it is just there so that subclasses can make uses of this information (usually for resolving relative paths).
+  */
+  packagePath;
+  /** the fetched/parsed package metadata file's raw contents. */
+  packageInfo;
+  /** @param package_object the parsed package metadata as an object.
+   *   - in the case of node, this would be your json-parsed "package.json" file.
+   *   - in the case of deno, this would be your json-parsed "deno.json" file.
+  */
+  constructor(package_object, package_path) {
+    this.packageInfo = package_object;
+    this.packagePath = package_path;
+  }
+  /** get the path/url to the package's json(c) file.
+   * 
+   * the {@link RuntimePackage | base class} does nothing with this information;
+   * it is just there so that subclasses can make uses of this information (usually for resolving relative paths).
+  */
+  getPath() {
+    return this.packagePath;
+  }
+  /** this method tries to resolve the provided export `path_alias` of this package,
+   * to an absolutely referenced path to the resource (using the internal {@link exportMapSortedEntries}).
+   * if no exported resources match the given `path_alias`, then `undefined` will be returned.
+   * 
+   * > [!tip]
+   * > for test case examples and configuration options, see the documentation comments of {@link resolvePathFromImportMapEntries}
+  */
+  resolveExport(path_alias, config) {
+    return resolvePathFromImportMapEntries(path_alias, this.exportMapSortedEntries, { sort: false, ...config });
+  }
+  /** this method tries to resolve the provided import `path_alias` done by some resource within this package,
+   * using the internal {@link importMapSortedEntries} list of import-aliases that this package uses.
+   * if no import resources match the given `path_alias`, then `undefined` will be returned
+   * (which would probably mean that the given `path_alias` is already either an absolute or relative path, or perhaps incorrect altogether.
+   * 
+   * > [!tip]
+   * > for test case examples and configuration options, see the documentation comments of {@link resolvePathFromImportMapEntries}
+  */
+  resolveImport(path_alias, config) {
+    return resolvePathFromImportMapEntries(path_alias, this.importMapSortedEntries, { sort: false, ...config });
+  }
+  /** create an instance of this class by loading a package's json(c) file from a url or local file-system path.
+   * 
+   * > [!tip]
+   * > the constructor uses a "JSONC" parser (from [@std/jsonc](https://jsr.io/@std/jsonc)) for the fetched files.
+   * > therefore, you may provide links to ".jsonc" files, instead of parsing them yourself before calling the super constructor.
+  */
+  static async fromUrl(package_jsonc_path) {
+    package_jsonc_path = resolveAsUrl(package_jsonc_path, defaultResolvePath());
+    const package_object = parse(await (await fetch(package_jsonc_path, defaultFetchConfig)).text());
+    return new this(package_object, package_jsonc_path.href);
+  }
+};
+
+// src/packageman/deno.ts
+var get_dir_path_of_file_path = (file_path) => normalizePath(file_path.endsWith("/") ? file_path : file_path + "/../");
+var DenoPackage = class extends RuntimePackage {
+  importMapSortedEntries;
+  exportMapSortedEntries;
+  getName() {
+    return this.packageInfo.name;
+  }
+  getVersion() {
+    return this.packageInfo.version;
+  }
+  getPath() {
+    const package_path = this.packagePath;
+    return package_path ? package_path : `${jsr_base_url}/${this.getName()}/${this.getVersion()}/deno.json`;
+  }
+  constructor(package_object, package_path) {
+    super(package_object, package_path);
+    const { exports = {}, imports = {} } = package_object, exports_object = isString(exports) ? exports.endsWith("/") ? { "./": exports } : { ".": exports } : exports, imports_object = { ...imports };
+    for (const [alias, path] of object_entries(imports_object)) {
+      const alias_dir_variant = ensureEndSlash(alias);
+      if (alias !== alias_dir_variant && !(alias_dir_variant in imports_object)) {
+        imports_object[alias_dir_variant] = ensureEndSlash(path);
+      }
+    }
+    this.exportMapSortedEntries = object_entries(exports_object).toSorted(compareImportMapEntriesByLength);
+    this.importMapSortedEntries = object_entries(imports_object).toSorted(compareImportMapEntriesByLength);
+  }
+  resolveExport(path_alias, config) {
+    const name = this.getName(), version = this.getVersion(), package_json_path = pathToPosixPath(this.getPath()), {
+      baseAliasDir = `jsr:${name}@${version}`,
+      basePathDir = get_dir_path_of_file_path(package_json_path),
+      ...rest_config
+    } = config ?? {}, residual_path_alias = replacePrefix(path_alias, baseAliasDir)?.replace(/^\/+/, "/");
+    if (residual_path_alias !== void 0) {
+      path_alias = baseAliasDir + (residual_path_alias === "/" ? "" : residual_path_alias);
+    }
+    return super.resolveExport(path_alias, { baseAliasDir, basePathDir, ...rest_config });
+  }
+  resolveImport(path_alias, config) {
+    const name = this.getName(), version = this.getVersion(), package_json_path = pathToPosixPath(this.getPath()), basePathDir = get_dir_path_of_file_path(package_json_path), path_alias_is_relative = path_alias.startsWith("./") || path_alias.startsWith("../"), local_package_reference_aliases = path_alias_is_relative ? [""] : [`jsr:${name}@${version}`, `jsr:${name}`, `${name}`];
+    let locally_resolved_export = void 0;
+    for (const base_alias_dir of local_package_reference_aliases) {
+      locally_resolved_export = this.resolveExport(path_alias, { ...config, baseAliasDir: base_alias_dir });
+      if (locally_resolved_export) {
+        break;
+      }
+    }
+    return locally_resolved_export ?? super.resolveImport(path_alias, { ...config, basePathDir });
+  }
+  static async fromUrl(jsr_package) {
+    const package_jsonc_path_str = isString(jsr_package) ? jsr_package : jsr_package.href, url_is_jsr_protocol = package_jsonc_path_str.startsWith("jsr:");
+    if (url_is_jsr_protocol) {
+      const { host } = parsePackageUrl(jsr_package);
+      jsr_package = await memorized_jsrPackageToMetadataUrl(`jsr:${host}`);
+    }
+    return super.fromUrl(jsr_package);
+  }
+};
+var jsr_base_url = "https://jsr.io";
+var jsrPackageToMetadataUrl = async (jsr_package) => {
+  const { protocol, scope, pkg, pathname, version: desired_semver } = parsePackageUrl(jsr_package);
+  if (protocol !== "jsr:") {
+    throw new Error(`expected path protocol to be "jsr:", found "${protocol}" instead, for package: "${jsr_package}"`);
+  }
+  if (!scope) {
+    throw new Error(`expected jsr package to contain a scope, but found "${scope}" instead, for package: "${jsr_package}"`);
+  }
+  const meta_json_url = resolveAsUrl(`@${scope}/${pkg}/meta.json`, jsr_base_url), meta_json = await (await fetch(meta_json_url, defaultFetchConfig)).json(), unyanked_versions = object_entries(meta_json.versions).filter(([version_str, { yanked }]) => !yanked).map(([version_str]) => parse2(version_str));
+  const resolved_semver = maxSatisfying(unyanked_versions, parseRange(desired_semver ?? meta_json.latest));
+  if (!resolved_semver) {
+    throw new Error(`failed to find the desired version "${desired_semver}" of the jsr package "${jsr_package}", with available versions "${json_stringify(meta_json.versions)}"`);
+  }
+  const resolved_version = format(resolved_semver), base_host = resolveAsUrl(`@${scope}/${pkg}/${resolved_version}/`, jsr_base_url), deno_json_url = resolveAsUrl("./deno.json", base_host), jsr_json_url = resolveAsUrl("./jsr.json", base_host), package_json_url = resolveAsUrl("./package.json", base_host);
+  const urls = [deno_json_url, jsr_json_url];
+  for (const url of urls) {
+    if ((await fetch(url, { ...defaultFetchConfig, method: "HEAD" })).ok) {
+      return url;
+    }
+  }
+  throw new Error(`Network Error: couldn't locate "${jsr_package}"'s package json file. searched in the following locations:
+${json_stringify(urls)}`);
+};
+var memorized_jsrPackageToMetadataUrl = memorize(jsrPackageToMetadataUrl);
+
+// src/plugins/typedefs.ts
+var defaultEsbuildNamespaces = [void 0, "", "file"];
+var allEsbuildLoaders = [
+  "base64",
+  "binary",
+  "copy",
+  "css",
+  "dataurl",
+  "default",
+  "empty",
+  "file",
+  "js",
+  "json",
+  "jsx",
+  "local-css",
+  "text",
+  "ts",
+  "tsx"
+];
+
+// src/plugins/filters/entry.ts
+var defaultEntryPluginSetup = {
+  filters: [/.*/],
+  pluginData: void 0,
+  captureDependencies: true,
+  acceptNamespaces: defaultEsbuildNamespaces
+};
+var entryPluginSetup = (config) => {
+  const { filters, pluginData: _initialPluginData, captureDependencies, acceptNamespaces: _acceptNamespaces } = { ...defaultEntryPluginSetup, ...config }, acceptNamespaces = /* @__PURE__ */ new Set([..._acceptNamespaces, "oazmi-loader-http" /* LOADER_HTTP */]), captured_resolved_paths = /* @__PURE__ */ new Set(), ALREADY_CAPTURED_BY_INJECTOR = Symbol(), ALREADY_CAPTURED_BY_RESOLVER = Symbol();
+  return async (build) => {
+    const { runtimePackage: initialRuntimePackage, ...rest_initialPluginData } = _initialPluginData ?? {}, initialPluginData = rest_initialPluginData;
+    build.onStart(async () => {
+      initialPluginData.runtimePackage = await resolveRuntimePackage(build, initialRuntimePackage);
+    });
+    const entryPluginDataInjector = async (args) => {
+      if ((args.pluginData ?? {})[ALREADY_CAPTURED_BY_INJECTOR]) {
+        return;
+      }
+      if (args.pluginData?.resolverConfig?.useInitialPluginData === false) {
+        return;
+      }
+      if (!acceptNamespaces.has(args.namespace)) {
+        return;
+      }
+      const { path, pluginData = {}, ...rest_args } = args, merged_plugin_data = { ...initialPluginData, ...pluginData, [ALREADY_CAPTURED_BY_INJECTOR]: true }, { kind, importer } = rest_args;
+      if (kind !== "entry-point" && !captured_resolved_paths.has(normalizePath(importer))) {
+        return;
+      }
+      const resolved_result = await build.resolve(path, { ...rest_args, pluginData: merged_plugin_data });
+      if (resolved_result.pluginData === void 0) {
+        resolved_result.pluginData = merged_plugin_data;
+      }
+      if (captureDependencies) {
+        captured_resolved_paths.add(normalizePath(resolved_result.path));
+      }
+      return resolved_result;
+    };
+    const absolutePathResolver = async (args) => {
+      if ((args.pluginData ?? {})[ALREADY_CAPTURED_BY_RESOLVER]) {
+        return;
+      }
+      if (!acceptNamespaces.has(args.namespace)) {
+        return;
+      }
+      const { path, namespace: original_ns, ...rest_args } = args, abs_result = await build.resolve(path, { ...rest_args, namespace: "oazmi-resolver-pipeline" /* RESOLVER_PIPELINE */ });
+      const { path: abs_path, pluginData: abs_pluginData = {}, namespace: _0 } = abs_result, next_pluginData = { ...abs_pluginData, [ALREADY_CAPTURED_BY_RESOLVER]: true }, resolved_result = await build.resolve(abs_path, { ...rest_args, namespace: original_ns, pluginData: next_pluginData });
+      if (resolved_result.pluginData === void 0) {
+        resolved_result.pluginData = next_pluginData;
+      }
+      resolved_result.pluginData = { ...resolved_result.pluginData, [ALREADY_CAPTURED_BY_RESOLVER]: false };
+      return resolved_result;
+    };
+    for (const filter of filters) {
+      build.onResolve({ filter }, entryPluginDataInjector);
+      build.onResolve({ filter }, absolutePathResolver);
+    }
+  };
+};
+var entryPlugin = (config) => {
+  return {
+    name: "oazmi-entry",
+    setup: entryPluginSetup(config)
+  };
+};
+var resolveRuntimePackage = async (build, initialRuntimePackage) => {
+  const denoPackageJson_exists = initialRuntimePackage !== void 0, denoPackageJson_isRuntimePackage = initialRuntimePackage instanceof RuntimePackage, denoPackageJson_url = !denoPackageJson_exists || denoPackageJson_isRuntimePackage ? void 0 : isString(initialRuntimePackage) ? resolveAsUrl((await build.resolve(initialRuntimePackage, {
+    kind: "entry-point",
+    namespace: "oazmi-resolver-pipeline" /* RESOLVER_PIPELINE */,
+    pluginData: { resolverConfig: { useInitialPluginData: false, useNodeModules: false } }
+  })).path) : initialRuntimePackage;
+  const denoPackage = !denoPackageJson_exists ? void 0 : denoPackageJson_isRuntimePackage ? initialRuntimePackage : await DenoPackage.fromUrl(denoPackageJson_url);
+  return denoPackage;
 };
 
 // src/loadermap/extensions.js
@@ -1795,98 +2067,18 @@ var guessHttpResponseLoaders = (response) => {
   return common_loaders;
 };
 
-// src/plugins/funcdefs.ts
-var onResolveFactory = (config) => {
-  const { isAbsolutePath: isAbsolutePath3, namespace: plugin_ns, resolvePath, log: log2 = false, globalImportMap = {} } = config;
-  return async (args) => {
-    const { path, resolveDir, importer, namespace, pluginData = {} } = args, originalNamespace = namespace, importMap = { ...globalImportMap, ...pluginData.importMap }, runtimePackage = pluginData.runtimePackage;
-    let resolved_path = void 0;
-    if (runtimePackage && !path.startsWith("./") && !path.startsWith("../")) {
-      resolved_path = runtimePackage.resolveImport(path);
-    }
-    if (resolved_path === void 0) {
-      resolved_path = resolvePathFromImportMap(path, importMap);
-    }
-    if (resolved_path === void 0) {
-      const dir = isAbsolutePath3(importer) ? importer : joinPaths(ensureEndSlash(resolveDir), importer);
-      resolved_path = isAbsolutePath3(path) ? pathToPosixPath(path) : resolvePath(dir, ensureStartDotSlash(path));
-    }
-    if (1 /* LOG */ && log2) {
-      console.log(`[${plugin_ns}] onResolve:`, { path, resolved_path, resolveDir, args, importMap });
-    }
-    return {
-      path: resolved_path,
-      namespace: plugin_ns,
-      // TODO: should I also embed `importMap` into `pluginData` after `...pluginData`?
-      //   doing so would let us propagate our `globalImportMap` to all dependencies,
-      //   without them needing to be resolved specifically by _this_ resolver function.
-      //   but it may have unintended consequences, so I'll leave it out for now.
-      // NOTICE: I am intentionally letting any potential `pluginData.originalNamespace` overwrite the `originalNamespace` variable.
-      //   this is because I want the very first namespace to persevere even if the current `path` that is currently being resolved
-      //   goes through several recursive calls (i.e. ping-pongs) between `onResolveFactory`s and `unResolveFactory`s.
-      pluginData: { originalNamespace, ...pluginData }
-    };
-  };
-};
-var unResolveFactory = (config, build) => {
-  const { log: log2, namespace: plugin_ns } = config, on_resolve_fn = onResolveFactory({ ...config, log: false, namespace: "oazmi-unresolver-namespace-does-not-matter" });
-  return async (args) => {
-    const {
-      path,
-      namespace: _0,
-      pluginData: {
-        importMap,
-        runtimePackage,
-        originalNamespace: namespace,
-        ...restPluginData
-      } = {},
-      ...rest_args
-    } = args;
-    const {
-      path: resolved_abs_path,
-      namespace: _1,
-      pluginData: _2,
-      ...rest_resolved_args
-    } = await on_resolve_fn({ path, namespace, ...rest_args, pluginData: { importMap, runtimePackage } });
-    const naturally_resolved_result = await build.resolve(resolved_abs_path, {
-      ...rest_args,
-      namespace,
-      pluginData: { importMap, runtimePackage, ...restPluginData }
-    });
-    if (1 /* LOG */ && log2) {
-      console.log(`[${plugin_ns}] unResolve:`, { path, resolved_abs_path, naturally_resolved_result, rest_resolved_args });
-    }
-    return { ...rest_resolved_args, ...naturally_resolved_result };
-  };
-};
-var all_esbuild_loaders = [
-  "base64",
-  "binary",
-  "copy",
-  "css",
-  "dataurl",
-  "default",
-  "empty",
-  "file",
-  "js",
-  "json",
-  "jsx",
-  "local-css",
-  "text",
-  "ts",
-  "tsx"
-];
+// src/plugins/filters/http.ts
 var urlLoaderFactory = (config) => {
-  const { defaultLoader, namespace: plugin_ns, acceptLoaders = all_esbuild_loaders, log: log2 = false } = config, accept_loaders_set = new Set(acceptLoaders);
+  const { defaultLoader, acceptLoaders = allEsbuildLoaders, log = false } = config, accept_loaders_set = new Set(acceptLoaders);
   return async (args) => {
     const { path, pluginData } = args, path_url = resolveAsUrl(path), response = await fetch(path_url, defaultFetchConfig);
     if (!response.ok) {
-      throw new Error(`[${plugin_ns}] onLoadUrl: ERROR: network fetch response for url "${path_url.href}" was not ok (${response.status}). response header:
+      throw new Error(`[urlLoaderFactory]: ERROR: network fetch response for url "${path_url.href}" was not ok (${response.status}). response header:
 ${json_stringify(response.headers)}`);
     }
     const guessed_loaders = guessHttpResponseLoaders(response), available_loaders = accept_loaders_set.intersection(guessed_loaders), preferred_loader = [...available_loaders].at(0) ?? defaultLoader, contents = await response.bytes();
-    if (1 /* LOG */ && log2) {
-      console.log(`[${plugin_ns}] onLoadUrl:`, { path, path_url: path_url.href, guessed_loaders, preferred_loader, args });
+    if (1 /* LOG */ && log) {
+      console.log(`[urlLoaderFactory]:`, { path, path_url: path_url.href, guessed_loaders, preferred_loader, args });
     }
     return {
       contents,
@@ -1901,25 +2093,28 @@ ${json_stringify(response.headers)}`);
     };
   };
 };
-
-// src/plugins/http.ts
 var defaultHttpPluginSetupConfig = {
-  acceptLoaders: void 0,
-  defaultLoader: "copy",
   filters: [/^https?\:\/\//, /^file\:\/\//],
-  globalImportMap: void 0,
-  namespace: "oazmi-http",
-  resolvePath: defaultResolvePath
+  namespace: "oazmi-loader-http" /* LOADER_HTTP */,
+  acceptNamespaces: defaultEsbuildNamespaces,
+  defaultLoader: "copy",
+  acceptLoaders: void 0
 };
 var httpPluginSetup = (config = {}) => {
-  const { acceptLoaders, defaultLoader, filters, globalImportMap, namespace: plugin_ns, resolvePath } = { ...defaultHttpPluginSetupConfig, ...config }, pluginResolverConfig = { isAbsolutePath: isAbsolutePath2, namespace: plugin_ns, globalImportMap, resolvePath }, pluginLoaderConfig = { acceptLoaders, defaultLoader, namespace: plugin_ns };
+  const { acceptLoaders, defaultLoader, filters, namespace: plugin_ns, acceptNamespaces: _acceptNamespaces } = { ...defaultHttpPluginSetupConfig, ...config }, acceptNamespaces = /* @__PURE__ */ new Set([..._acceptNamespaces, plugin_ns]), pluginLoaderConfig = { acceptLoaders, defaultLoader };
   return async (build) => {
     const { absWorkingDir, outdir, outfile, entryPoints, write, loader } = build.initialOptions;
+    const httpResolver = async (args) => {
+      if (!acceptNamespaces.has(args.namespace)) {
+        return;
+      }
+      const { path, pluginData } = args;
+      return { path, pluginData, namespace: plugin_ns };
+    };
     filters.forEach((filter) => {
-      build.onResolve({ filter }, onResolveFactory(pluginResolverConfig));
+      build.onResolve({ filter }, httpResolver);
     });
     build.onLoad({ filter: /.*/, namespace: plugin_ns }, urlLoaderFactory(pluginLoaderConfig));
-    build.onResolve({ filter: /.*/, namespace: plugin_ns }, unResolveFactory(pluginResolverConfig, build));
   };
 };
 var httpPlugin = (config) => {
@@ -1929,316 +2124,36 @@ var httpPlugin = (config) => {
   };
 };
 
-// src/plugins/importmap.ts
-var CAPTURED_ALREADY = Symbol();
-var defaultResolveImportMapFactoryConfig = {
-  importMap: {},
-  pluginDataMarker: CAPTURED_ALREADY,
-  namespace: void 0
-};
-var defaultImportMapPluginSetupConfig = {
-  filter: /.*/,
-  inputNamespace: void 0,
-  importMap: {},
-  pluginDataMarker: void 0,
-  outputNamespace: void 0
-};
-var onResolveImportMapFactory = (config, build) => {
-  const { importMap, pluginDataMarker, namespace } = { ...defaultResolveImportMapFactoryConfig, ...config };
-  return async (args) => {
-    const {
-      path,
-      pluginData = {},
-      ...rest_args
-    } = args;
-    if (pluginData[pluginDataMarker]) {
-      return void 0;
-    }
-    pluginData[pluginDataMarker] = true;
-    const resolved_path = resolvePathFromImportMap(path, importMap);
-    if (resolved_path === void 0) {
-      return void 0;
-    }
-    const resolved_result = await build.resolve(resolved_path, { pluginData, ...rest_args });
-    if (namespace) {
-      resolved_result.namespace = namespace;
-    }
-    return resolved_result;
-  };
-};
-var importMapPluginSetup = (config = {}) => {
-  const { filter, importMap, pluginDataMarker, inputNamespace, outputNamespace } = { ...defaultImportMapPluginSetupConfig, ...config }, pluginResolverConfig = { importMap, pluginDataMarker, namespace: outputNamespace };
-  return async (build) => {
-    const { absWorkingDir, outdir, outfile, entryPoints, write, loader } = build.initialOptions;
-    build.onResolve({ filter, namespace: inputNamespace }, onResolveImportMapFactory(pluginResolverConfig, build));
-  };
-};
-var importMapPlugin = (config) => {
-  return {
-    name: "oazmi-importmap-plugin",
-    setup: importMapPluginSetup(config)
-  };
-};
-
-// src/packageman/base.ts
-var RuntimePackage = class {
-  /** the path or url of the package json(c) file.
-   * 
-   * the {@link RuntimePackage | base class} does nothing with this information;
-   * it is just there so that subclasses can make uses of this information (usually for resolving relative paths).
-  */
-  packagePath;
-  /** the fetched/parsed package metadata file's raw contents. */
-  packageInfo;
-  /** @param package_object the parsed package metadata as an object.
-   *   - in the case of node, this would be your json-parsed "package.json" file.
-   *   - in the case of deno, this would be your json-parsed "deno.json" file.
-  */
-  constructor(package_object, package_path) {
-    this.packageInfo = package_object;
-    this.packagePath = package_path;
-  }
-  /** get the path/url to the package's json(c) file.
-   * 
-   * the {@link RuntimePackage | base class} does nothing with this information;
-   * it is just there so that subclasses can make uses of this information (usually for resolving relative paths).
-  */
-  getPath() {
-    return this.packagePath;
-  }
-  /** this method tries to resolve the provided export `path_alias` of this package,
-   * to an absolutely referenced path to the resource (using the internal {@link exportMapSortedEntries}).
-   * if no exported resources match the given `path_alias`, then `undefined` will be returned.
-   * 
-   * > [!tip]
-   * > for test case examples and configuration options, see the documentation comments of {@link resolvePathFromImportMapEntries}
-  */
-  resolveExport(path_alias, config) {
-    return resolvePathFromImportMapEntries(path_alias, this.exportMapSortedEntries, { sort: false, ...config });
-  }
-  /** this method tries to resolve the provided import `path_alias` done by some resource within this package,
-   * using the internal {@link importMapSortedEntries} list of import-aliases that this package uses.
-   * if no import resources match the given `path_alias`, then `undefined` will be returned
-   * (which would probably mean that the given `path_alias` is already either an absolute or relative path, or perhaps incorrect altogether.
-   * 
-   * > [!tip]
-   * > for test case examples and configuration options, see the documentation comments of {@link resolvePathFromImportMapEntries}
-  */
-  resolveImport(path_alias, config) {
-    return resolvePathFromImportMapEntries(path_alias, this.importMapSortedEntries, { sort: false, ...config });
-  }
-  /** create an instance of this class by loading a package's json(c) file from a url or local file-system path.
-   * 
-   * > [!tip]
-   * > the constructor uses a "JSONC" parser (from [@std/jsonc](https://jsr.io/@std/jsonc)) for the fetched files.
-   * > therefore, you may provide links to ".jsonc" files, instead of parsing them yourself before calling the super constructor.
-  */
-  static async fromUrl(package_jsonc_path) {
-    package_jsonc_path = resolveAsUrl(package_jsonc_path, defaultResolvePath());
-    const package_object = parse(await (await fetch(package_jsonc_path, defaultFetchConfig)).text());
-    return new this(package_object, package_jsonc_path.href);
-  }
-};
-
-// node_modules/@oazmi/kitchensink/esm/lambda.js
-var THROTTLE_REJECT = /* @__PURE__ */ Symbol(DEBUG.MINIFY || "a rejection by a throttled function");
-var TIMEOUT = /* @__PURE__ */ Symbol(DEBUG.MINIFY || "a timeout by an awaited promiseTimeout function");
-var memorizeCore = (fn, weak_ref = false) => {
-  const memory = weak_ref ? new HybridWeakMap() : /* @__PURE__ */ new Map(), get = bindMethodToSelfByName(memory, "get"), set = bindMethodToSelfByName(memory, "set"), has = bindMethodToSelfByName(memory, "has"), memorized_fn = (arg) => {
-    const arg_exists = has(arg), value = arg_exists ? get(arg) : fn(arg);
-    if (!arg_exists) {
-      set(arg, value);
-    }
-    return value;
-  };
-  return { fn: memorized_fn, memory };
-};
-var memorize = (fn) => {
-  return memorizeCore(fn).fn;
-};
-
-// src/packageman/deno.ts
-var DenoPackage = class extends RuntimePackage {
-  importMapSortedEntries;
-  exportMapSortedEntries;
-  getName() {
-    return this.packageInfo.name;
-  }
-  getVersion() {
-    return this.packageInfo.version;
-  }
-  getPath() {
-    const package_path = this.packagePath;
-    return package_path ? package_path : `${jsr_base_url}/${this.getName()}/${this.getVersion()}/deno.json`;
-  }
-  constructor(package_object, package_path) {
-    super(package_object, package_path);
-    const { exports = {}, imports = {} } = package_object, exports_object = isString(exports) ? exports.endsWith("/") ? { "./": exports } : { ".": exports } : exports, imports_object = { ...imports };
-    for (const [alias, path] of object_entries(imports_object)) {
-      const alias_dir_variant = ensureEndSlash(alias);
-      if (alias !== alias_dir_variant && !(alias_dir_variant in imports_object)) {
-        imports_object[alias_dir_variant] = ensureEndSlash(path);
-      }
-    }
-    this.exportMapSortedEntries = object_entries(exports_object).toSorted(compareImportMapEntriesByLength);
-    this.importMapSortedEntries = object_entries(imports_object).toSorted(compareImportMapEntriesByLength);
-  }
-  resolveExport(path_alias, config) {
-    const name = this.getName(), version = this.getVersion(), package_json_path = pathToPosixPath(this.getPath()), {
-      baseAliasDir = `jsr:${name}@${version}`,
-      basePathDir = normalizePath(package_json_path.endsWith("/") ? package_json_path : package_json_path + "/../"),
-      ...rest_config
-    } = config ?? {}, residual_path_alias = replacePrefix(path_alias, baseAliasDir)?.replace(/^\/+/, "/");
-    if (residual_path_alias !== void 0) {
-      path_alias = baseAliasDir + (residual_path_alias === "/" ? "" : residual_path_alias);
-    }
-    return super.resolveExport(path_alias, { baseAliasDir, basePathDir, ...rest_config });
-  }
-  resolveImport(path_alias, config) {
-    const name = this.getName(), version = this.getVersion(), path_alias_is_relative = path_alias.startsWith("./") || path_alias.startsWith("../"), local_package_reference_aliases = path_alias_is_relative ? [""] : [`jsr:${name}@${version}`, `jsr:${name}`, `${name}`];
-    let locally_resolved_export = void 0;
-    for (const base_alias_dir of local_package_reference_aliases) {
-      locally_resolved_export = this.resolveExport(path_alias, { ...config, baseAliasDir: base_alias_dir });
-      if (locally_resolved_export) {
-        break;
-      }
-    }
-    return locally_resolved_export ?? super.resolveImport(path_alias, config);
-  }
-  static async fromUrl(jsr_package) {
-    const package_jsonc_path_str = isString(jsr_package) ? jsr_package : jsr_package.href, url_is_jsr_protocol = package_jsonc_path_str.startsWith("jsr:");
-    if (url_is_jsr_protocol) {
-      const { host } = parsePackageUrl(jsr_package);
-      jsr_package = await memorized_jsrPackageToMetadataUrl(`jsr:${host}`);
-    }
-    return super.fromUrl(jsr_package);
-  }
-};
-var jsr_base_url = "https://jsr.io";
-var jsrPackageToMetadataUrl = async (jsr_package) => {
-  const { protocol, scope, pkg, pathname, version: desired_semver } = parsePackageUrl(jsr_package);
-  if (protocol !== "jsr:") {
-    throw new Error(`expected path protocol to be "jsr:", found "${protocol}" instead, for package: "${jsr_package}"`);
-  }
-  if (!scope) {
-    throw new Error(`expected jsr package to contain a scope, but found "${scope}" instead, for package: "${jsr_package}"`);
-  }
-  const meta_json_url = resolveAsUrl(`@${scope}/${pkg}/meta.json`, jsr_base_url), meta_json = await (await fetch(meta_json_url, defaultFetchConfig)).json(), unyanked_versions = object_entries(meta_json.versions).filter(([version_str, { yanked }]) => !yanked).map(([version_str]) => parse2(version_str));
-  const resolved_semver = maxSatisfying(unyanked_versions, parseRange(desired_semver ?? meta_json.latest));
-  if (!resolved_semver) {
-    throw new Error(`failed to find the desired version "${desired_semver}" of the jsr package "${jsr_package}", with available versions "${json_stringify(meta_json.versions)}"`);
-  }
-  const resolved_version = format(resolved_semver), base_host = resolveAsUrl(`@${scope}/${pkg}/${resolved_version}/`, jsr_base_url), deno_json_url = resolveAsUrl("./deno.json", base_host), jsr_json_url = resolveAsUrl("./jsr.json", base_host), package_json_url = resolveAsUrl("./package.json", base_host);
-  const urls = [deno_json_url, jsr_json_url];
-  for (const url of urls) {
-    if ((await fetch(url, { ...defaultFetchConfig, method: "HEAD" })).ok) {
-      return url;
-    }
-  }
-  throw new Error(`Network Error: couldn't locate "${jsr_package}"'s package json file. searched in the following locations:
-${json_stringify(urls)}`);
-};
-var memorized_jsrPackageToMetadataUrl = memorize(jsrPackageToMetadataUrl);
-
-// src/plugins/initialdata.ts
-var CAPTURED_ALREADY2 = Symbol();
-var defaultResolveInitialDataFactoryConfig = {
-  pluginData: {},
-  pluginDataMarker: CAPTURED_ALREADY2,
-  captureDependencies: true,
-  onResolveArgs: {}
-};
-var defaultInitialDataPluginSetupConfig = {
-  ...defaultResolveInitialDataFactoryConfig,
-  filters: [/.*/],
-  namespace: void 0
-};
-var onResolveInitialDataFactory = (config, build) => {
-  const { pluginData: initialPluginData, pluginDataMarker, captureDependencies, onResolveArgs } = { ...defaultResolveInitialDataFactoryConfig, ...config }, captured_resolved_paths = /* @__PURE__ */ new Set();
-  return async (args) => {
-    const { path, pluginData = {}, ...rest_args } = args, merged_plugin_data = { ...initialPluginData, ...pluginData }, { kind, importer } = rest_args;
-    if (kind !== "entry-point" && !captured_resolved_paths.has(normalizePath(importer))) {
-      return void 0;
-    }
-    if (merged_plugin_data[pluginDataMarker]) {
-      return void 0;
-    }
-    merged_plugin_data[pluginDataMarker] = true;
-    const resolved_result = await build.resolve(path, { ...rest_args, ...onResolveArgs, pluginData: merged_plugin_data });
-    if (resolved_result.pluginData === void 0) {
-      resolved_result.pluginData = merged_plugin_data;
-    }
-    if (captureDependencies) {
-      captured_resolved_paths.add(normalizePath(resolved_result.path));
-    }
-    return { ...resolved_result, pluginData: merged_plugin_data };
-  };
-};
-var defaultDenoInitialDataPluginSetupConfig = {
-  ...defaultInitialDataPluginSetupConfig,
-  resolvePath: defaultResolvePath,
-  isAbsolutePath: isAbsolutePath2
-};
-var denoInitialDataPluginSetup = (config = {}) => {
-  const { filters, namespace, ...rest_config_1 } = { ...defaultDenoInitialDataPluginSetupConfig, ...config }, { isAbsolutePath: isAbsolutePath3, resolvePath, log: _0, globalImportMap: _1, ...rest_config_2 } = rest_config_1, { pluginData, ...partialPluginResolverConfig } = rest_config_2, initial_plugin_data_promise = commonPluginResolverConfig_to_denoInitialPluginData({ isAbsolutePath: isAbsolutePath3, resolvePath }, pluginData);
-  return async (build) => {
-    const { absWorkingDir, outdir, outfile, entryPoints, write, loader } = build.initialOptions, initial_plugin_data = await initial_plugin_data_promise, pluginResolverConfig = { ...partialPluginResolverConfig, pluginData: initial_plugin_data };
-    filters.forEach((filter) => {
-      build.onResolve({ filter, namespace }, onResolveInitialDataFactory(pluginResolverConfig, build));
-      build.onResolve({ filter, namespace }, async (args) => {
-        const { path, pluginData: pluginData2 = {}, ...rest_args } = args, runtimePackage = pluginData2.runtimePackage;
-        if (runtimePackage && !path.startsWith("./") && !path.startsWith("../")) {
-          const resolved_path = runtimePackage.resolveImport(path);
-          if (resolved_path) {
-            return build.resolve(resolved_path, { ...rest_args, pluginData: pluginData2, namespace: "oazmi-temp-namespace-1" });
-          }
-        }
-        return void 0;
-      });
-      build.onResolve({ filter: /.*/, namespace: "oazmi-temp-namespace-1" }, unResolveFactory({ isAbsolutePath: isAbsolutePath3, resolvePath, namespace: "" }, build));
-    });
-  };
-};
-var denoInitialDataPlugin = (config) => {
-  return {
-    name: "oazmi-deno-initialdata-plugin",
-    setup: denoInitialDataPluginSetup(config)
-  };
-};
-var commonPluginResolverConfig_to_denoInitialPluginData = async (config, plugin_data = {}) => {
-  const { isAbsolutePath: isAbsolutePath3, resolvePath } = config, { runtimePackage } = plugin_data, denoPackage = runtimePackage === void 0 ? void 0 : runtimePackage instanceof RuntimePackage ? runtimePackage : await DenoPackage.fromUrl(
-    isString(runtimePackage) ? resolveAsUrl(
-      isAbsolutePath3(runtimePackage) ? runtimePackage : resolvePath(runtimePackage)
-    ) : runtimePackage
-  );
-  return { ...plugin_data, runtimePackage: denoPackage };
-};
-
-// src/plugins/jsr.ts
+// src/plugins/filters/jsr.ts
 var defaultJsrPluginSetupConfig = {
   filters: [/^jsr\:/],
-  globalImportMap: void 0,
-  resolvePath: defaultResolvePath
+  acceptNamespaces: defaultEsbuildNamespaces
 };
 var jsrPluginSetup = (config = {}) => {
-  const { filters, globalImportMap, resolvePath } = { ...defaultJsrPluginSetupConfig, ...config };
+  const { filters, acceptNamespaces: _acceptNamespaces } = { ...defaultJsrPluginSetupConfig, ...config }, acceptNamespaces = /* @__PURE__ */ new Set([..._acceptNamespaces, "oazmi-loader-http" /* LOADER_HTTP */]);
   return async (build) => {
     const { absWorkingDir, outdir, outfile, entryPoints, write, loader } = build.initialOptions;
-    filters.forEach((filter) => {
-      build.onResolve({ filter }, async (args) => {
-        const { path, pluginData, ...rest_args } = args, { importMap: _0, runtimePackage: _1, ...restPluginData } = pluginData ?? {}, runtimePackage = await DenoPackage.fromUrl(path), relative_alias_pathname = parsePackageUrl(path).pathname, relative_alias = relative_alias_pathname === "/" ? "." : ensureStartDotSlash(relative_alias_pathname), path_url = runtimePackage.resolveExport(relative_alias, { baseAliasDir: "" });
-        if (!path_url) {
-          throw new Error(`failed to resolve the path "${path}" from the deno package: "jsr:${runtimePackage.getName()}@${runtimePackage.getVersion()}"`);
+    const jsrSpecifierResolver = async (args) => {
+      if (!acceptNamespaces.has(args.namespace)) {
+        return;
+      }
+      const { path, pluginData = {}, ...rest_args } = args, { importMap: _0, runtimePackage: _1, resolverConfig = {}, ...restPluginData } = pluginData, runtimePackage = await DenoPackage.fromUrl(path), relative_alias_pathname = parsePackageUrl(path).pathname, relative_alias = relative_alias_pathname === "/" ? "." : ensureStartDotSlash(relative_alias_pathname), path_url = runtimePackage.resolveExport(relative_alias, { baseAliasDir: "" });
+      if (!path_url) {
+        throw new Error(`failed to resolve the path "${path}" from the deno package: "jsr:${runtimePackage.getName()}@${runtimePackage.getVersion()}"`);
+      }
+      return build.resolve(path_url, {
+        ...rest_args,
+        pluginData: {
+          ...restPluginData,
+          runtimePackage,
+          // since we don't want the the entry-plugin's initial plugin-data injection to intervene any more,
+          // we'll set the `useInitialPluginData` plugin-data option to `false`.
+          resolverConfig: { ...resolverConfig, useInitialPluginData: false }
         }
-        return build.resolve(path_url, {
-          ...rest_args,
-          pluginData: {
-            importMap: globalImportMap,
-            runtimePackage,
-            ...restPluginData
-          }
-        });
       });
+    };
+    filters.forEach((filter) => {
+      build.onResolve({ filter }, jsrSpecifierResolver);
     });
   };
 };
@@ -2249,71 +2164,253 @@ var jsrPlugin = (config) => {
   };
 };
 
-// src/plugins/npm.ts
-var defaultNpmSpecifierPluginSetupConfig = {
+// src/plugins/filters/npm.ts
+var defaultNpmPluginSetupConfig = {
   specifiers: ["npm:"],
-  globalImportMap: void 0,
-  resolvePath: defaultResolvePath,
   sideEffects: "auto",
-  autoInstall: true
+  autoInstall: true,
+  acceptNamespaces: defaultEsbuildNamespaces,
+  resolveDir: {
+    path: defaultGetCwd,
+    prioritizeAbsWorkingDir: true
+  }
 };
-var log = false;
-var npmSpecifierPluginSetup = (config = {}) => {
-  const { specifiers, globalImportMap, resolvePath, sideEffects, autoInstall } = { ...defaultNpmSpecifierPluginSetupConfig, ...config }, forcedSideEffectsMode = isString(sideEffects) ? void 0 : sideEffects;
+var npmPluginSetup = (config = {}) => {
+  const { specifiers, sideEffects, autoInstall, acceptNamespaces: _acceptNamespaces, resolveDir: _initialResolveDir } = { ...defaultNpmPluginSetupConfig, ...config }, acceptNamespaces = /* @__PURE__ */ new Set([..._acceptNamespaces, "oazmi-loader-http" /* LOADER_HTTP */]), forcedSideEffectsMode = isString(sideEffects) ? void 0 : sideEffects, initialResolveDir = { ...defaultNpmPluginSetupConfig.resolveDir, ..._initialResolveDir };
   return async (build) => {
-    const { absWorkingDir, outdir, outfile, entryPoints, write, loader } = build.initialOptions, fallbackResolveDir = absWorkingDir ? ensureEndSlash(pathToPosixPath(absWorkingDir)) : resolvePath("./");
+    const { absWorkingDir, outdir, outfile, entryPoints, write, loader } = build.initialOptions, fallbackResolveDir = ensureEndSlash(pathToPosixPath(
+      absWorkingDir && initialResolveDir.prioritizeAbsWorkingDir ? absWorkingDir : initialResolveDir.path
+    ));
+    const npmSpecifierResolverFactory = (specifier) => async (args) => {
+      if (!acceptNamespaces.has(args.namespace)) {
+        return;
+      }
+      const { path, pluginData = {}, resolveDir = "", namespace: original_ns, ...rest_args } = args, well_formed_npm_package_alias = replacePrefix(path, specifier, "npm:"), { scope, pkg, pathname, version: desired_version } = parsePackageUrl(well_formed_npm_package_alias), resolved_npm_package_alias = `${scope ? "@" + scope + "/" : ""}${pkg}${pathname === "/" ? "" : pathname}`, resolve_dir = resolveDir === "" ? fallbackResolveDir : resolveDir, { importMap: _0, runtimePackage: _1, resolverConfig: _2, ...restPluginData } = pluginData;
+      const abs_result = await build.resolve(resolved_npm_package_alias, {
+        ...rest_args,
+        resolveDir: resolve_dir,
+        namespace: "oazmi-resolver-pipeline" /* RESOLVER_PIPELINE */,
+        pluginData: { ...restPluginData, resolverConfig: { useNodeModules: true } }
+      });
+      if (forcedSideEffectsMode !== void 0) {
+        abs_result.sideEffects = forcedSideEffectsMode;
+      }
+      abs_result.namespace = "";
+      return abs_result;
+    };
     specifiers.forEach((specifier) => {
       const filter = new RegExp(`^${escapeLiteralStringForRegex(specifier)}`);
-      build.onResolve({ filter }, async (args) => {
-        const { path, pluginData, resolveDir = "", ...rest_args } = args, well_formed_npm_package_alias = replacePrefix(path, specifier, "npm:"), { scope, pkg, pathname, version: desired_version } = parsePackageUrl(well_formed_npm_package_alias), resolved_npm_package_alias = `${scope ? "@" + scope + "/" : ""}${pkg}${pathname === "/" ? "" : pathname}`, resolve_dir = resolveDir === "" ? fallbackResolveDir : resolveDir, { importMap: _0, runtimePackage: _1, originalNamespace: _2, ...restPluginData } = pluginData ?? {}, runtimePackage = void 0;
-        if (1 /* LOG */ && log) {
-          console.log(`[oazmi-npm-specifier-plugin] onResolve:`, { path, resolve_dir, resolved_npm_package_alias, args });
-        }
-        const resolved_result = await build.resolve(resolved_npm_package_alias, {
-          resolveDir: resolve_dir,
-          ...rest_args,
-          pluginData: {
-            importMap: globalImportMap,
-            runtimePackage,
-            ...restPluginData
-          }
-        });
-        if (forcedSideEffectsMode !== void 0) {
-          resolved_result.sideEffects = forcedSideEffectsMode;
-        }
-        return resolved_result;
-      });
+      build.onResolve({ filter }, npmSpecifierResolverFactory(specifier));
     });
   };
 };
-var npmSpecifierPlugin = (config) => {
+var npmPlugin = (config) => {
   return {
-    name: "oazmi-npm-specifier-plugin",
-    setup: npmSpecifierPluginSetup(config)
+    name: "oazmi-npm-plugin",
+    setup: npmPluginSetup(config)
+  };
+};
+
+// src/plugins/resolvers.ts
+var defaultRuntimePackageResolverConfig = {
+  enabled: true
+};
+var defaultImportMapResolverConfig = {
+  enabled: true,
+  globalImportMap: {}
+};
+var defaultNodeModulesResolverConfig = {
+  enabled: true
+};
+var defaultRelativePathResolverConfig = {
+  enabled: true,
+  resolvePath: defaultResolvePath,
+  isAbsolutePath: isAbsolutePath2
+};
+var defaultResolverPluginSetupConfig = {
+  runtimePackage: defaultRuntimePackageResolverConfig,
+  importMap: defaultImportMapResolverConfig,
+  nodeModules: defaultNodeModulesResolverConfig,
+  relativePath: defaultRelativePathResolverConfig,
+  namespace: "oazmi-resolver-pipeline" /* RESOLVER_PIPELINE */,
+  log: false
+};
+var resolverPluginSetup = (config) => {
+  const {
+    runtimePackage: _runtimePackageResolverConfig,
+    importMap: _importMapResolverConfig,
+    nodeModules: _nodeModulesResolverConfig,
+    relativePath: _relativePathResolverConfig,
+    namespace: plugin_ns,
+    log
+  } = { ...defaultResolverPluginSetupConfig, ...config };
+  const runtimePackageResolverConfig = { ...defaultRuntimePackageResolverConfig, ..._runtimePackageResolverConfig }, importMapResolverConfig = { ...defaultImportMapResolverConfig, ..._importMapResolverConfig }, nodeModulesResolverConfig = { ...defaultNodeModulesResolverConfig, ..._nodeModulesResolverConfig }, relativePathResolverConfig = { ...defaultRelativePathResolverConfig, ..._relativePathResolverConfig }, output_ns = "discard-this-namespace", plugin_filter = /.*/;
+  return async (build) => {
+    const absWorkingDir = pathToPosixPath(build.initialOptions.absWorkingDir ?? "./");
+    const runtimePackageResolver = runtimePackageResolverConfig.enabled === false ? noop : async (args) => {
+      if (args.pluginData?.resolverConfig?.useRuntimePackage === false) {
+        return;
+      }
+      const { path, pluginData = {} } = args, runtimePackage = pluginData.runtimePackage, resolved_path = runtimePackage && !path.startsWith("./") && !path.startsWith("../") ? runtimePackage.resolveImport(path) : void 0;
+      if (1 /* LOG */ && log) {
+        console.log("[runtime-package] resolving:", path);
+        if (resolved_path) {
+          console.log(">> successfully resolved to:", resolved_path);
+        }
+      }
+      return resolved_path ? {
+        path: resolved_path,
+        namespace: output_ns,
+        pluginData: { ...pluginData }
+      } : void 0;
+    };
+    const { globalImportMap } = importMapResolverConfig;
+    const importMapResolver = importMapResolverConfig.enabled === false ? noop : async (args) => {
+      if (args.pluginData?.resolverConfig?.useImportMap === false) {
+        return;
+      }
+      const { path, pluginData = {} } = args, importMap = { ...globalImportMap, ...pluginData.importMap }, resolved_path = resolvePathFromImportMap(path, importMap);
+      if (1 /* LOG */ && log) {
+        console.log("[import-map]      resolving:", path);
+        if (resolved_path) {
+          console.log(">> successfully resolved to:", resolved_path);
+        }
+      }
+      return resolved_path ? {
+        path: resolved_path,
+        namespace: output_ns,
+        pluginData: { ...pluginData }
+      } : void 0;
+    };
+    const { resolvePath, isAbsolutePath: isAbsolutePath3 } = relativePathResolverConfig;
+    const node_modules_resolver = nodeModulesResolverFactory({ absWorkingDir: resolvePath(ensureEndSlash(absWorkingDir)) }, build);
+    const nodeModulesResolver = nodeModulesResolverConfig.enabled === false ? noop : async (args) => {
+      const { path, resolveDir, importer, pluginData = {} } = args;
+      if (pluginData.resolverConfig?.useNodeModules === false) {
+        return;
+      }
+      if (pluginData.resolverConfig?.useRelativePath !== false && (path.startsWith("./") || path.startsWith("../") || isAbsolutePath3(path))) {
+        return;
+      }
+      const resolve_dir = resolvePath(ensureEndSlash(resolveDir ? resolveDir : absWorkingDir)), module_path_alias = pathToPosixPath(path), native_results_promise = node_modules_resolver({
+        importer,
+        path: module_path_alias,
+        resolveDir: resolve_dir
+      });
+      const { path: resolved_path, namespace: _0, pluginData: _1, ...rest_results } = await native_results_promise.catch(() => {
+        return {};
+      });
+      if (1 /* LOG */ && log) {
+        console.log("[node-module]     resolving:", path);
+        if (resolved_path) {
+          console.log(">> successfully resolved to:", resolved_path);
+        }
+      }
+      return resolved_path ? {
+        ...rest_results,
+        path: resolved_path,
+        namespace: output_ns,
+        pluginData: { ...pluginData }
+      } : void 0;
+    };
+    const relativePathResolver = relativePathResolverConfig.enabled === false ? noop : async (args) => {
+      if (args.pluginData?.resolverConfig?.useRelativePath === false) {
+        return;
+      }
+      const { path, importer, resolveDir, pluginData = {} } = args, resolve_dir = resolvePath(ensureEndSlash(resolveDir ? resolveDir : absWorkingDir)), dir = isAbsolutePath3(importer) ? importer : joinPaths(resolve_dir, importer), resolved_path = isAbsolutePath3(path) ? pathToPosixPath(path) : resolvePath(dir, ensureStartDotSlash(path));
+      if (1 /* LOG */ && log) {
+        console.log("[absolute-path]   resolving:", path);
+        if (resolved_path) {
+          console.log(">> successfully resolved to:", resolved_path);
+        }
+      }
+      return {
+        path: resolved_path,
+        namespace: output_ns,
+        pluginData: { ...pluginData }
+      };
+    };
+    build.onResolve({ filter: plugin_filter, namespace: plugin_ns }, runtimePackageResolver);
+    build.onResolve({ filter: plugin_filter, namespace: plugin_ns }, importMapResolver);
+    build.onResolve({ filter: plugin_filter, namespace: plugin_ns }, nodeModulesResolver);
+    build.onResolve({ filter: plugin_filter, namespace: plugin_ns }, relativePathResolver);
+  };
+};
+var resolverPlugin = (config) => {
+  return {
+    name: "oazmi-plugindata-resolvers",
+    setup: resolverPluginSetup(config)
+  };
+};
+var nodeModulesResolverFactory = (config, build) => {
+  const { absWorkingDir } = config;
+  const internalPluginSetup = (config2) => {
+    return (build2) => {
+      const ALREADY_CAPTURED = Symbol(), plugin_ns = "the-void", { resolve, reject, fallbackResolveDir, importer = "" } = config2, importer_dir_as_uri = importer === "" || getUriScheme(importer) === "relative" ? void 0 : resolveAsUrl("./", importer), importer_dir_as_local_path = fileUrlToLocalPath(importer_dir_as_uri);
+      build2.onResolve({ filter: /.*/ }, async (args) => {
+        if (args.pluginData?.[ALREADY_CAPTURED] === true) {
+          return;
+        }
+        const { path: input_path, resolveDir: _resolveDir = "", pluginData: _0 } = args, dir = _resolveDir === "" ? fallbackResolveDir : _resolveDir, resolveDir = importer_dir_as_local_path ?? dir, { path, external, namespace, sideEffects, suffix } = await build2.resolve(input_path, {
+          kind: "entry-point",
+          resolveDir,
+          pluginData: { [ALREADY_CAPTURED]: true }
+        });
+        resolve({ path: pathToPosixPath(path), external, namespace, sideEffects, suffix });
+        return { path: "does-not-matter.js", namespace: plugin_ns };
+      });
+      build2.onLoad({ filter: /.*/, namespace: plugin_ns }, () => ({ contents: "", loader: "empty" }));
+    };
+  };
+  return async (args) => {
+    const { path, resolveDir = "", importer } = args, fallbackResolveDir = resolveDir === "" ? absWorkingDir : resolveDir, [promise, resolve, reject] = promise_outside(), internalPlugin = {
+      name: "native-esbuild-resolver-capture",
+      setup: internalPluginSetup({ resolve, reject, fallbackResolveDir, importer })
+    };
+    await build.esbuild.build({
+      entryPoints: [path],
+      absWorkingDir,
+      bundle: false,
+      minify: false,
+      write: false,
+      outdir: "./temp/",
+      plugins: [internalPlugin]
+    }).catch(() => {
+      reject("esbuild's native resolver failed to resolve the path");
+    });
+    return promise;
   };
 };
 
 // src/plugins/mod.ts
 var defaultDenoPluginsConfig = {
-  runtimePackage: void 0,
-  importMap: {},
-  getCwd: defaultGetCwd
+  pluginData: {},
+  log: false,
+  globalImportMap: {},
+  getCwd: defaultGetCwd,
+  acceptNamespaces: defaultEsbuildNamespaces
 };
 var denoPlugins = (config) => {
-  const { runtimePackage, importMap, getCwd } = { ...defaultDenoPluginsConfig, ...config }, resolvePath = resolvePathFactory(getCwd, isAbsolutePath2);
+  const { acceptNamespaces, getCwd, globalImportMap, log, pluginData } = { ...defaultDenoPluginsConfig, ...config }, resolvePath = resolvePathFactory(getCwd, isAbsolutePath2);
   return [
-    denoInitialDataPlugin({ pluginData: { runtimePackage } }),
-    importMapPlugin({ importMap }),
-    httpPlugin({ globalImportMap: importMap, resolvePath }),
-    jsrPlugin({ globalImportMap: importMap, resolvePath }),
-    npmSpecifierPlugin({ globalImportMap: importMap, resolvePath })
+    entryPlugin({ pluginData, acceptNamespaces }),
+    httpPlugin({ acceptNamespaces }),
+    jsrPlugin({ acceptNamespaces }),
+    npmPlugin({ acceptNamespaces }),
+    resolverPlugin({
+      log,
+      importMap: { globalImportMap },
+      relativePath: { resolvePath }
+    })
   ];
 };
 export {
-  denoInitialDataPlugin,
+  allEsbuildLoaders,
+  defaultEsbuildNamespaces,
   denoPlugins,
+  entryPlugin,
   httpPlugin,
-  importMapPlugin,
   jsrPlugin,
-  npmSpecifierPlugin
+  npmPlugin,
+  resolverPlugin
 };
