@@ -3,6 +3,7 @@
 // the "2d-array-utils" alias below will be resolved via our import-map-plugin, instead of the http-plugin,
 // since we will be in the local "file" namespace when this file is loaded by esbuild.
 import { meshGrid } from "2d-array-utils"
+import "@local-file-alias" // this local-file alias will be resolved by the "deno.json" file in the current directory
 import { parse as parseJsonc } from "@std/jsonc" // this reference is resolved by our initial-data plugin's `runtimePackage`
 import { transpose2D } from "https://jsr.io/@oazmi/kitchensink/0.9.2/src/numericarray.ts"
 import "https://raw.githubusercontent.com/jenil/chota/7d780731421fc987d8f7a1c8f66c730d8573684c/src/chota.css"

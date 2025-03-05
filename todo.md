@@ -50,11 +50,11 @@
   ```
   on the other hand, if the `npm` command is available on the host system, then we can also execute `npm install pkg-name --save-optional` (via `import { exec } from "node:child_process"; await exec("...")`) if it is not already present in `package.json`, or just `npm install pkg-name` if it is present in `package.json`.
 
-## pre-version `0.2.0` todo list
+## (2025-03-05) pre-version `0.2.0` todo list
 
-- [ ] revamp the plugin architecture:
+- [x] revamp the plugin architecture:
   - overview: there should be two categories of plugins, and the communication between the two categories will primarily occur through referring to their `namespace` when making calls to `build.resolve` within the `build.onResolve`'s callback function.
-  - [ ] the first category of plugins will be the _filter_ plugins.
+  - [x] the first category of plugins will be the _filter_ plugins.
     - these plugins will capture input entities from the default namespace through the use of filters (such as "jsr:", "https?://", "npm:", etc...).
     - if applicable, the plugin will inject the appropriate `pluginData` into the entity's `args`.
     - now, to resolve the path, the filter plugin will call `build.resolve` with the `namespace` set to the entry-namespace of the _resolver plugins_ (the second new category), so that it passes through a pipeline of modularized `pluginData` resolvers.
@@ -66,7 +66,7 @@
         - or "npm:{package_name}" -> "{package_name}" (this conversion can be taken care of in a namespaced-environment if I implement the `node_modules` resolver plugin in my bucket list).
       - if the path is ambiguous (for instance, is `args.path = "react.css"` referring to the importer's `"./react.css"`, or the `"{resolveDir}/node_modules/react.css/"` npm package?), then try resolving it with esbuild's native path resolver, otherwise join the path with the importer's path.
       - if for some reason, neither of the two cases above apply, we should return `undefined` to let some other plugin take care of this entity.
-  - [ ] the second category of plugins will be the _resolver_ plugins.
+  - [x] the second category of plugins will be the _resolver_ plugins.
     - these plugins will only exist in a specific namespace (let's say `"oazmi-resolver-pipeline"`), and their filter will be usually set to "capture all" (i.e. `RegExp(".*")`).
     - essentially, it will be a collection of three/four resolvers:
       - the first will take care of resolving with respect to `pluginData.importMap`.

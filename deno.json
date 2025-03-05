@@ -23,12 +23,11 @@
 		"./packageman/base": "./src/packageman/base.ts",
 		"./packageman/deno": "./src/packageman/deno.ts",
 		"./plugins": "./src/plugins/mod.ts",
-		"./plugins/http": "./src/plugins/http.ts",
-		"./plugins/importmap": "./src/plugins/importmap.ts",
-		"./plugins/initialdata": "./src/plugins/initialdata.ts",
-		"./plugins/jsr": "./src/plugins/jsr.ts",
-		"./plugins/npm": "./src/plugins/npm.ts",
-		"./plugins/funcdefs": "./src/plugins/funcdefs.ts",
+		"./plugins/filters/entry": "./src/plugins/filters/entry.ts",
+		"./plugins/filters/http": "./src/plugins/filters/http.ts",
+		"./plugins/filters/jsr": "./src/plugins/filters/jsr.ts",
+		"./plugins/filters/npm": "./src/plugins/filters/npm.ts",
+		"./plugins/resolvers": "./src/plugins/resolvers.ts",
 		"./plugins/typedefs": "./src/plugins/typedefs.ts"
 	},
 	"imports": {
