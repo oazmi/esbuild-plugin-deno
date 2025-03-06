@@ -4,8 +4,8 @@
  * @module
 */
 
-import { defaultGetCwd, ensureEndSlash, escapeLiteralStringForRegex, isString, parsePackageUrl, pathToPosixPath, replacePrefix, type DeepPartial } from "../../deps.ts"
-import type { resolverPlugin } from "../resolvers.ts"
+import { defaultGetCwd, ensureEndSlash, escapeLiteralStringForRegex, fileUrlToLocalPath, isString, parsePackageUrl, pathToPosixPath, replacePrefix, resolveAsUrl, type DeepPartial } from "../../deps.ts"
+import { nodeModulesResolverFactory, resolverPlugin } from "../resolvers.ts"
 import type { CommonPluginData, EsbuildPlugin, EsbuildPluginBuild, EsbuildPluginSetup, OnResolveArgs, OnResolveCallback } from "../typedefs.ts"
 import { defaultEsbuildNamespaces, PLUGIN_NAMESPACE } from "../typedefs.ts"
 
@@ -171,5 +171,61 @@ export const npmPlugin = (config?: Partial<NpmPluginSetupConfig>): EsbuildPlugin
 	return {
 		name: "oazmi-npm-plugin",
 		setup: npmPluginSetup(config),
+	}
+}
+
+/** generate a function that makes esbuild scan multiple directories in search for an npm-package inside of some `"./node_modules/"` folder.
+ * the first valid directory, in which the npm-package was scanned for was successful, will be returned.
+ * 
+ * @param node_module_parent_directories the list of directories in which the scanning should be performed.
+ *   note to **not** include directories which are an ancestor to another directory in the list.
+ *   this is because esbuild traverses up the directory tree when searching for the npm-package in various `"./node_modules/"` folders.
+ *   thus it would be redundant to include ancesteral directories.
+ *   moreover, you may also provide `file://` urls (in either `string` or `URL` format), instead of a filesystem path.
+ * @param build the esbuild "build" object that's available inside of esbuild plugin setup functions.
+ *   for mock testing, you can also provide a stub like this: `const build = { esbuild }`.
+ *   follow the example below that makes use of a similar stub.
+ * 
+ * @example
+ * ```ts ignore
+ * import * as esbuild from "npm:esbuild@0.25.0"
+ * 
+ * const build = { esbuild }
+ * const myPackageDirScanner = findResolveDirOfNpmPackageFactory([
+ * 	"D:/temp/node/",
+ * 	"file:///d:/sdk/cache/",
+ * ], build)
+ * 
+ * console.log(`the "@oazmi/tsignal" package is located at:`, await myPackageDirScanner("@oazmi/tsignal"))
+ * ```
+*/
+export const findResolveDirOfNpmPackageFactory = (
+	node_module_parent_directories: (string | URL)[],
+	build: EsbuildPluginBuild,
+): ((node_module_package_name_to_search: string) => Promise<string | undefined>) => {
+	const
+		node_modules_resolver = nodeModulesResolverFactory({ absWorkingDir: undefined }, build),
+		node_module_parent_local_directories = node_module_parent_directories.map((dir_path_or_url) => {
+			const abs_local_path = fileUrlToLocalPath(isString(dir_path_or_url)
+				? resolveAsUrl("./", ensureEndSlash(dir_path_or_url))
+				: dir_path_or_url
+			)!
+			return abs_local_path
+		})
+
+	const validateNodeModuleExists = async (abs_resolve_dir: string, node_module_package_name: string): Promise<boolean> => {
+		const result = await node_modules_resolver({
+			path: node_module_package_name,
+			importer: "",
+			resolveDir: abs_resolve_dir,
+		})
+		return (result.path ?? "") !== "" ? true : false
+	}
+
+	return async (node_module_package_name_to_search: string): Promise<string | undefined> => {
+		for (const abs_resolve_dir of node_module_parent_local_directories) {
+			const node_module_was_found = await validateNodeModuleExists(abs_resolve_dir, node_module_package_name_to_search)
+			if (node_module_was_found) { return abs_resolve_dir }
+		}
 	}
 }
