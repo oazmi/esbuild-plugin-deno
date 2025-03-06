@@ -356,12 +356,16 @@ export const resolverPlugin = (config?: DeepPartial<ResolverPluginSetupConfig>):
 	}
 }
 
-interface NodeModulesResolverFactoryConfig {
-	absWorkingDir: string
+/** an interface to configure the {@link nodeModulesResolverFactory} function. */
+export interface NodeModulesResolverFactoryConfig {
+	/** the fallback resolve-dir path which should be used in place of `args.resolveDir` and `args.importer`, if neither are available.
+	 * the `absWorkingDir` path will generally correspond to your project's directory (i.e. current working directory).
+	*/
+	absWorkingDir?: string
 }
 
 interface NodeModulesResolverInternalPluginSetupFactoryConfig {
-	fallbackResolveDir: string
+	resolveDir: string
 	importer?: string
 	resolve: PromiseWithResolvers<OnResolveResult>["resolve"]
 	reject: PromiseWithResolvers<OnResolveResult>["reject"]
@@ -372,7 +376,7 @@ interface NodeModulesResolverInternalPluginSetupFactoryConfig {
  * the slyish way how it works is that we create a new build process to query esbuild what it would hypothetically do if so and so input arguments were given,
  * then through a custom inner plugin, we capture esbuild's response (the resolved path), and return it back to the user.
 */
-const nodeModulesResolverFactory = (
+export const nodeModulesResolverFactory = (
 	config: NodeModulesResolverFactoryConfig,
 	build: EsbuildPluginBuild
 ): ((args: Pick<OnResolveArgs, "path" | "resolveDir" | "importer">) => Promise<OnResolveResult>) => {
@@ -383,26 +387,32 @@ const nodeModulesResolverFactory = (
 			const
 				ALREADY_CAPTURED = Symbol(),
 				plugin_ns = "the-void",
-				{ resolve, reject, fallbackResolveDir, importer = "" } = config,
+				{ resolve, reject, resolveDir, importer = "" } = config,
 				// below, in case the original `importer` had used a "file://" uri, we convert it back into a local path,
 				// otherwise we strip away the importer, since it will not be suitable for usage as `resolveDir`,
 				// since esbuild only understands local filesystem paths - no file/http uris.
 				importer_dir_as_uri = (importer === "" || getUriScheme(importer) === "relative")
 					? undefined
 					: resolveAsUrl("./", importer),
-				importer_dir_as_local_path = fileUrlToLocalPath(importer_dir_as_uri)
+				importer_dir_as_local_path = fileUrlToLocalPath(importer_dir_as_uri),
+				resolve_dir = importer_dir_as_local_path ?? resolveDir
+
+			if (resolve_dir === "") {
+				console.log(
+					`[nodeModulesResolverFactory]: WARNING! received an empty resolve directory ("args.resolveDir").`,
+					`\n\twe will fallback to esbuild's current-working-directory for filling in the "resolveDir" value,`,
+					`\n\thowever, you must be using the "nodeModulesResolverFactory" function incorrectly to have encountered this situation.`,
+					`\n\tremember, the purpose of this function is to scan for a node-module, starting from a directory that YOU provide.`,
+				)
+			}
 
 			build.onResolve({ filter: /.*/ }, async (args) => {
 				if (args.pluginData?.[ALREADY_CAPTURED] === true) { return }
-				const
-					{ path: input_path, resolveDir: _resolveDir = "", pluginData: _0 } = args,
-					dir = _resolveDir === "" ? fallbackResolveDir : _resolveDir,
-					resolveDir = importer_dir_as_local_path ?? dir,
-					{ path, external, namespace, sideEffects, suffix } = await build.resolve(input_path, {
-						kind: "entry-point",
-						resolveDir,
-						pluginData: { [ALREADY_CAPTURED]: true },
-					})
+				const { path, external, namespace, sideEffects, suffix } = await build.resolve(args.path, {
+					kind: "entry-point",
+					resolveDir: resolve_dir !== "" ? resolve_dir : args.resolveDir,
+					pluginData: { [ALREADY_CAPTURED]: true },
+				})
 				resolve({ path: pathToPosixPath(path), external, namespace, sideEffects, suffix })
 				return { path: "does-not-matter.js", namespace: plugin_ns }
 			})
@@ -413,12 +423,12 @@ const nodeModulesResolverFactory = (
 
 	return async (args: Pick<OnResolveArgs, "path" | "resolveDir" | "importer">) => {
 		const
-			{ path, resolveDir = "", importer } = args,
-			fallbackResolveDir = resolveDir === "" ? absWorkingDir : resolveDir,
+			{ path, resolveDir: _resolveDir = "", importer } = args,
+			resolveDir = _resolveDir === "" ? (absWorkingDir ?? "") : _resolveDir,
 			[promise, resolve, reject] = promise_outside<OnResolveResult>(),
 			internalPlugin: EsbuildPlugin = {
 				name: "native-esbuild-resolver-capture",
-				setup: internalPluginSetup({ resolve, reject, fallbackResolveDir, importer }),
+				setup: internalPluginSetup({ resolve, reject, resolveDir, importer }),
 			}
 
 		await (build.esbuild.build({
