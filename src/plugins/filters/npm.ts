@@ -4,7 +4,7 @@
  * @module
 */
 
-import { defaultGetCwd, ensureEndSlash, escapeLiteralStringForRegex, fileUrlToLocalPath, getUriScheme, isString, joinPaths, parsePackageUrl, pathToPosixPath, replacePrefix, type DeepPartial } from "../../deps.ts"
+import { DEBUG, defaultGetCwd, ensureEndSlash, escapeLiteralStringForRegex, fileUrlToLocalPath, getUriScheme, isString, joinPaths, parsePackageUrl, pathToPosixPath, replacePrefix, type DeepPartial } from "../../deps.ts"
 import { nodeModulesResolverFactory, type resolverPlugin } from "../resolvers.ts"
 import type { CommonPluginData, EsbuildPlugin, EsbuildPluginBuild, EsbuildPluginSetup, OnResolveArgs, OnResolveCallback } from "../typedefs.ts"
 import { defaultEsbuildNamespaces, PLUGIN_NAMESPACE } from "../typedefs.ts"
@@ -55,7 +55,18 @@ export interface NpmPluginSetupConfig {
 
 	/** auto install missing npm-package (the executed action/technique will vary based on the js-runtime-environment).
 	 * 
-	 * TODO: needs to be implemented. see details in `/todo.md`, under pre-version `0.3.0`.
+	 * > [!warning]
+	 * > the underlying technique used for this option will only work for Deno and Bun, but not Nodejs.
+	 * > 
+	 * > moreover, you will **need** to have a certain configurations for this option to work on Deno and Bun:
+	 * > - for Deno, your project's "deno.json" file's `"nodeModulesDir"` should be set to `"auto"`,
+	 * >   so that a local `"./node_modules/"` folder will be created for installed packages.
+	 * > - for Bun, your project's directory, or one of its ancesteral directory, must contain a `"./node_modules/"` folder,
+	 * >   so that bun will opt for node-package-resolution instead of its default bun-style-resolution.
+	 * >   TODO: I haven't actually tried it on bun, and I'm only speculating based on the information here:
+	 * >   [link](https://bun.sh/docs/runtime/autoimport)
+	 * > 
+	 * > TODO: add auto-install support for Nodejs via cli intervention through `jsr:@oazmi/kitchensink/crossenv`.
 	 * 
 	 * @defaultValue `true`
 	*/
@@ -93,6 +104,13 @@ export interface NpmPluginSetupConfig {
 	 * @defaultValue `[DIRECTORY.ABS_WORKING_DIR]` (equivalent to `[DIRECTORY.ABS_WORKING_DIR, DIRECTORY.CWD]`)
 	*/
 	nodeModulesDirs: NodeModuleDirFormat[]
+
+
+	/** enable logging when a package's path is resolved.
+	 * 
+	 * @defaultValue `false`
+	*/
+	log: boolean
 }
 
 const defaultNpmPluginSetupConfig: NpmPluginSetupConfig = {
@@ -101,6 +119,7 @@ const defaultNpmPluginSetupConfig: NpmPluginSetupConfig = {
 	autoInstall: true,
 	acceptNamespaces: defaultEsbuildNamespaces,
 	nodeModulesDirs: [DIRECTORY.ABS_WORKING_DIR],
+	log: false,
 }
 
 /** this plugin lets you redirect resource-paths beginning with an `"npm:"` specifier to your local `node_modules` folder.
@@ -113,7 +132,7 @@ const defaultNpmPluginSetupConfig: NpmPluginSetupConfig = {
 */
 export const npmPluginSetup = (config: DeepPartial<NpmPluginSetupConfig> = {}): EsbuildPluginSetup => {
 	const
-		{ specifiers, sideEffects, autoInstall, acceptNamespaces: _acceptNamespaces, nodeModulesDirs } = { ...defaultNpmPluginSetupConfig, ...config },
+		{ specifiers, sideEffects, autoInstall, acceptNamespaces: _acceptNamespaces, nodeModulesDirs, log } = { ...defaultNpmPluginSetupConfig, ...config },
 		acceptNamespaces = new Set([..._acceptNamespaces, PLUGIN_NAMESPACE.LOADER_HTTP]),
 		forcedSideEffectsMode = isString(sideEffects) ? undefined : sideEffects
 
@@ -141,6 +160,9 @@ export const npmPluginSetup = (config: DeepPartial<NpmPluginSetupConfig> = {}): 
 				well_formed_npm_package_alias = replacePrefix(path, specifier, "npm:")!,
 				{ scope, pkg, pathname, version: desired_version } = parsePackageUrl(well_formed_npm_package_alias),
 				resolved_npm_package_alias = `${scope ? "@" + scope + "/" : ""}${pkg}${pathname === "/" ? "" : pathname}`,
+				// below, we flush away any previous import-map and runtime-package manager stored in the plugin-data,
+				// as we will need to reset them for the current self-contained npm package's scope.
+				{ importMap: _0, runtimePackage: _1, resolverConfig: _2, ...restPluginData } = pluginData,
 				// NOTE:
 				//   it is absolutely necessary for the `resolveDir` argument to exist when resolving an npm package, otherwise esbuild will not know where to look for the node module.
 				//   this is why when there is no `resolveDir` available, we will use either the absolute-working-directory or the current-working-directory as a fallback.
@@ -149,13 +171,20 @@ export const npmPluginSetup = (config: DeepPartial<NpmPluginSetupConfig> = {}): 
 				// TODO:
 				//   version presrvation is also an issue, since the version that will actually end up being used is whatever is available in `node_modules`,
 				//   instead of the `desired_version`. unless we ask deno to install/import that specific version to our `node_modules`.
-				scan_resolve_dir: string[] = resolveDir === "" ? node_modules_dirs : [resolveDir, ...node_modules_dirs],
-				// TODO: below we assume that we always get a hit, which is not true in reality. if there is no hit, then we must ask deno to install the package and then reattempt.
-				valid_resolve_dir = await validResolveDirFinder(resolved_npm_package_alias, scan_resolve_dir)!,
-				// below, we flush away any previous import-map and runtime-package manager stored in the plugin-data,
-				// as we will need to reset them for the current self-contained npm package's scope.
-				{ importMap: _0, runtimePackage: _1, resolverConfig: _2, ...restPluginData } = pluginData
+				scan_resolve_dir: string[] = resolveDir === "" ? node_modules_dirs : [resolveDir, ...node_modules_dirs]
 
+			// we now let esbuild scan and traverse multiple directories in search for our desired npm-package.
+			// if we don't initially land on a hit (i.e. none of the directories lead to the desired package),
+			// then if the `autoInstall` option is enabled, we will indirectly invoke deno to install the npm-package.
+			// hopefully that will lead to the package now being available under some `"./node_modules/"` directory,
+			// assuming that `"nodeModulesDir"` is set to `"auto"` in the current deno-runtime's "deno.json" config file.
+			// otherwise the package will not be installed in `node_modules` fashion, and esbuild will not be able to discover it.
+			let valid_resolve_dir = await validResolveDirFinder(resolved_npm_package_alias, scan_resolve_dir)
+			if (!valid_resolve_dir && autoInstall) {
+				console.log("[npmPlugin]: deno is installing the missing npm-package:", well_formed_npm_package_alias)
+				await denoInstallNpmPackage(well_formed_npm_package_alias)
+				valid_resolve_dir = await validResolveDirFinder(resolved_npm_package_alias, scan_resolve_dir)
+			}
 			if (!valid_resolve_dir) {
 				console.log(
 					`[npmPlugin]: WARNING! no valid "resolveDir" directory was found to contain the npm package named "${resolved_npm_package_alias}"`,
@@ -170,6 +199,11 @@ export const npmPluginSetup = (config: DeepPartial<NpmPluginSetupConfig> = {}): 
 				namespace: PLUGIN_NAMESPACE.RESOLVER_PIPELINE,
 				pluginData: { ...restPluginData, resolverConfig: { useNodeModules: true } } satisfies CommonPluginData,
 			})
+			const resolved_path = abs_result.path
+			if (DEBUG.LOG && log) {
+				console.log("[npmPlugin]       resolving:", path, "with resolveDir:", valid_resolve_dir)
+				if (resolved_path) { console.log(">> successfully resolved to:", resolved_path) }
+			}
 
 			if (forcedSideEffectsMode !== undefined) { abs_result.sideEffects = forcedSideEffectsMode }
 			// esbuild's native loaders only operate on the default `""` and `"file"` namespaces,
@@ -267,4 +301,28 @@ export const findResolveDirOfNpmPackageFactory = (build: EsbuildPluginBuild): Fi
 			if (node_module_was_found) { return abs_resolve_dir }
 		}
 	}
+}
+
+/** this function indirectly makes the deno runtime automatically install an npm-package.
+ * doing so will hopefully make it available under your project's `"./node_modules/"` directory,
+ * allowing esbuild to access it when bundling code.
+ * 
+ * > [!important]
+ * > for the npm-package to be installed to your project's directory,
+ * > you **must** have the `"nodeModulesDir"` field set to `"auto"` in your project's "deno.json" configuration file.
+ * > otherwise, the package will get cached in deno's cache directory which uses a different file structure from `node_modules`,
+ * > making it impossible for esbuild to traverse through it to discover the package natively.
+*/
+export const denoInstallNpmPackage = async (package_name: string): Promise<void> => {
+	const
+		pkg_pseudo_url = parsePackageUrl(package_name.startsWith("npm:") ? package_name : ("npm:" + package_name)),
+		pkg_import_url = pkg_pseudo_url.href
+			.replace(/npm\:[\/\\]*/, "npm:")
+			.slice(0, pkg_pseudo_url.pathname === "/" ? -1 : undefined),
+		dynamic_export_script = `export * as myLib from "${pkg_import_url}"`,
+		dynamic_export_script_blob = new Blob([dynamic_export_script], { type: "text/javascript" }),
+		dynamic_export_script_url = URL.createObjectURL(dynamic_export_script_blob)
+	// now we perform a phony import, to force deno to cache this npm-package as a dependency inside of your `${cwd}/node_modules/`.
+	await import(dynamic_export_script_url)
+	return
 }
