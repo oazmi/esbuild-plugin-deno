@@ -41,14 +41,24 @@
   > will not implement right now (maybe in the future).
 - [x] the jsr plugin setup should accept `runtimePackage: DenoPackage | URL | string` configuration option for specifying the current scope/project's `deno.json` file (if there's one).
   > instead of this, in version `0.1.4 (2025-02-22)` I had implemented an "initial plugin-data" plugin that injected the user's current project's `DenoPackage` into `pluginData.runtimePackage`, for all entry-points, and their dependencies.
-- [ ] in either the `jsrPlugin` or a new `npmPlugin`, we should install npm packages via deno, by tricking it into importing the package and storing it into local `node_modules` folder (which WILL require `"nodeModulesDir": "auto"` in the top-level package's `deno.json`) in the following way:
+
+## pre-version `0.2.2` todo list
+
+- [ ] in `npmPlugin`'s `autoInstall` config option:
+  - add the ability to set a custom directory in which the installation should take place.
+    this custom directory should also be force added (unshift) to the list of `nodeModulesDirs`.
+  - add the ability to specify which installation method should be used (auto, dynamic, npm-cli, deno-cli, bun-cli).
+
+## (2025-03-07) pre-version `0.2.1` todo list
+
+- [x] in either the `jsrPlugin` or a new `npmPlugin`, we should install npm packages via deno, by tricking it into importing the package and storing it into local `node_modules` folder (which WILL require `"nodeModulesDir": "auto"` in the top-level package's `deno.json`) in the following way:
   ```ts
   const dynamic_export_script = `export * as myLib from "npm:@${pkg.scope}/${pkg.name}@${pkg.version}"`
   const dynamic_export_script_blob = new Blob([dynamic_export_script], { type: "text/javascript" })
   const dynamic_export_script_url = URL.createObjectURL(dynamic_export_script_blob)
   const phony_importer = await import(dynamic_export_script_url)
   ```
-  on the other hand, if the `npm` command is available on the host system, then we can also execute `npm install pkg-name --save-optional` (via `import { exec } from "node:child_process"; await exec("...")`) if it is not already present in `package.json`, or just `npm install pkg-name` if it is present in `package.json`.
+  on the other hand, if the `npm` command is available on the host system, then we can also execute `npm install pkg-name --no-save` (via `import { exec } from "node:child_process"; await exec("...")`) if it is not already present in `package.json`, or just `npm install pkg-name` if it is present in `package.json`.
 
 ## (2025-03-05) pre-version `0.2.0` todo list
 

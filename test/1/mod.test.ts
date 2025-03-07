@@ -23,15 +23,11 @@ Deno.test("test http plugin", async () => {
 		"jsr:@oazmi/kitchensink/struct",         // this will be resolved to the latest version of the package by our jsr-plugin
 		"npm:@oazmi/kitchensink/stringman",      // this will be resolved to whatever-is-available-version of the package (in the `node_modules` directory) by our npm-plugin
 		"https://raw.githubusercontent.com/jenil/chota/7d780731421fc987d8f7a1c8f66c730d8573684c/src/chota.css", // http-plugin resolution and loading
+		"npm:d3-brush@3.0.0", // this, despite not being part of "deno.json", will get auto-installed via our npm-plugin.
 	].map((path) => ({
 		in: path,
 		out: "entry-" + parseFilepathInfo(path).basename,
 	}))
-
-	// TODO: while the `autoInstall` option is not implemented, we must manually trick deno into installing `npm:@oazmi/kitchensink`,
-	//   if it does not already exist in our local `./node_modules/` folder.
-	//   this is done by simply importing the said package, while ensuring that `"nodeModulesDir": "auto"` is enabled in `deno.json`.
-	await import("npm:@oazmi/kitchensink@0.9.7")
 
 	const result = await esbuild.build({
 		absWorkingDir: import.meta.dirname,
@@ -46,7 +42,7 @@ Deno.test("test http plugin", async () => {
 		write: false,
 		metafile: true,
 		plugins: [
-			npmPlugin(),
+			npmPlugin({ autoInstall: true, log: true, }),
 			entryPlugin({
 				pluginData: {
 					runtimePackage: "./deno.json",
