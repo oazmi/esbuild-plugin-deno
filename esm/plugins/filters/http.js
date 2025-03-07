@@ -73,7 +73,7 @@ export const urlLoaderFactory = (config) => {
         };
     };
 };
-export const defaultHttpPluginSetupConfig = {
+const defaultHttpPluginSetupConfig = {
     filters: [/^https?\:\/\//, /^file\:\/\//],
     namespace: PLUGIN_NAMESPACE.LOADER_HTTP,
     acceptNamespaces: defaultEsbuildNamespaces,

@@ -55,21 +55,28 @@ export interface CommonPluginData {
     };
     [capture_marker: symbol]: boolean;
 }
-export type DeepPartial<T> = T extends (Function | Array<any> | String | BigInt | Number | Boolean | Symbol) ? T : T extends Record<string, any> ? {
-    [P in keyof T]?: DeepPartial<T[P]>;
-} : T;
+/** type alias for `esbuild.OnResolveArgs`, slightly tweaked for this library's internal use. */
 export type OnResolveArgs = Omit<esbuild.OnResolveArgs, "pluginData"> & {
     pluginData?: CommonPluginData;
 };
+/** type alias for `esbuild.OnLoadArgs`, slightly tweaked for this library's internal use. */
 export type OnLoadArgs = Omit<esbuild.OnLoadArgs, "pluginData"> & {
     pluginData?: CommonPluginData;
 };
+/** type alias for `esbuild.OnResolveResult`. */
 export type OnResolveResult = esbuild.OnResolveResult;
+/** type alias for `esbuild.OnLoadResult`. */
 export type OnLoadResult = esbuild.OnLoadResult;
+/** type alias for the callback function provided to `onResolve` the function (aka `esbuild.PluginBuild["onResolve"]`). */
 export type OnResolveCallback = (args: OnResolveArgs) => MaybePromise<OnResolveResult | null | undefined>;
+/** type alias for the callback function provided to `OnLoadCallback` the function (aka `esbuild.PluginBuild["OnLoadCallback"]`). */
 export type OnLoadCallback = (args: OnLoadArgs) => MaybePromise<OnLoadResult | null | undefined>;
+/** type alias for `esbuild.Plugin`. */
 export type EsbuildPlugin = esbuild.Plugin;
+/** type alias for `esbuild.Plugin["setup"]`. */
 export type EsbuildPluginSetup = esbuild.Plugin["setup"];
+/** type alias for `esbuild.PluginBuild`. */
 export type EsbuildPluginBuild = esbuild.PluginBuild;
+/** type alias for `esbuild.Loader`. */
 export type EsbuildLoaderType = esbuild.Loader;
 //# sourceMappingURL=typedefs.d.ts.map

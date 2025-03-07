@@ -40,6 +40,7 @@ if (!Uint8Array.prototype.findLast) {
 var json_constructor = JSON;
 var object_constructor = Object;
 var symbol_constructor = Symbol;
+var array_isEmpty = (array) => array.length === 0;
 var json_stringify = /* @__PURE__ */ (() => json_constructor.stringify)();
 var object_assign = /* @__PURE__ */ (() => object_constructor.assign)();
 var object_entries = /* @__PURE__ */ (() => object_constructor.entries)();
@@ -421,6 +422,41 @@ var getRuntimeCwd = (runtime_enum, current_path = true) => {
     case RUNTIME.WORKER:
       return new URL("./", current_path ? runtime.location.href : runtime.location.origin).href;
   }
+};
+var defaultExecShellCommandConfig = {
+  args: []
+};
+var execShellCommand = async (runtime_enum, command, config = {}) => {
+  const { args, cwd, signal } = { ...defaultExecShellCommandConfig, ...config }, args_are_empty = array_isEmpty(args), runtime = getRuntime(runtime_enum);
+  if (!runtime) {
+    throw new Error(DEBUG.ERROR ? `the requested runtime associated with the enum "${runtime_enum}" is undefined (i.e. you're running on a different runtime from the provided enum).` : "");
+  }
+  if (!command && args_are_empty) {
+    return { stdout: "", stderr: "" };
+  }
+  switch (runtime_enum) {
+    case RUNTIME.DENO:
+    case RUNTIME.BUN:
+    case RUNTIME.NODE: {
+      const { exec } = await get_node_child_process(), full_command = args_are_empty ? command : `${command} ${args.join(" ")}`, [promise, resolve, reject] = promise_outside();
+      exec(full_command, { cwd, signal }, (error, stdout, stderr) => {
+        if (error) {
+          reject(error.message);
+        }
+        resolve({ stdout, stderr });
+      });
+      return promise;
+    }
+    default:
+      throw new Error(DEBUG.ERROR ? `your non-system runtime environment enum ("${runtime_enum}") does not support shell commands` : "");
+  }
+};
+var node_child_process;
+var import_node_child_process = async () => {
+  return import("node:child_process");
+};
+var get_node_child_process = async () => {
+  return node_child_process ??= await import_node_child_process();
 };
 
 // node_modules/@oazmi/kitchensink/esm/collections.js
@@ -1646,7 +1682,7 @@ var isAbsolutePath2 = (segment) => {
   return scheme !== "relative";
 };
 var defaultFetchConfig = { redirect: "follow", cache: "force-cache" };
-var defaultGetCwd = /* @__PURE__ */ getRuntimeCwd(identifyCurrentRuntime(), true);
+var defaultGetCwd = /* @__PURE__ */ ensureEndSlash(pathToPosixPath(getRuntimeCwd(identifyCurrentRuntime(), true)));
 var defaultResolvePath = /* @__PURE__ */ resolvePathFactory(defaultGetCwd, isAbsolutePath2);
 var noop = () => void 0;
 var windows_local_path_correction_regex = /^[\/\\]([a-z])\:[\/\\]/i;
@@ -2164,53 +2200,6 @@ var jsrPlugin = (config) => {
   };
 };
 
-// src/plugins/filters/npm.ts
-var defaultNpmPluginSetupConfig = {
-  specifiers: ["npm:"],
-  sideEffects: "auto",
-  autoInstall: true,
-  acceptNamespaces: defaultEsbuildNamespaces,
-  resolveDir: {
-    path: defaultGetCwd,
-    prioritizeAbsWorkingDir: true
-  }
-};
-var npmPluginSetup = (config = {}) => {
-  const { specifiers, sideEffects, autoInstall, acceptNamespaces: _acceptNamespaces, resolveDir: _initialResolveDir } = { ...defaultNpmPluginSetupConfig, ...config }, acceptNamespaces = /* @__PURE__ */ new Set([..._acceptNamespaces, "oazmi-loader-http" /* LOADER_HTTP */]), forcedSideEffectsMode = isString(sideEffects) ? void 0 : sideEffects, initialResolveDir = { ...defaultNpmPluginSetupConfig.resolveDir, ..._initialResolveDir };
-  return async (build) => {
-    const { absWorkingDir, outdir, outfile, entryPoints, write, loader } = build.initialOptions, fallbackResolveDir = ensureEndSlash(pathToPosixPath(
-      absWorkingDir && initialResolveDir.prioritizeAbsWorkingDir ? absWorkingDir : initialResolveDir.path
-    ));
-    const npmSpecifierResolverFactory = (specifier) => async (args) => {
-      if (!acceptNamespaces.has(args.namespace)) {
-        return;
-      }
-      const { path, pluginData = {}, resolveDir = "", namespace: original_ns, ...rest_args } = args, well_formed_npm_package_alias = replacePrefix(path, specifier, "npm:"), { scope, pkg, pathname, version: desired_version } = parsePackageUrl(well_formed_npm_package_alias), resolved_npm_package_alias = `${scope ? "@" + scope + "/" : ""}${pkg}${pathname === "/" ? "" : pathname}`, resolve_dir = resolveDir === "" ? fallbackResolveDir : resolveDir, { importMap: _0, runtimePackage: _1, resolverConfig: _2, ...restPluginData } = pluginData;
-      const abs_result = await build.resolve(resolved_npm_package_alias, {
-        ...rest_args,
-        resolveDir: resolve_dir,
-        namespace: "oazmi-resolver-pipeline" /* RESOLVER_PIPELINE */,
-        pluginData: { ...restPluginData, resolverConfig: { useNodeModules: true } }
-      });
-      if (forcedSideEffectsMode !== void 0) {
-        abs_result.sideEffects = forcedSideEffectsMode;
-      }
-      abs_result.namespace = "";
-      return abs_result;
-    };
-    specifiers.forEach((specifier) => {
-      const filter = new RegExp(`^${escapeLiteralStringForRegex(specifier)}`);
-      build.onResolve({ filter }, npmSpecifierResolverFactory(specifier));
-    });
-  };
-};
-var npmPlugin = (config) => {
-  return {
-    name: "oazmi-npm-plugin",
-    setup: npmPluginSetup(config)
-  };
-};
-
 // src/plugins/resolvers.ts
 var defaultRuntimePackageResolverConfig = {
   enabled: true
@@ -2346,14 +2335,25 @@ var nodeModulesResolverFactory = (config, build) => {
   const { absWorkingDir } = config;
   const internalPluginSetup = (config2) => {
     return (build2) => {
-      const ALREADY_CAPTURED = Symbol(), plugin_ns = "the-void", { resolve, reject, fallbackResolveDir, importer = "" } = config2, importer_dir_as_uri = importer === "" || getUriScheme(importer) === "relative" ? void 0 : resolveAsUrl("./", importer), importer_dir_as_local_path = fileUrlToLocalPath(importer_dir_as_uri);
+      const ALREADY_CAPTURED = Symbol(), plugin_ns = "the-void", { resolve, reject, resolveDir, importer = "" } = config2, importer_dir_as_uri = importer === "" || getUriScheme(importer) === "relative" ? void 0 : resolveAsUrl("./", importer), importer_dir_as_local_path = fileUrlToLocalPath(importer_dir_as_uri), resolve_dir = importer_dir_as_local_path ?? resolveDir;
+      if (resolve_dir === "") {
+        console.log(
+          `[nodeModulesResolverFactory]: WARNING! received an empty resolve directory ("args.resolveDir").`,
+          `
+	we will fallback to esbuild's current-working-directory for filling in the "resolveDir" value,`,
+          `
+	however, you must be using the "nodeModulesResolverFactory" function incorrectly to have encountered this situation.`,
+          `
+	remember, the purpose of this function is to scan for a node-module, starting from a directory that YOU provide.`
+        );
+      }
       build2.onResolve({ filter: /.*/ }, async (args) => {
         if (args.pluginData?.[ALREADY_CAPTURED] === true) {
           return;
         }
-        const { path: input_path, resolveDir: _resolveDir = "", pluginData: _0 } = args, dir = _resolveDir === "" ? fallbackResolveDir : _resolveDir, resolveDir = importer_dir_as_local_path ?? dir, { path, external, namespace, sideEffects, suffix } = await build2.resolve(input_path, {
+        const { path, external, namespace, sideEffects, suffix } = await build2.resolve(args.path, {
           kind: "entry-point",
-          resolveDir,
+          resolveDir: resolve_dir !== "" ? resolve_dir : args.resolveDir,
           pluginData: { [ALREADY_CAPTURED]: true }
         });
         resolve({ path: pathToPosixPath(path), external, namespace, sideEffects, suffix });
@@ -2363,9 +2363,9 @@ var nodeModulesResolverFactory = (config, build) => {
     };
   };
   return async (args) => {
-    const { path, resolveDir = "", importer } = args, fallbackResolveDir = resolveDir === "" ? absWorkingDir : resolveDir, [promise, resolve, reject] = promise_outside(), internalPlugin = {
+    const { path, resolveDir: _resolveDir = "", importer } = args, resolveDir = _resolveDir === "" ? absWorkingDir ?? "" : _resolveDir, [promise, resolve, reject] = promise_outside(), internalPlugin = {
       name: "native-esbuild-resolver-capture",
-      setup: internalPluginSetup({ resolve, reject, fallbackResolveDir, importer })
+      setup: internalPluginSetup({ resolve, reject, resolveDir, importer })
     };
     await build.esbuild.build({
       entryPoints: [path],
@@ -2382,21 +2382,156 @@ var nodeModulesResolverFactory = (config, build) => {
   };
 };
 
+// src/plugins/filters/npm.ts
+var DIRECTORY = /* @__PURE__ */ ((DIRECTORY2) => {
+  DIRECTORY2[DIRECTORY2["CWD"] = 0] = "CWD";
+  DIRECTORY2[DIRECTORY2["ABS_WORKING_DIR"] = 1] = "ABS_WORKING_DIR";
+  return DIRECTORY2;
+})(DIRECTORY || {});
+var defaultNpmPluginSetupConfig = {
+  specifiers: ["npm:"],
+  sideEffects: "auto",
+  autoInstall: true,
+  acceptNamespaces: defaultEsbuildNamespaces,
+  nodeModulesDirs: [1 /* ABS_WORKING_DIR */],
+  log: false
+};
+var npmPluginSetup = (config = {}) => {
+  const { specifiers, sideEffects, autoInstall, acceptNamespaces: _acceptNamespaces, nodeModulesDirs, log } = { ...defaultNpmPluginSetupConfig, ...config }, acceptNamespaces = /* @__PURE__ */ new Set([..._acceptNamespaces, "oazmi-loader-http" /* LOADER_HTTP */]), forcedSideEffectsMode = isString(sideEffects) ? void 0 : sideEffects;
+  return async (build) => {
+    const { absWorkingDir, outdir, outfile, entryPoints, write, loader } = build.initialOptions, cwd = ensureEndSlash(defaultGetCwd), abs_working_dir = absWorkingDir ? ensureEndSlash(pathToPosixPath(absWorkingDir)) : defaultGetCwd, node_modules_dirs = nodeModulesDirs.map((dir_path) => {
+      switch (dir_path) {
+        case 0 /* CWD */:
+          return cwd;
+        case 1 /* ABS_WORKING_DIR */:
+          return abs_working_dir;
+        default:
+          return pathOrUrlToLocalPathConverter(dir_path);
+      }
+    }), validResolveDirFinder = findResolveDirOfNpmPackageFactory(build);
+    const npmSpecifierResolverFactory = (specifier) => async (args) => {
+      if (!acceptNamespaces.has(args.namespace)) {
+        return;
+      }
+      const { path, pluginData = {}, resolveDir = "", namespace: original_ns, ...rest_args } = args, well_formed_npm_package_alias = replacePrefix(path, specifier, "npm:"), { scope, pkg, pathname, version: desired_version } = parsePackageUrl(well_formed_npm_package_alias), resolved_npm_package_alias = `${scope ? "@" + scope + "/" : ""}${pkg}${pathname === "/" ? "" : pathname}`, { importMap: _0, runtimePackage: _1, resolverConfig: _2, ...restPluginData } = pluginData, scan_resolve_dir = resolveDir === "" ? node_modules_dirs : [resolveDir, ...node_modules_dirs];
+      let valid_resolve_dir = await validResolveDirFinder(resolved_npm_package_alias, scan_resolve_dir);
+      if (!valid_resolve_dir && autoInstall) {
+        await installNpmPackage(well_formed_npm_package_alias, abs_working_dir);
+        valid_resolve_dir = await validResolveDirFinder(resolved_npm_package_alias, scan_resolve_dir);
+      }
+      if (!valid_resolve_dir) {
+        console.log(
+          `[npmPlugin]: WARNING! no valid "resolveDir" directory was found to contain the npm package named "${resolved_npm_package_alias}"`,
+          `
+	we will still continue with the path resolution (in case the global-import-map may alter the situation),`,
+          `
+	but it is almost guaranteed not to work if the current-working-directory was already part of the scanned directories.`
+        );
+      }
+      const abs_result = await build.resolve(resolved_npm_package_alias, {
+        ...rest_args,
+        resolveDir: valid_resolve_dir,
+        namespace: "oazmi-resolver-pipeline" /* RESOLVER_PIPELINE */,
+        pluginData: { ...restPluginData, resolverConfig: { useNodeModules: true } }
+      });
+      const resolved_path = abs_result.path;
+      if (1 /* LOG */ && log) {
+        console.log("[npmPlugin]       resolving:", path, "with resolveDir:", valid_resolve_dir);
+        if (resolved_path) {
+          console.log(">> successfully resolved to:", resolved_path);
+        }
+      }
+      if (forcedSideEffectsMode !== void 0) {
+        abs_result.sideEffects = forcedSideEffectsMode;
+      }
+      abs_result.namespace = "";
+      return abs_result;
+    };
+    specifiers.forEach((specifier) => {
+      const filter = new RegExp(`^${escapeLiteralStringForRegex(specifier)}`);
+      build.onResolve({ filter }, npmSpecifierResolverFactory(specifier));
+    });
+  };
+};
+var npmPlugin = (config) => {
+  return {
+    name: "oazmi-npm-plugin",
+    setup: npmPluginSetup(config)
+  };
+};
+var pathOrUrlToLocalPathConverter = (dir_path_or_url) => {
+  const dir_path = ensureEndSlash(isString(dir_path_or_url) ? dir_path_or_url : dir_path_or_url.href), path_schema = getUriScheme(dir_path);
+  switch (path_schema) {
+    case "local":
+      return dir_path;
+    case "relative":
+      return joinPaths(ensureEndSlash(defaultGetCwd), dir_path);
+    case "file":
+      return fileUrlToLocalPath(new URL(dir_path));
+    default:
+      throw new Error(`expected a filesystem path, or a "file://" url, but received the incompatible uri scheme "${path_schema}".`);
+  }
+};
+var findResolveDirOfNpmPackageFactory = (build) => {
+  const node_modules_resolver = nodeModulesResolverFactory({ absWorkingDir: void 0 }, build);
+  const validateNodeModuleExists = async (abs_resolve_dir, node_module_package_name) => {
+    const result = await node_modules_resolver({
+      path: node_module_package_name,
+      importer: "",
+      resolveDir: abs_resolve_dir
+    });
+    return (result.path ?? "") !== "" ? true : false;
+  };
+  return async (node_module_package_name_to_search, node_module_parent_directories_to_scan) => {
+    const abs_local_directories = node_module_parent_directories_to_scan.map(pathOrUrlToLocalPathConverter);
+    for (const abs_resolve_dir of abs_local_directories) {
+      const node_module_was_found = await validateNodeModuleExists(abs_resolve_dir, node_module_package_name_to_search);
+      if (node_module_was_found) {
+        return abs_resolve_dir;
+      }
+    }
+  };
+};
+var installNpmPackage = async (package_name, cwd = defaultGetCwd) => {
+  switch (identifyCurrentRuntime()) {
+    case RUNTIME.DENO:
+    case RUNTIME.BUN:
+      console.log("[npmPlugin]: deno/bun is installing the missing npm-package:", package_name);
+      return denoInstallNpmPackage(package_name);
+    case RUNTIME.NODE:
+      console.log("[npmPlugin]: npm is installing the missing npm-package:", package_name);
+      return npmInstallNpmPackage(package_name, cwd);
+    default:
+      throw new Error("ERROR! npm-package installation is not possible on web-browser runtimes.");
+  }
+};
+var npmInstallNpmPackage = async (package_name, cwd = defaultGetCwd) => {
+  const pkg_pseudo_url = parsePackageUrl(package_name.startsWith("npm:") ? package_name : "npm:" + package_name), pkg_name_and_version = pkg_pseudo_url.host;
+  await execShellCommand(identifyCurrentRuntime(), `npm install ${pkg_name_and_version} --no-save`, { cwd });
+};
+var denoInstallNpmPackage = async (package_name) => {
+  const pkg_pseudo_url = parsePackageUrl(package_name.startsWith("npm:") ? package_name : "npm:" + package_name), pkg_import_url = pkg_pseudo_url.href.replace(/^npm\:[\/\\]*/, "npm:").slice(0, pkg_pseudo_url.pathname === "/" ? -1 : void 0), dynamic_export_script = `export * as myLib from "${pkg_import_url}"`, dynamic_export_script_blob = new Blob([dynamic_export_script], { type: "text/javascript" }), dynamic_export_script_url = URL.createObjectURL(dynamic_export_script_blob);
+  await import(dynamic_export_script_url);
+  return;
+};
+
 // src/plugins/mod.ts
 var defaultDenoPluginsConfig = {
   pluginData: {},
   log: false,
+  autoInstall: true,
+  nodeModulesDirs: [1 /* ABS_WORKING_DIR */],
   globalImportMap: {},
   getCwd: defaultGetCwd,
   acceptNamespaces: defaultEsbuildNamespaces
 };
 var denoPlugins = (config) => {
-  const { acceptNamespaces, getCwd, globalImportMap, log, pluginData } = { ...defaultDenoPluginsConfig, ...config }, resolvePath = resolvePathFactory(getCwd, isAbsolutePath2);
+  const { acceptNamespaces, autoInstall, getCwd, globalImportMap, log, nodeModulesDirs, pluginData } = { ...defaultDenoPluginsConfig, ...config }, resolvePath = resolvePathFactory(getCwd, isAbsolutePath2);
   return [
     entryPlugin({ pluginData, acceptNamespaces }),
     httpPlugin({ acceptNamespaces }),
     jsrPlugin({ acceptNamespaces }),
-    npmPlugin({ acceptNamespaces }),
+    npmPlugin({ acceptNamespaces, autoInstall, log, nodeModulesDirs }),
     resolverPlugin({
       log,
       importMap: { globalImportMap },
@@ -2405,6 +2540,7 @@ var denoPlugins = (config) => {
   ];
 };
 export {
+  DIRECTORY,
   allEsbuildLoaders,
   defaultEsbuildNamespaces,
   denoPlugins,

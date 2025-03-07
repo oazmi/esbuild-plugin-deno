@@ -11,7 +11,9 @@
  * @module
 */
 import { InvertibleMap, type esbuild } from "../deps.js";
+/** an alias for a string that represents a mime type (aka the `"content-type"` http header). */
 export type MimeType = string;
+/** an alias for a string that represents a file path's extension poertion (including the dot (`"."`) character). */
 export type ExtensionType = string;
 /** a pre-defined invertible-mapping between http-header `"content-type"` (aka mime-type) and esbuild's default loader selection.
  *

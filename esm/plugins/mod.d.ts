@@ -3,12 +3,12 @@
  * @module
 */
 import { type EntryPluginSetupConfig } from "./filters/entry.js";
+import { type NpmPluginSetupConfig } from "./filters/npm.js";
 import { type ImportMapResolverConfig, type ResolverPluginSetupConfig } from "./resolvers.js";
 import { type EsbuildPlugin } from "./typedefs.js";
+export { DIRECTORY } from "./filters/npm.js";
 /** the configuration interface for the deno esbuild plugins suite {@link denoPlugins}. */
-export interface DenoPluginsConfig extends Pick<EntryPluginSetupConfig, "pluginData">, Pick<ResolverPluginSetupConfig, "log"> {
-    /** {@inheritDoc ImportMapResolverConfig.globalImportMap} */
-    globalImportMap: ImportMapResolverConfig["globalImportMap"];
+export interface DenoPluginsConfig extends Pick<EntryPluginSetupConfig, "pluginData">, Pick<ResolverPluginSetupConfig, "log">, Pick<NpmPluginSetupConfig, "autoInstall" | "nodeModulesDirs">, Pick<ImportMapResolverConfig, "globalImportMap"> {
     /** provide an optional function (or a static `string`) that returns the absolute path to the current working directory.
      * make sure that it always returns a posix-style path (i.e. uses "/" for directory separator, and not "\\").
      *
@@ -20,6 +20,8 @@ export interface DenoPluginsConfig extends Pick<EntryPluginSetupConfig, "pluginD
      * > [!important]
      * > note that if you will be bundling code that imports from npm-packages,
      * > you **must** have your `./node_modules/` folder directly under the working-directory that you provide in this field.
+     *
+     * TODO: this option is currently not respected by `npmPlugin`'s `DIRECTORY.CWD`, since it uses the actual cwd (acquired via `defaultGetCwd`).
     */
     getCwd: (() => string) | string;
     /** specify which `namespace`s should be intercepted by this suite of plugins.

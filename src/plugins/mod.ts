@@ -7,16 +7,19 @@ import { defaultGetCwd, isAbsolutePath, resolvePathFactory } from "../deps.js"
 import { entryPlugin, type EntryPluginSetupConfig } from "./filters/entry.js"
 import { httpPlugin } from "./filters/http.js"
 import { jsrPlugin } from "./filters/jsr.js"
-import { npmPlugin } from "./filters/npm.js"
+import { DIRECTORY, npmPlugin, type NpmPluginSetupConfig } from "./filters/npm.js"
 import { type ImportMapResolverConfig, resolverPlugin, type ResolverPluginSetupConfig } from "./resolvers.js"
 import { defaultEsbuildNamespaces, type EsbuildPlugin } from "./typedefs.js"
 
 
-/** the configuration interface for the deno esbuild plugins suite {@link denoPlugins}. */
-export interface DenoPluginsConfig extends Pick<EntryPluginSetupConfig, "pluginData">, Pick<ResolverPluginSetupConfig, "log"> {
-	/** {@inheritDoc ImportMapResolverConfig.globalImportMap} */
-	globalImportMap: ImportMapResolverConfig["globalImportMap"]
+export { DIRECTORY } from "./filters/npm.js"
 
+/** the configuration interface for the deno esbuild plugins suite {@link denoPlugins}. */
+export interface DenoPluginsConfig extends
+	Pick<EntryPluginSetupConfig, "pluginData">,
+	Pick<ResolverPluginSetupConfig, "log">,
+	Pick<NpmPluginSetupConfig, "autoInstall" | "nodeModulesDirs">,
+	Pick<ImportMapResolverConfig, "globalImportMap"> {
 	/** provide an optional function (or a static `string`) that returns the absolute path to the current working directory.
 	 * make sure that it always returns a posix-style path (i.e. uses "/" for directory separator, and not "\\").
 	 * 
@@ -28,6 +31,8 @@ export interface DenoPluginsConfig extends Pick<EntryPluginSetupConfig, "pluginD
 	 * > [!important]
 	 * > note that if you will be bundling code that imports from npm-packages,
 	 * > you **must** have your `./node_modules/` folder directly under the working-directory that you provide in this field.
+	 * 
+	 * TODO: this option is currently not respected by `npmPlugin`'s `DIRECTORY.CWD`, since it uses the actual cwd (acquired via `defaultGetCwd`).
 	*/
 	getCwd: (() => string) | string
 
@@ -45,6 +50,8 @@ export interface DenoPluginsConfig extends Pick<EntryPluginSetupConfig, "pluginD
 const defaultDenoPluginsConfig: DenoPluginsConfig = {
 	pluginData: {},
 	log: false,
+	autoInstall: true,
+	nodeModulesDirs: [DIRECTORY.ABS_WORKING_DIR],
 	globalImportMap: {},
 	getCwd: defaultGetCwd,
 	acceptNamespaces: defaultEsbuildNamespaces,
@@ -69,14 +76,14 @@ export const denoPlugins = (config?: Partial<DenoPluginsConfig>): [
 	resolver_pipeline_plugin: EsbuildPlugin,
 ] => {
 	const
-		{ acceptNamespaces, getCwd, globalImportMap, log, pluginData } = { ...defaultDenoPluginsConfig, ...config },
+		{ acceptNamespaces, autoInstall, getCwd, globalImportMap, log, nodeModulesDirs, pluginData } = { ...defaultDenoPluginsConfig, ...config },
 		resolvePath = resolvePathFactory(getCwd, isAbsolutePath)
 
 	return [
 		entryPlugin({ pluginData, acceptNamespaces }),
 		httpPlugin({ acceptNamespaces }),
 		jsrPlugin({ acceptNamespaces }),
-		npmPlugin({ acceptNamespaces }),
+		npmPlugin({ acceptNamespaces, autoInstall, log, nodeModulesDirs }),
 		resolverPlugin({
 			log,
 			importMap: { globalImportMap: globalImportMap },

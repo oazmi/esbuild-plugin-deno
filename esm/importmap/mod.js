@@ -156,7 +156,7 @@ export const resolvePathFromImportMap = (path_alias, import_map) => {
 export const compareImportMapEntriesByLength = ([alias_a, path_a], [alias_b, path_b]) => {
     return alias_b.length - alias_a.length;
 };
-export const defaultResolvePathFromImportMapEntriesConfig = {
+const defaultResolvePathFromImportMapEntriesConfig = {
     baseAliasDir: "",
     basePathDir: "",
     sort: true,

@@ -1,8 +1,9 @@
 import { dom_decodeURI } from "@oazmi/kitchensink/alias";
 import { getRuntimeCwd, identifyCurrentRuntime } from "@oazmi/kitchensink/crossenv";
-import { getUriScheme, pathToPosixPath, resolvePathFactory } from "@oazmi/kitchensink/pathman";
+import { ensureEndSlash, getUriScheme, pathToPosixPath, resolvePathFactory } from "@oazmi/kitchensink/pathman";
 export { dom_decodeURI, json_parse, json_stringify, object_assign, object_entries, object_fromEntries, object_keys, object_values, promise_outside, promise_resolve } from "@oazmi/kitchensink/alias";
 export { InvertibleMap, invertMap } from "@oazmi/kitchensink/collections";
+export { execShellCommand, identifyCurrentRuntime, RUNTIME } from "@oazmi/kitchensink/crossenv";
 export { memorize } from "@oazmi/kitchensink/lambda";
 export { ensureEndSlash, ensureStartDotSlash, getUriScheme, joinPaths, normalizePath, parseFilepathInfo, parsePackageUrl, pathToPosixPath, resolveAsUrl, resolvePathFactory } from "@oazmi/kitchensink/pathman";
 export { escapeLiteralStringForRegex, replacePrefix, replaceSuffix } from "@oazmi/kitchensink/stringman";
@@ -25,7 +26,7 @@ export const isAbsolutePath = (segment) => {
 };
 /** global configuration for all `fetch` calls. */
 export const defaultFetchConfig = { redirect: "follow", cache: "force-cache" };
-export const defaultGetCwd = /*@__PURE__*/ getRuntimeCwd(identifyCurrentRuntime(), true), defaultResolvePath = /*@__PURE__*/ resolvePathFactory(defaultGetCwd, isAbsolutePath);
+export const defaultGetCwd = /*@__PURE__*/ ensureEndSlash(pathToPosixPath(getRuntimeCwd(identifyCurrentRuntime(), true))), defaultResolvePath = /*@__PURE__*/ resolvePathFactory(defaultGetCwd, isAbsolutePath);
 export const noop = (() => undefined);
 const windows_local_path_correction_regex = /^[\/\\]([a-z])\:[\/\\]/i;
 export const fileUrlToLocalPath = (file_url) => {

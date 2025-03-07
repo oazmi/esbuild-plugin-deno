@@ -6,12 +6,15 @@ import { defaultGetCwd, isAbsolutePath, resolvePathFactory } from "../deps.js";
 import { entryPlugin } from "./filters/entry.js";
 import { httpPlugin } from "./filters/http.js";
 import { jsrPlugin } from "./filters/jsr.js";
-import { npmPlugin } from "./filters/npm.js";
+import { DIRECTORY, npmPlugin } from "./filters/npm.js";
 import { resolverPlugin } from "./resolvers.js";
 import { defaultEsbuildNamespaces } from "./typedefs.js";
+export { DIRECTORY } from "./filters/npm.js";
 const defaultDenoPluginsConfig = {
     pluginData: {},
     log: false,
+    autoInstall: true,
+    nodeModulesDirs: [DIRECTORY.ABS_WORKING_DIR],
     globalImportMap: {},
     getCwd: defaultGetCwd,
     acceptNamespaces: defaultEsbuildNamespaces,
@@ -28,12 +31,12 @@ const defaultDenoPluginsConfig = {
  * - {@link resolverPlugin}: a namespaced plugin that provides the backbone pipeline for resolving the paths of all of the plugins above.
 */
 export const denoPlugins = (config) => {
-    const { acceptNamespaces, getCwd, globalImportMap, log, pluginData } = { ...defaultDenoPluginsConfig, ...config }, resolvePath = resolvePathFactory(getCwd, isAbsolutePath);
+    const { acceptNamespaces, autoInstall, getCwd, globalImportMap, log, nodeModulesDirs, pluginData } = { ...defaultDenoPluginsConfig, ...config }, resolvePath = resolvePathFactory(getCwd, isAbsolutePath);
     return [
         entryPlugin({ pluginData, acceptNamespaces }),
         httpPlugin({ acceptNamespaces }),
         jsrPlugin({ acceptNamespaces }),
-        npmPlugin({ acceptNamespaces }),
+        npmPlugin({ acceptNamespaces, autoInstall, log, nodeModulesDirs }),
         resolverPlugin({
             log,
             importMap: { globalImportMap: globalImportMap },

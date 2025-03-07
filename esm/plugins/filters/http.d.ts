@@ -100,7 +100,6 @@ export interface HttpPluginSetupConfig {
     */
     acceptNamespaces: Array<string | undefined>;
 }
-export declare const defaultHttpPluginSetupConfig: HttpPluginSetupConfig;
 /** this plugin intercepts `"http://"`, `"https://"`, and `"file://"` resource paths and redirects them to the {@link PLUGIN_NAMESPACE.LOADER_HTTP} namespace,
  * where they can be fetched and loaded by a dedicated loader.
  *

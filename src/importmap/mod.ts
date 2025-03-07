@@ -180,7 +180,7 @@ export interface ResolvePathFromImportMapEntriesConfig extends ImportMapResoluti
 	errorCheck: boolean
 }
 
-export const defaultResolvePathFromImportMapEntriesConfig: ResolvePathFromImportMapEntriesConfig = {
+const defaultResolvePathFromImportMapEntriesConfig: ResolvePathFromImportMapEntriesConfig = {
 	baseAliasDir: "",
 	basePathDir: "",
 	sort: true,

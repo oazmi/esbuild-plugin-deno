@@ -143,7 +143,6 @@ export interface ResolvePathFromImportMapEntriesConfig extends ImportMapResoluti
     */
     errorCheck: boolean;
 }
-export declare const defaultResolvePathFromImportMapEntriesConfig: ResolvePathFromImportMapEntriesConfig;
 /** resolve a `path_alias` to its absolutely referenced path from an import map entries.
  * if the input `path_alias` is not a part of the provided `import_map_entries`, then `undefined` will be returned.
  *

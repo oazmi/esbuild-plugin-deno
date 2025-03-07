@@ -150,7 +150,7 @@ export interface HttpPluginSetupConfig {
 	acceptNamespaces: Array<string | undefined>
 }
 
-export const defaultHttpPluginSetupConfig: HttpPluginSetupConfig = {
+const defaultHttpPluginSetupConfig: HttpPluginSetupConfig = {
 	filters: [/^https?\:\/\//, /^file\:\/\//],
 	namespace: PLUGIN_NAMESPACE.LOADER_HTTP,
 	acceptNamespaces: defaultEsbuildNamespaces,
