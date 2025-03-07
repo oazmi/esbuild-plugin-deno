@@ -38,7 +38,7 @@ This permits it portablility across any runtime environment (web, deno, node, bu
 - {@link "mod"!npmPlugin}: provides a resolver that strips away `npm:` specifier prefixes,
   so that package-resources can be obtained from your `./node_modules/` folder.
 - {@link "mod"!resolverPlugin}: a namespaced plugin that provides the backbone pipeline for resolving the paths of all of the plugins above.
-- {@link "mod"!denoPlugins}: cumulation of the five plugins above, so that you can bundle code that deno natively understands.
+- {@link "mod"!denoPlugins}: cumulation of the five plugins above, so that you can bundle code that deno natively understands, free of hassles.
 
 ## Documentation and other links
 
@@ -90,7 +90,7 @@ console.log(meshGrid([1, 2, 3], [0, -1, -2, -3, -4]), cumulativeSum([1, 2, 3, 4]
 export { http, https }
 ```
 
-additional remote entry points, 3 to 7:
+additional remote entry points, 3 to 8:
 
 ```ts
 // jsr-file version range:  "jsr:@oazmi/kitchensink@^0.9.2/array1d"
@@ -99,6 +99,7 @@ additional remote entry points, 3 to 7:
 // jsr-file latest version: "jsr:@oazmi/kitchensink/struct"
 // npm-file any version:    "npm:@oazmi/kitchensink/stringman"
 // http-file:               "https://raw.githubusercontent.com/jenil/chota/7d780731421fc987d8f7a1c8f66c730d8573684c/src/chota.css"
+// npm-library with deps:   "npm:d3-brush@3.0.0"
 ```
 
 your bundle script:
@@ -118,33 +119,36 @@ const entry_points = [
 	"jsr:@oazmi/kitchensink/struct", // this will be resolved to the latest version of the package by our `jsr_plugin`
 	"npm:@oazmi/kitchensink/stringman", // this will be resolved to whatever-is-available-version of the package (in the `node_modules` directory) by our `npm_plugin`
 	"https://raw.githubusercontent.com/jenil/chota/7d780731421fc987d8f7a1c8f66c730d8573684c/src/chota.css", // `http_plugin` resolution and loading
+	"npm:d3-brush@3.0.0", // this will be auto-installed by our `npm_plugin`, without modifying/creating a "package.json" file.
 ].map((path) => ({
 	in: path,
-	out: "entry-" + path.split("/").at(-1)!.replace(/\..*$/, ""),
+	out: "entry-" + path.replace(/^npm\:/, "").split("/").at(-1)!.replace(/\..*$/, ""),
 }))
 
 const [entry_plugin, http_plugin, jsr_plugin, npm_plugin, resolver_pipeline_plugin] = denoPlugins({
-	importMap: {
-		// notice that the different aliases in `globalImportMap` and `pluginData.importMap` point to the same resource.
-		// however, in bundled code-splitting enabled output, there will be no duplication of this resource.
-		globalImportMap: { "2d-array-utils": "https://jsr.io/@oazmi/kitchensink/0.9.2/src/array2d.ts" },
-		pluginData: {
-			// (optional) provide the path to your "deno.json" file, relative to esbuild's `absWorkingDir` build-option.
-			// if `absWorkingDir` is unavailable, then it will be resolved relative to `Deno.cwd()`.
-			runtimePackage: "./deno.json",
-			// here, we specify that we do not wish to allow node-path-resolution by default at the top level.
-			// however, once we enter an npm-package's scope through the use of the `"npm:"` specifier in the import,
-			// the switch will be flicked to `true`, and all of that package's imports will utilize node-path-resolution.
-			// we leave it off initially for deno projects, since the usage of npm-specifiers is the norm,
-			// but for node projects, leave it enabled (which is the default by the way).
-			// the downside of it being enabled is that your filesystem will be read for resolving each resource's path (which is slow).
-			resolverConfig: { useNodeModules: false },
-			// this import-map only lingers around at the top-level scope.
-			// once this plugin traverses into the domain of another self-contained package (such as an npm/jsr-package),
-			// then this import-map will be cleared. (i.e. it will not affect other packages' scopes)
-			importMap: { "https://2d-lib": "https://jsr.io/@oazmi/kitchensink/0.9.2/src/array2d.ts" },
-		},
+	// notice that the different aliases in `globalImportMap` and `pluginData.importMap` point to the same resource.
+	// however, in bundled code-splitting enabled output, there will be no duplication of this resource.
+	globalImportMap: { "2d-array-utils": "https://jsr.io/@oazmi/kitchensink/0.9.2/src/array2d.ts" },
+	pluginData: {
+		// (optional) provide the path to your "deno.json" file, relative to esbuild's `absWorkingDir` build-option.
+		// if `absWorkingDir` is unavailable, then it will be resolved relative to `Deno.cwd()`.
+		runtimePackage: "./deno.json",
+		// here, we specify that we do not wish to allow node-path-resolution by default at the top level.
+		// however, once we enter an npm-package's scope through the use of the `"npm:"` specifier in the import,
+		// the switch will be flicked to `true`, and all of that package's imports will utilize node-path-resolution.
+		// we leave it off initially for deno projects, since the usage of npm-specifiers is the norm,
+		// but for node projects, leave it enabled (which is the default by the way).
+		// the downside of it being enabled is that your filesystem will be read for resolving each resource's path (which is slow).
+		resolverConfig: { useNodeModules: false },
+		// this import-map only lingers around at the top-level scope.
+		// once this plugin traverses into the domain of another self-contained package (such as an npm/jsr-package),
+		// then this import-map will be cleared. (i.e. it will not affect other packages' scopes)
+		importMap: { "https://2d-lib": "https://jsr.io/@oazmi/kitchensink/0.9.2/src/array2d.ts" },
 	},
+	// enabling logging will let you see which resources are being resolved, and what their resolved path is.
+	log: true,
+	// auto-install npm-packages that have not been cached into a local "./node_modules/" directory.
+	autoInstall: true,
 })
 
 const result = await esbuild.build({
@@ -174,6 +178,7 @@ bundled file list:
 [
 	"./dist/entry-local_path_entry.js",
 	"./dist/entry-file_uri_entry.js",
+	"./dist/entry-d3-brush@3.0.js",
 	"./dist/chunk-VVE7K4TT.js",
 	"./dist/entry-array1d.js",
 	"./dist/entry-2d-lib.js",
@@ -196,13 +201,17 @@ Eons ago, when man relied on `require` statements, and chanted `"use-strict"` to
 modules were tangled, compatibility was bound to localhost, lock files were an afterthought,
 and non-asynchronicity lead to a maddening proliferation of child-processes.
 
-For 5000 years (or what it felt like in developer's perceived time),
-no one dared to envision an alternate runtime founded on simplicity.
+For 5000 years, no one dared to envision an alternate runtime, grounded in simplicity.
 
-It was never meant to happen - until one fateful day, the mastermind behind Nodejs rewrote the rules,
+It was never to happen, and for 5000 years, it never did.
+
+Until one fateful day, the mastermind behind Nodejs rewrote the rules,
 discarding legacy quirks that had plagued generations.
 
-And thus, Deno was born, emerging from the collective pool of developer tears.
+It was never meant to happen, but after 5000 years, it did.
+
+Emerging from the universal pool of developer tears came a new runtime named Deno.
+And with it began the ~~Shadow Games~~ Runtime Wars.
 
 <div style="max-width: min(100%, 384px);">
 

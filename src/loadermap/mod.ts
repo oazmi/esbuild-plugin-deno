@@ -15,8 +15,10 @@ import { InvertibleMap, type esbuild, object_entries, parseFilepathInfo } from "
 import extensionMap from "./extensions.json" with { type: "json" }
 import mimeMap from "./mimes.json" with { type: "json" }
 
-
+/** an alias for a string that represents a mime type (aka the `"content-type"` http header). */
 export type MimeType = string
+
+/** an alias for a string that represents a file path's extension poertion (including the dot (`"."`) character). */
 export type ExtensionType = string
 
 const mime_map_entries = object_entries(mimeMap).map(([loader_name, mime_types]): [esbuild.Loader, Set<MimeType>] => {
