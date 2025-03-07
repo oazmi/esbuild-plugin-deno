@@ -4,7 +4,7 @@
  * @module
 */
 
-import { DEBUG, defaultGetCwd, ensureEndSlash, escapeLiteralStringForRegex, fileUrlToLocalPath, getUriScheme, isString, joinPaths, parsePackageUrl, pathToPosixPath, replacePrefix, type DeepPartial } from "../../deps.ts"
+import { DEBUG, defaultGetCwd, ensureEndSlash, escapeLiteralStringForRegex, execShellCommand, fileUrlToLocalPath, getUriScheme, identifyCurrentRuntime, isString, joinPaths, parsePackageUrl, pathToPosixPath, replacePrefix, RUNTIME, type DeepPartial } from "../../deps.ts"
 import { nodeModulesResolverFactory, type resolverPlugin } from "../resolvers.ts"
 import type { CommonPluginData, EsbuildPlugin, EsbuildPluginBuild, EsbuildPluginSetup, OnResolveArgs, OnResolveCallback } from "../typedefs.ts"
 import { defaultEsbuildNamespaces, PLUGIN_NAMESPACE } from "../typedefs.ts"
@@ -66,7 +66,13 @@ export interface NpmPluginSetupConfig {
 	 * >   TODO: I haven't actually tried it on bun, and I'm only speculating based on the information here:
 	 * >   [link](https://bun.sh/docs/runtime/autoimport)
 	 * > 
-	 * > TODO: add auto-install support for Nodejs via cli intervention through `jsr:@oazmi/kitchensink/crossenv`.
+	 * 
+	 * TODO: add the ability to set a custom directory in which the installation should take place.
+	 *   right now, it defaults to using the `absWorkingDir`, with the `defaultGetCwd` as a fallback.
+	 * 
+	 * TODO: add the ability to set which installation method should be used.
+	 *   for instance, `"npm-cli"`, `"deno-cli"`, `"bun-cli"`,
+	 *   `"dynamic"` (i.e. on-the-fly import caching), or `"auto"` (equivalent to `true`).
 	 * 
 	 * @defaultValue `true`
 	*/
@@ -181,8 +187,7 @@ export const npmPluginSetup = (config: DeepPartial<NpmPluginSetupConfig> = {}): 
 			// otherwise the package will not be installed in `node_modules` fashion, and esbuild will not be able to discover it.
 			let valid_resolve_dir = await validResolveDirFinder(resolved_npm_package_alias, scan_resolve_dir)
 			if (!valid_resolve_dir && autoInstall) {
-				console.log("[npmPlugin]: deno is installing the missing npm-package:", well_formed_npm_package_alias)
-				await denoInstallNpmPackage(well_formed_npm_package_alias)
+				await installNpmPackage(well_formed_npm_package_alias, abs_working_dir)
 				valid_resolve_dir = await validResolveDirFinder(resolved_npm_package_alias, scan_resolve_dir)
 			}
 			if (!valid_resolve_dir) {
@@ -303,6 +308,40 @@ export const findResolveDirOfNpmPackageFactory = (build: EsbuildPluginBuild): Fi
 	}
 }
 
+/** this function installs an npm-package to your project's `"./node_modules/"` folder.
+ * the method of installation will depend on your javascript runtime:
+ * - for Deno and Bun, the {@link denoInstallNpmPackage} function will be invoked,
+ *   which will perform a dynamic import of the said package so that it gets cached onto the filesystem.
+ * - for Nodejs, the {@link npmInstallNpmPackage} function will be invoked,
+ *   which will execute a shell command for the installation.
+*/
+export const installNpmPackage = async (package_name: string, cwd: string = defaultGetCwd): Promise<void> => {
+	switch (identifyCurrentRuntime()) {
+		case RUNTIME.DENO:
+		case RUNTIME.BUN:
+			console.log("[npmPlugin]: deno/bun is installing the missing npm-package:", package_name)
+			return denoInstallNpmPackage(package_name)
+		case RUNTIME.NODE:
+			console.log("[npmPlugin]: npm is installing the missing npm-package:", package_name)
+			return npmInstallNpmPackage(package_name, cwd)
+		default:
+			throw new Error("ERROR! npm-package installation is not possible on web-browser runtimes.")
+	}
+}
+
+/** this function executes the `npm install ${package_name} --no-save` command, in the provided `cwd` directory,
+ * to install the desired npm-package in that directory's `"./node_modules/"` folder,
+ * so that it will become available for esbuild to bundle.
+ * 
+ * the `--no-save` flag warrants that your `package.json` file will not be modified (nor created if lacking) to add this package as dependency.
+*/
+export const npmInstallNpmPackage = async (package_name: string, cwd: string = defaultGetCwd): Promise<void> => {
+	const
+		pkg_pseudo_url = parsePackageUrl(package_name.startsWith("npm:") ? package_name : ("npm:" + package_name)),
+		pkg_name_and_version = pkg_pseudo_url.host
+	await execShellCommand(identifyCurrentRuntime(), `npm install ${pkg_name_and_version} --no-save`, { cwd })
+}
+
 /** this function indirectly makes the deno runtime automatically install an npm-package.
  * doing so will hopefully make it available under your project's `"./node_modules/"` directory,
  * allowing esbuild to access it when bundling code.
@@ -317,7 +356,7 @@ export const denoInstallNpmPackage = async (package_name: string): Promise<void>
 	const
 		pkg_pseudo_url = parsePackageUrl(package_name.startsWith("npm:") ? package_name : ("npm:" + package_name)),
 		pkg_import_url = pkg_pseudo_url.href
-			.replace(/npm\:[\/\\]*/, "npm:")
+			.replace(/^npm\:[\/\\]*/, "npm:")
 			.slice(0, pkg_pseudo_url.pathname === "/" ? -1 : undefined),
 		dynamic_export_script = `export * as myLib from "${pkg_import_url}"`,
 		dynamic_export_script_blob = new Blob([dynamic_export_script], { type: "text/javascript" }),
