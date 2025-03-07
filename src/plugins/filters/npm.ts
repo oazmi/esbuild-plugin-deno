@@ -4,7 +4,7 @@
  * @module
 */
 
-import { defaultGetCwd, ensureEndSlash, escapeLiteralStringForRegex, fileUrlToLocalPath, isString, parsePackageUrl, pathToPosixPath, replacePrefix, resolveAsUrl, type DeepPartial } from "../../deps.ts"
+import { defaultGetCwd, ensureEndSlash, escapeLiteralStringForRegex, fileUrlToLocalPath, getUriScheme, isString, joinPaths, parsePackageUrl, pathToPosixPath, replacePrefix, type DeepPartial } from "../../deps.ts"
 import { nodeModulesResolverFactory, type resolverPlugin } from "../resolvers.ts"
 import type { CommonPluginData, EsbuildPlugin, EsbuildPluginBuild, EsbuildPluginSetup, OnResolveArgs, OnResolveCallback } from "../typedefs.ts"
 import { defaultEsbuildNamespaces, PLUGIN_NAMESPACE } from "../typedefs.ts"
@@ -22,6 +22,9 @@ export const enum DIRECTORY {
 	*/
 	ABS_WORKING_DIR = 1,
 }
+
+/** acceptable directory formats for specifying your "resolve directory" for scanning and traversing `"./node_modules/"` folders. */
+export type NodeModuleDirFormat = (string | URL | DIRECTORY)
 
 /** configuration options for the {@link npmPluginSetup} and {@link npmPlugin} functions. */
 export interface NpmPluginSetupConfig {
@@ -89,7 +92,7 @@ export interface NpmPluginSetupConfig {
 	 * 
 	 * @defaultValue `[DIRECTORY.ABS_WORKING_DIR]` (equivalent to `[DIRECTORY.ABS_WORKING_DIR, DIRECTORY.CWD]`)
 	*/
-	nodeModulesDirs: (string | URL | DIRECTORY)[]
+	nodeModulesDirs: NodeModuleDirFormat[]
 }
 
 const defaultNpmPluginSetupConfig: NpmPluginSetupConfig = {
@@ -121,14 +124,14 @@ export const npmPluginSetup = (config: DeepPartial<NpmPluginSetupConfig> = {}): 
 			{ absWorkingDir, outdir, outfile, entryPoints, write, loader } = build.initialOptions,
 			cwd = ensureEndSlash(defaultGetCwd),
 			abs_working_dir = absWorkingDir ? ensureEndSlash(pathToPosixPath(absWorkingDir)) : defaultGetCwd,
-			node_modules_dirs = nodeModulesDirs.map((dir_path): (string | URL) => {
+			node_modules_dirs = nodeModulesDirs.map((dir_path): string => {
 				switch (dir_path) {
 					case DIRECTORY.CWD: return cwd
 					case DIRECTORY.ABS_WORKING_DIR: return abs_working_dir
-					default: return dir_path
+					default: return pathOrUrlToLocalPathConverter(dir_path)
 				}
 			}),
-			validResolveDirFinder = findResolveDirOfNpmPackageFactory(node_modules_dirs, build)
+			validResolveDirFinder = findResolveDirOfNpmPackageFactory(build)
 
 		const npmSpecifierResolverFactory = (specifier: string): OnResolveCallback => (async (args: OnResolveArgs) => {
 			// skip resolving any `namespace` that we do not accept
@@ -144,17 +147,11 @@ export const npmPluginSetup = (config: DeepPartial<NpmPluginSetupConfig> = {}): 
 				//   you may wonder why the `resolveDir` would disappear, and that's because our other plugins don't bother with setting/preserving this option in their loaders,
 				//   which is why it disappears when the path being resolved comes from an importer that was resolved by one of these plugins' loader.
 				// TODO:
-				//   my technique may not be ideal because if an npm-package were to go through one of my plugins (i.e. loaded via one of my plugins),
-				//   then the original `resoveDir`, which should be inside the npm-package's directory will be lost, and we will end up wrongfully pointing to our `cwd()`.
-				//   in such case, esbuild will not find the dependencies that these npm-packages might require.
-				//   thus in the future, you should make sure that your loader plugins preserve this value and pass it down.
-				//   > FIXED: our resolver plugin respects the `importer` argument, which preserves this information, thereby it is no longer an issue.
-				// TODO:
 				//   version presrvation is also an issue, since the version that will actually end up being used is whatever is available in `node_modules`,
 				//   instead of the `desired_version`. unless we ask deno to install/import that specific version to our `node_modules`.
-				current_resolve_dir: string[] = resolveDir === "" ? [] : [resolveDir],
+				scan_resolve_dir: string[] = resolveDir === "" ? node_modules_dirs : [resolveDir, ...node_modules_dirs],
 				// TODO: below we assume that we always get a hit, which is not true in reality. if there is no hit, then we must ask deno to install the package and then reattempt.
-				valid_resolve_dir = await validResolveDirFinder(resolved_npm_package_alias, current_resolve_dir)!,
+				valid_resolve_dir = await validResolveDirFinder(resolved_npm_package_alias, scan_resolve_dir)!,
 				// below, we flush away any previous import-map and runtime-package manager stored in the plugin-data,
 				// as we will need to reset them for the current self-contained npm package's scope.
 				{ importMap: _0, runtimePackage: _1, resolverConfig: _2, ...restPluginData } = pluginData
@@ -196,14 +193,40 @@ export const npmPlugin = (config?: Partial<NpmPluginSetupConfig>): EsbuildPlugin
 	}
 }
 
-/** generate a function that makes esbuild scan multiple directories in search for an npm-package inside of some `"./node_modules/"` folder.
+const pathOrUrlToLocalPathConverter = (dir_path_or_url: Exclude<NodeModuleDirFormat, DIRECTORY>): string => {
+	const
+		dir_path = ensureEndSlash(isString(dir_path_or_url) ? dir_path_or_url : dir_path_or_url.href),
+		path_schema = getUriScheme(dir_path)
+	switch (path_schema) {
+		case "local": return dir_path
+		case "relative": return joinPaths(ensureEndSlash(defaultGetCwd), dir_path)
+		case "file": return fileUrlToLocalPath(new URL(dir_path))!
+		default: throw new Error(`expected a filesystem path, or a "file://" url, but received the incompatible uri scheme "${path_schema}".`)
+	}
+}
+
+/** the signature of the function returned by {@link findResolveDirOfNpmPackageFactory}.
+ * 
+ * this function makes esbuild scan multiple directories in search for an npm-package inside of some `"./node_modules/"` folder.
  * the first valid directory, in which the npm-package was scanned for was successful, will be returned.
  * 
- * @param node_module_parent_directories the list of directories in which the scanning should be performed.
+ * @param package_name the name of the npm-package to search for in the list of directories to scan.
+ * @param directories_to_scan the list of parent directories in which the `"./node_modules/"` scanning should be performed.
  *   note to **not** include directories which are an ancestor to another directory in the list.
  *   this is because esbuild traverses up the directory tree when searching for the npm-package in various `"./node_modules/"` folders.
  *   thus it would be redundant to include ancesteral directories.
  *   moreover, you may also provide `file://` urls (in either `string` or `URL` format), instead of a filesystem path.
+ * @returns if the requested npm-package was found in one of the listed directories,
+ *   then that directory's absolute path will be returned, otherwise `undefined` will be returned.
+*/
+export type FindResolveDirOfNpmPackage_FunctionSignature = (
+	package_name: string,
+	directories_to_scan: (string | URL)[],
+) => Promise<string | undefined>
+
+/** generate a function that makes esbuild scan multiple directories in search for an npm-package inside of some `"./node_modules/"` folder.
+ * the first valid directory, in which the npm-package was scanned for was successful, will be returned.
+ * 
  * @param build the esbuild "build" object that's available inside of esbuild plugin setup functions.
  *   for mock testing, you can also provide a stub like this: `const build = { esbuild }`.
  *   follow the example below that makes use of a similar stub.
@@ -213,27 +236,17 @@ export const npmPlugin = (config?: Partial<NpmPluginSetupConfig>): EsbuildPlugin
  * import * as esbuild from "npm:esbuild@0.25.0"
  * 
  * const build = { esbuild }
- * const myPackageDirScanner = findResolveDirOfNpmPackageFactory([
+ * const myPackageDirScanner = findResolveDirOfNpmPackageFactory(build)
+ * const my_package_resolve_dir = await myPackageDirScanner("@oazmi/tsignal", [
  * 	"D:/temp/node/",
  * 	"file:///d:/sdk/cache/",
- * ], build)
+ * ])
  * 
- * console.log(`the "@oazmi/tsignal" package is located at:`, await myPackageDirScanner("@oazmi/tsignal"))
+ * console.log(`the "@oazmi/tsignal" package can be located when resolveDir is set to:`, my_package_resolve_dir)
  * ```
 */
-export const findResolveDirOfNpmPackageFactory = (
-	node_module_parent_directories: (string | URL)[],
-	build: EsbuildPluginBuild,
-): ((node_module_package_name_to_search: string, additional_dirs_to_scan?: string[]) => Promise<string | undefined>) => {
-	const
-		node_modules_resolver = nodeModulesResolverFactory({ absWorkingDir: undefined }, build),
-		node_module_parent_local_directories = node_module_parent_directories.map((dir_path_or_url) => {
-			const abs_local_path = fileUrlToLocalPath(isString(dir_path_or_url)
-				? resolveAsUrl("./", ensureEndSlash(dir_path_or_url))
-				: dir_path_or_url
-			)!
-			return abs_local_path
-		})
+export const findResolveDirOfNpmPackageFactory = (build: EsbuildPluginBuild): FindResolveDirOfNpmPackage_FunctionSignature => {
+	const node_modules_resolver = nodeModulesResolverFactory({ absWorkingDir: undefined }, build)
 
 	const validateNodeModuleExists = async (abs_resolve_dir: string, node_module_package_name: string): Promise<boolean> => {
 		const result = await node_modules_resolver({
@@ -244,8 +257,12 @@ export const findResolveDirOfNpmPackageFactory = (
 		return (result.path ?? "") !== "" ? true : false
 	}
 
-	return async (node_module_package_name_to_search: string, additional_dirs_to_scan: string[] = []): Promise<string | undefined> => {
-		for (const abs_resolve_dir of [...additional_dirs_to_scan, ...node_module_parent_local_directories]) {
+	return async (
+		node_module_package_name_to_search: string,
+		node_module_parent_directories_to_scan: (string | URL)[],
+	): Promise<string | undefined> => {
+		const abs_local_directories = node_module_parent_directories_to_scan.map(pathOrUrlToLocalPathConverter)
+		for (const abs_resolve_dir of abs_local_directories) {
 			const node_module_was_found = await validateNodeModuleExists(abs_resolve_dir, node_module_package_name_to_search)
 			if (node_module_was_found) { return abs_resolve_dir }
 		}

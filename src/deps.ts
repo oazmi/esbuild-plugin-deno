@@ -1,6 +1,6 @@
 import { dom_decodeURI } from "@oazmi/kitchensink/alias"
 import { getRuntimeCwd, identifyCurrentRuntime } from "@oazmi/kitchensink/crossenv"
-import { getUriScheme, pathToPosixPath, resolvePathFactory } from "@oazmi/kitchensink/pathman"
+import { ensureEndSlash, getUriScheme, pathToPosixPath, resolvePathFactory } from "@oazmi/kitchensink/pathman"
 
 
 export { dom_decodeURI, json_parse, json_stringify, object_assign, object_entries, object_fromEntries, object_keys, object_values, promise_outside, promise_resolve } from "@oazmi/kitchensink/alias"
@@ -33,7 +33,7 @@ export const isAbsolutePath = (segment: string): boolean => {
 export const defaultFetchConfig: RequestInit = { redirect: "follow", cache: "force-cache" }
 
 export const
-	defaultGetCwd: string = /*@__PURE__*/ getRuntimeCwd(identifyCurrentRuntime(), true),
+	defaultGetCwd: string = /*@__PURE__*/ ensureEndSlash(pathToPosixPath(getRuntimeCwd(identifyCurrentRuntime(), true))),
 	defaultResolvePath = /*@__PURE__*/ resolvePathFactory(defaultGetCwd, isAbsolutePath)
 
 export const noop = (() => undefined)
