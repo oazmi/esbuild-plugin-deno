@@ -38,11 +38,11 @@
  * @module
 */
 
-import { DEBUG, defaultResolvePath, ensureEndSlash, ensureStartDotSlash, fileUrlToLocalPath, getUriScheme, isAbsolutePath, joinPaths, noop, pathToPosixPath, promise_outside, resolveAsUrl, type DeepPartial } from "../deps.ts"
+import { DEBUG, defaultResolvePath, ensureEndSlash, ensureStartDotSlash, getUriScheme, isAbsolutePath, joinPaths, noop, pathToPosixPath, promise_outside, resolveAsUrl, type DeepPartial } from "../deps.ts"
 import { resolvePathFromImportMap } from "../importmap/mod.ts"
 import type { ImportMap } from "../importmap/typedefs.ts"
 import type { RuntimePackage } from "../packageman/base.ts"
-import { logLogger } from "./funcdefs.ts"
+import { fileUriToLocalPath, logLogger } from "./funcdefs.ts"
 import type { CommonPluginData, EsbuildPlugin, EsbuildPluginBuild, EsbuildPluginSetup, LoggerFunction, OnResolveCallback, OnResolveResult } from "./typedefs.ts"
 import { PLUGIN_NAMESPACE, type OnResolveArgs } from "./typedefs.ts"
 
@@ -404,7 +404,7 @@ export const nodeModulesResolverFactory = (
 				importer_dir_as_uri = (importer === "" || getUriScheme(importer) === "relative")
 					? undefined
 					: resolveAsUrl("./", importer),
-				importer_dir_as_local_path = fileUrlToLocalPath(importer_dir_as_uri),
+				importer_dir_as_local_path = fileUriToLocalPath(importer_dir_as_uri),
 				resolve_dir = importer_dir_as_local_path ?? resolveDir
 
 			if (resolve_dir === "") {

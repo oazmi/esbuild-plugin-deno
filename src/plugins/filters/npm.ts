@@ -4,8 +4,8 @@
  * @module
 */
 
-import { DEBUG, defaultGetCwd, ensureEndSlash, escapeLiteralStringForRegex, execShellCommand, fileUrlToLocalPath, getUriScheme, identifyCurrentRuntime, isString, joinPaths, parsePackageUrl, pathToPosixPath, replacePrefix, RUNTIME, type DeepPartial } from "../../deps.ts"
-import { logLogger } from "../funcdefs.ts"
+import { DEBUG, defaultGetCwd, ensureEndSlash, escapeLiteralStringForRegex, execShellCommand, getUriScheme, identifyCurrentRuntime, isString, joinPaths, parsePackageUrl, pathToPosixPath, replacePrefix, RUNTIME, type DeepPartial } from "../../deps.ts"
+import { fileUriToLocalPath, logLogger } from "../funcdefs.ts"
 import { nodeModulesResolverFactory, type resolverPlugin } from "../resolvers.ts"
 import type { CommonPluginData, EsbuildPlugin, EsbuildPluginBuild, EsbuildPluginSetup, LoggerFunction, OnResolveArgs, OnResolveCallback } from "../typedefs.ts"
 import { defaultEsbuildNamespaces, PLUGIN_NAMESPACE } from "../typedefs.ts"
@@ -97,7 +97,7 @@ export interface NpmPluginSetupConfig {
 	 * here, you may provide a collection of:
 	 * - absolute filesystem paths (`string`).
 	 * - paths relative to your current working directory (`string` beginning with "./" or "../").
-	 * - file-urls which being with the `"file://"` protocol (`string` or `URL`).
+	 * - file-uris which being with the `"file://"` protocol (`string` or `URL`).
 	 * - or one of the accepted special directory enums in {@link DIRECTORY}.
 	 * 
 	 * each directory that you provide here will be used by esbuild's native resolver as a starting point for scanning for `node_modules` npm-packages,
@@ -245,7 +245,7 @@ const pathOrUrlToLocalPathConverter = (dir_path_or_url: Exclude<NodeModuleDirFor
 	switch (path_schema) {
 		case "local": return dir_path
 		case "relative": return joinPaths(ensureEndSlash(defaultGetCwd), dir_path)
-		case "file": return fileUrlToLocalPath(new URL(dir_path))!
+		case "file": return fileUriToLocalPath(dir_path)!
 		default: throw new Error(`expected a filesystem path, or a "file://" url, but received the incompatible uri scheme "${path_schema}".`)
 	}
 }

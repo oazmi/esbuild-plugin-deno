@@ -40,18 +40,6 @@ export const
 
 export const noop = (() => undefined)
 
-const windows_local_path_correction_regex = /^[\/\\]([a-z])\:[\/\\]/i
-
-export const fileUrlToLocalPath = (file_url?: URL): string | undefined => {
-	if (!file_url?.protocol.startsWith("file:")) { return }
-	// the `file_url.pathname` always starts with a leading slash, which is invalid for windows (at least esbuild doesn't recognize it).
-	// thus we replace any leading slashes in any windows-looking path that we encounter, without actually consulting what os is being ran.
-	const
-		local_path_with_leading_slash = pathToPosixPath(dom_decodeURI(file_url.pathname)),
-		corrected_local_path = local_path_with_leading_slash.replace(windows_local_path_correction_regex, "$1:/")
-	return corrected_local_path
-}
-
 // TODO: import the fixed the implementation from kitchensink
 export type DeepPartial<T> = T extends (Function | Array<any> | String | BigInt | Number | Boolean | Symbol)
 	? T : T extends Record<string, any>
