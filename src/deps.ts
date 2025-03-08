@@ -3,6 +3,7 @@ import { getRuntimeCwd, identifyCurrentRuntime } from "@oazmi/kitchensink/crosse
 import { ensureEndSlash, getUriScheme, pathToPosixPath, resolvePathFactory } from "@oazmi/kitchensink/pathman"
 
 
+export {bind_array_push} from "@oazmi/kitchensink/binder"
 export { dom_decodeURI, json_parse, json_stringify, object_assign, object_entries, object_fromEntries, object_keys, object_values, promise_outside, promise_resolve } from "@oazmi/kitchensink/alias"
 export { InvertibleMap, invertMap } from "@oazmi/kitchensink/collections"
 export { execShellCommand, identifyCurrentRuntime, RUNTIME } from "@oazmi/kitchensink/crossenv"

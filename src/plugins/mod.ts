@@ -45,11 +45,18 @@ export interface DenoPluginsConfig extends
 	 * @defaultValue `[undefined, "", "file"]`
 	*/
 	acceptNamespaces: Array<string | undefined>
+
+	/** specify which subset of plugins should log when {@link log} is enabled.
+	 * 
+	 * @defaultValue `["npm", "resolver"]` (the npm-plugin, and the resolvers-pipeline plugin will log, but the http-plugin will not)
+	*/
+	logFor: Array<"npm" | "http" | "resolver">
 }
 
 const defaultDenoPluginsConfig: DenoPluginsConfig = {
 	pluginData: {},
 	log: false,
+	logFor: ["npm", "resolver"],
 	autoInstall: true,
 	nodeModulesDirs: [DIRECTORY.ABS_WORKING_DIR],
 	globalImportMap: {},
@@ -76,16 +83,16 @@ export const denoPlugins = (config?: Partial<DenoPluginsConfig>): [
 	resolver_pipeline_plugin: EsbuildPlugin,
 ] => {
 	const
-		{ acceptNamespaces, autoInstall, getCwd, globalImportMap, log, nodeModulesDirs, pluginData } = { ...defaultDenoPluginsConfig, ...config },
+		{ acceptNamespaces, autoInstall, getCwd, globalImportMap, log, logFor, nodeModulesDirs, pluginData } = { ...defaultDenoPluginsConfig, ...config },
 		resolvePath = resolvePathFactory(getCwd, isAbsolutePath)
 
 	return [
 		entryPlugin({ pluginData, acceptNamespaces }),
-		httpPlugin({ acceptNamespaces }),
+		httpPlugin({ acceptNamespaces, log: logFor.includes("http") ? log : false }),
 		jsrPlugin({ acceptNamespaces }),
-		npmPlugin({ acceptNamespaces, autoInstall, log, nodeModulesDirs }),
+		npmPlugin({ acceptNamespaces, autoInstall, log: logFor.includes("npm") ? log : false, nodeModulesDirs }),
 		resolverPlugin({
-			log,
+			log: logFor.includes("resolver") ? log : false,
 			importMap: { globalImportMap: globalImportMap },
 			relativePath: { resolvePath: resolvePath },
 		}),

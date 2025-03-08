@@ -5,8 +5,9 @@
 */
 
 import { DEBUG, defaultGetCwd, ensureEndSlash, escapeLiteralStringForRegex, execShellCommand, fileUrlToLocalPath, getUriScheme, identifyCurrentRuntime, isString, joinPaths, parsePackageUrl, pathToPosixPath, replacePrefix, RUNTIME, type DeepPartial } from "../../deps.ts"
+import { logLogger } from "../funcdefs.ts"
 import { nodeModulesResolverFactory, type resolverPlugin } from "../resolvers.ts"
-import type { CommonPluginData, EsbuildPlugin, EsbuildPluginBuild, EsbuildPluginSetup, OnResolveArgs, OnResolveCallback } from "../typedefs.ts"
+import type { CommonPluginData, EsbuildPlugin, EsbuildPluginBuild, EsbuildPluginSetup, LoggerFunction, OnResolveArgs, OnResolveCallback } from "../typedefs.ts"
 import { defaultEsbuildNamespaces, PLUGIN_NAMESPACE } from "../typedefs.ts"
 
 
@@ -112,11 +113,14 @@ export interface NpmPluginSetupConfig {
 	nodeModulesDirs: NodeModuleDirFormat[]
 
 
-	/** enable logging when a package's path is resolved.
+	/** enable logging of resolved npm-package's path, when {@link DEBUG.LOG} is ennabled.
+	 * 
+	 * when set to `true`, the logs will show up in your console via `console.log()`.
+	 * you may also provide your own custom logger function if you wish.
 	 * 
 	 * @defaultValue `false`
 	*/
-	log: boolean
+	log: boolean | LoggerFunction
 }
 
 const defaultNpmPluginSetupConfig: NpmPluginSetupConfig = {
@@ -139,6 +143,7 @@ const defaultNpmPluginSetupConfig: NpmPluginSetupConfig = {
 export const npmPluginSetup = (config: DeepPartial<NpmPluginSetupConfig> = {}): EsbuildPluginSetup => {
 	const
 		{ specifiers, sideEffects, autoInstall, acceptNamespaces: _acceptNamespaces, nodeModulesDirs, log } = { ...defaultNpmPluginSetupConfig, ...config },
+		logFn = log ? (log === true ? logLogger : log) : undefined,
 		acceptNamespaces = new Set([..._acceptNamespaces, PLUGIN_NAMESPACE.LOADER_HTTP]),
 		forcedSideEffectsMode = isString(sideEffects) ? undefined : sideEffects
 
@@ -191,7 +196,7 @@ export const npmPluginSetup = (config: DeepPartial<NpmPluginSetupConfig> = {}): 
 				valid_resolve_dir = await validResolveDirFinder(resolved_npm_package_alias, scan_resolve_dir)
 			}
 			if (!valid_resolve_dir) {
-				console.log(
+				(logFn ?? logLogger)(
 					`[npmPlugin]: WARNING! no valid "resolveDir" directory was found to contain the npm package named "${resolved_npm_package_alias}"`,
 					`\n\twe will still continue with the path resolution (in case the global-import-map may alter the situation),`,
 					`\n\tbut it is almost guaranteed not to work if the current-working-directory was already part of the scanned directories.`,
@@ -205,9 +210,10 @@ export const npmPluginSetup = (config: DeepPartial<NpmPluginSetupConfig> = {}): 
 				pluginData: { ...restPluginData, resolverConfig: { useNodeModules: true } } satisfies CommonPluginData,
 			})
 			const resolved_path = abs_result.path
-			if (DEBUG.LOG && log) {
-				console.log("[npmPlugin]       resolving:", path, "with resolveDir:", valid_resolve_dir)
-				if (resolved_path) { console.log(">> successfully resolved to:", resolved_path) }
+			if (DEBUG.LOG && logFn) {
+				logFn(`[npmPlugin]       resolving: "${path}", with resolveDir: "${valid_resolve_dir}"` + (!resolved_path ? ""
+					: `\n>> successfully resolved to: ${resolved_path}`
+				))
 			}
 
 			if (forcedSideEffectsMode !== undefined) { abs_result.sideEffects = forcedSideEffectsMode }
@@ -319,10 +325,10 @@ export const installNpmPackage = async (package_name: string, cwd: string = defa
 	switch (identifyCurrentRuntime()) {
 		case RUNTIME.DENO:
 		case RUNTIME.BUN:
-			console.log("[npmPlugin]: deno/bun is installing the missing npm-package:", package_name)
+			logLogger("[npmPlugin]: deno/bun is installing the missing npm-package:", package_name)
 			return denoInstallNpmPackage(package_name)
 		case RUNTIME.NODE:
-			console.log("[npmPlugin]: npm is installing the missing npm-package:", package_name)
+			logLogger("[npmPlugin]: npm is installing the missing npm-package:", package_name)
 			return npmInstallNpmPackage(package_name, cwd)
 		default:
 			throw new Error("ERROR! npm-package installation is not possible on web-browser runtimes.")

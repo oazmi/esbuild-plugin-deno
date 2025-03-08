@@ -5,7 +5,8 @@
 
 import { DEBUG, defaultFetchConfig, json_stringify, resolveAsUrl } from "../../deps.ts"
 import { guessHttpResponseLoaders } from "../../loadermap/mod.ts"
-import type { EsbuildLoaderType, EsbuildPlugin, EsbuildPluginBuild, EsbuildPluginSetup, OnLoadArgs, OnLoadCallback, OnResolveArgs, OnResolveCallback, OnResolveResult } from "../typedefs.ts"
+import { logLogger } from "../funcdefs.ts"
+import type { EsbuildLoaderType, EsbuildPlugin, EsbuildPluginBuild, EsbuildPluginSetup, LoggerFunction, OnLoadArgs, OnLoadCallback, OnResolveArgs, OnResolveCallback, OnResolveResult } from "../typedefs.ts"
 import { allEsbuildLoaders, defaultEsbuildNamespaces, PLUGIN_NAMESPACE } from "../typedefs.ts"
 import type { entryPlugin } from "./entry.ts"
 
@@ -14,9 +15,12 @@ import type { entryPlugin } from "./entry.ts"
 export interface UrlLoaderFactoryConfig {
 	/** enable logging of the input arguments and preferred loader, when {@link DEBUG.LOG} is ennabled.
 	 * 
+	 * when set to `true`, the logs will show up in your console via `console.log()`.
+	 * you may also provide your own custom logger function if you wish.
+	 * 
 	 * @defaultValue `false`
 	*/
-	log?: boolean
+	log?: boolean | LoggerFunction
 
 	/** the default loader that the plugin's loader should use for unidentified content types.
 	 * 
@@ -81,7 +85,8 @@ export interface UrlLoaderFactoryConfig {
 export const urlLoaderFactory = (config: UrlLoaderFactoryConfig): OnLoadCallback => {
 	const
 		{ defaultLoader, acceptLoaders = allEsbuildLoaders, log = false } = config,
-		accept_loaders_set = new Set(acceptLoaders)
+		accept_loaders_set = new Set(acceptLoaders),
+		logFn = log ? (log === true ? logLogger : log) : undefined
 
 	return async (args: OnLoadArgs) => {
 		// `args.path` is absolute when the entity is an entry point.
@@ -99,7 +104,7 @@ export const urlLoaderFactory = (config: UrlLoaderFactoryConfig): OnLoadCallback
 			available_loaders = accept_loaders_set.intersection(guessed_loaders),
 			preferred_loader = [...available_loaders].at(0) ?? defaultLoader,
 			contents = await response.bytes()
-		if (DEBUG.LOG && log) { console.log(`[urlLoaderFactory]:`, { path, path_url: path_url.href, guessed_loaders, preferred_loader, args }) }
+		if (DEBUG.LOG && logFn) { logFn(`[urlLoaderFactory]:`, { path, path_url: path_url.href, guessed_loaders, preferred_loader, args }) }
 		return {
 			contents,
 			loader: preferred_loader,
@@ -148,6 +153,9 @@ export interface HttpPluginSetupConfig {
 	 * @defaultValue `[undefined, "", "file"]` (also this plugin's {@link namespace} gets added later on)
 	*/
 	acceptNamespaces: Array<string | undefined>
+
+	/** {@link UrlLoaderFactoryConfig.log} */
+	log: UrlLoaderFactoryConfig["log"]
 }
 
 const defaultHttpPluginSetupConfig: HttpPluginSetupConfig = {
@@ -156,6 +164,7 @@ const defaultHttpPluginSetupConfig: HttpPluginSetupConfig = {
 	acceptNamespaces: defaultEsbuildNamespaces,
 	defaultLoader: "copy",
 	acceptLoaders: undefined,
+	log: false,
 }
 
 /** this plugin intercepts `"http://"`, `"https://"`, and `"file://"` resource paths and redirects them to the {@link PLUGIN_NAMESPACE.LOADER_HTTP} namespace,
@@ -176,9 +185,9 @@ const defaultHttpPluginSetupConfig: HttpPluginSetupConfig = {
 */
 export const httpPluginSetup = (config: Partial<HttpPluginSetupConfig> = {}): EsbuildPluginSetup => {
 	const
-		{ acceptLoaders, defaultLoader, filters, namespace: plugin_ns, acceptNamespaces: _acceptNamespaces } = { ...defaultHttpPluginSetupConfig, ...config },
+		{ acceptLoaders, defaultLoader, filters, namespace: plugin_ns, acceptNamespaces: _acceptNamespaces, log } = { ...defaultHttpPluginSetupConfig, ...config },
 		acceptNamespaces = new Set([..._acceptNamespaces, plugin_ns]),
-		pluginLoaderConfig: UrlLoaderFactoryConfig = { acceptLoaders, defaultLoader }
+		pluginLoaderConfig: UrlLoaderFactoryConfig = { acceptLoaders, defaultLoader, log }
 
 	return async (build: EsbuildPluginBuild): Promise<void> => {
 		// TODO: we must prioritize the user's `loader` preference over our `guessHttpResponseLoaders`,

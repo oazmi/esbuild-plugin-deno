@@ -42,7 +42,8 @@ import { DEBUG, defaultResolvePath, ensureEndSlash, ensureStartDotSlash, fileUrl
 import { resolvePathFromImportMap } from "../importmap/mod.ts"
 import type { ImportMap } from "../importmap/typedefs.ts"
 import type { RuntimePackage } from "../packageman/base.ts"
-import type { CommonPluginData, EsbuildPlugin, EsbuildPluginBuild, EsbuildPluginSetup, OnResolveCallback, OnResolveResult } from "./typedefs.ts"
+import { logLogger } from "./funcdefs.ts"
+import type { CommonPluginData, EsbuildPlugin, EsbuildPluginBuild, EsbuildPluginSetup, LoggerFunction, OnResolveCallback, OnResolveResult } from "./typedefs.ts"
 import { PLUGIN_NAMESPACE, type OnResolveArgs } from "./typedefs.ts"
 
 
@@ -151,9 +152,12 @@ export interface ResolverPluginSetupConfig {
 
 	/** enable logging of the input arguments and resolved paths, when {@link DEBUG.LOG} is ennabled.
 	 * 
+	 * when set to `true`, the logs will show up in your console via `console.log()`.
+	 * you may also provide your own custom logger function if you wish.
+	 * 
 	 * @defaultValue `false`
 	*/
-	log: boolean
+	log: boolean | LoggerFunction
 }
 
 const defaultResolverPluginSetupConfig: ResolverPluginSetupConfig = {
@@ -230,6 +234,7 @@ export const resolverPluginSetup = (config?: DeepPartial<ResolverPluginSetupConf
 		importMapResolverConfig = { ...defaultImportMapResolverConfig, ..._importMapResolverConfig },
 		nodeModulesResolverConfig = { ...defaultNodeModulesResolverConfig, ..._nodeModulesResolverConfig },
 		relativePathResolverConfig = { ...defaultRelativePathResolverConfig, ..._relativePathResolverConfig },
+		logFn = log ? (log === true ? logLogger : log) : undefined,
 		// a non-empty string namespace is required if the file is not an absolute path on the filesystem.
 		output_ns = "discard-this-namespace",
 		plugin_filter = /.*/
@@ -250,9 +255,10 @@ export const resolverPluginSetup = (config?: DeepPartial<ResolverPluginSetupConf
 				resolved_path = runtimePackage && !path.startsWith("./") && !path.startsWith("../")
 					? runtimePackage.resolveImport(path)
 					: undefined
-			if (DEBUG.LOG && log) {
-				console.log("[runtime-package] resolving:", path)
-				if (resolved_path) { console.log(">> successfully resolved to:", resolved_path) }
+			if (DEBUG.LOG && logFn) {
+				logFn(`[runtime-package] resolving: ${path}` + (!resolved_path ? ""
+					: `\n>> successfully resolved to: ${resolved_path}`
+				))
 			}
 			return resolved_path ? {
 				path: resolved_path,
@@ -271,9 +277,10 @@ export const resolverPluginSetup = (config?: DeepPartial<ResolverPluginSetupConf
 				// if the input `path` is an import being performed inside of a package, in addition to not being a relative import,
 				// then use the package manager to resolve the imported path.
 				resolved_path = resolvePathFromImportMap(path, importMap)
-			if (DEBUG.LOG && log) {
-				console.log("[import-map]      resolving:", path)
-				if (resolved_path) { console.log(">> successfully resolved to:", resolved_path) }
+			if (DEBUG.LOG && logFn) {
+				logFn(`[import-map]      resolving: ${path}` + (!resolved_path ? ""
+					: `\n>> successfully resolved to: ${resolved_path}`
+				))
 			}
 			return resolved_path ? {
 				path: resolved_path,
@@ -306,9 +313,11 @@ export const resolverPluginSetup = (config?: DeepPartial<ResolverPluginSetupConf
 			const { path: resolved_path, namespace: _0, pluginData: _1, ...rest_results } = await (native_results_promise
 				.catch((): Partial<OnResolveResult> => { return {} })
 			)
-			if (DEBUG.LOG && log) {
-				console.log("[node-module]     resolving:", path)
-				if (resolved_path) { console.log(">> successfully resolved to:", resolved_path) }
+			if (module_path_alias === "react") { console.log("[RESOLVING REACT:]", args) }
+			if (DEBUG.LOG && logFn) {
+				logFn(`[node-module]     resolving: ${path}` + (!resolved_path ? ""
+					: `\n>> successfully resolved to: ${resolved_path}`
+				))
 			}
 			return resolved_path ? {
 				...rest_results,
@@ -330,9 +339,10 @@ export const resolverPluginSetup = (config?: DeepPartial<ResolverPluginSetupConf
 				resolved_path = isAbsolutePath(path)
 					? pathToPosixPath(path) // I don't want to see ugly windows back-slashes in the esbuild resolved-path comments and metafile
 					: resolvePath(dir, ensureStartDotSlash(path))
-			if (DEBUG.LOG && log) {
-				console.log("[absolute-path]   resolving:", path)
-				if (resolved_path) { console.log(">> successfully resolved to:", resolved_path) }
+			if (DEBUG.LOG && logFn) {
+				logFn(`[absolute-path]   resolving: ${path}` + (!resolved_path ? "" :
+					`\n>> successfully resolved to: ${resolved_path}`
+				))
 			}
 			return {
 				path: resolved_path,

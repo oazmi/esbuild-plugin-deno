@@ -48,6 +48,24 @@
   - add the ability to set a custom directory in which the installation should take place.
     this custom directory should also be force added (unshift) to the list of `nodeModulesDirs`.
   - add the ability to specify which installation method should be used (auto, dynamic, npm-cli, deno-cli, bun-cli).
+- [ ] in `httpPlugin`, add an option to it's config to strip away the `file://` scheme, so that a local path is returned,
+      which can be loaded by esbuild natively, instead of fetching it.
+  - doing so will resolve an annoyance/bug whereby the node-module resolution fails because the `args.importer` uses a file uri,
+    which esbuild cannot use as the value for `resolveDir` since it isn't an absolute local fs path, causing esbuild to fail.
+  - another approach could be to convert all `args.importer` that are file uris into local paths before passing it on as the `resolveDir` to the node-package-path validator (`nodeModulesResolverFactory`).
+  - both approaches will work (and may be having both would be even better),
+    but the first approach will guarantee compatibility with other plugins as well (the ones that only filter local paths, not file-uri),
+    instead of just compatibility with esbuild's native resolver.
+- [x] abstract away logging from a direct `console.log` a logger function call.
+  - I need this because the log often exceeds the terminal's history/screen for huge projects,
+    making it impossible to trace back where a resolution error may have originated from.
+  - moreover, instead of performing direct consecutive logs, we should make only a single log,
+    because even though javascript is singler threaded, and the consecutive logs should theoretically occur in succession,
+    that ends up not happening (perhapse because the log function is asynchronous?),
+    and successive synchronous logs are often jumbled up.
+    also, I think esbuild's own stderr logs originate from the go-binary, not the javascript wrapper code,
+    causing abrupt intermediate interference with my logs, messing up the formatting and color.
+- [ ] migrate all utility functions to `/src/plugins/funcdefs.ts`, and migrate the `DIRECTORY` enum to `/src/plugins/typedefs.ts`.
 
 ## (2025-03-07) pre-version `0.2.1` todo list
 

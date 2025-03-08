@@ -103,3 +103,6 @@ export type EsbuildPluginBuild = esbuild.PluginBuild
 
 /** type alias for `esbuild.Loader`. */
 export type EsbuildLoaderType = esbuild.Loader
+
+/** a logging function that can be used as an alternative to the default `console.log` logger function. */
+export type LoggerFunction = (...data: any[]) => void
