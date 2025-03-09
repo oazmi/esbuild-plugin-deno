@@ -5,7 +5,7 @@
 */
 
 import { DEBUG, defaultGetCwd, ensureEndSlash, escapeLiteralStringForRegex, execShellCommand, getUriScheme, identifyCurrentRuntime, isString, joinPaths, parsePackageUrl, pathToPosixPath, replacePrefix, RUNTIME, type DeepPartial } from "../../deps.ts"
-import { fileUriToLocalPath, logLogger } from "../funcdefs.ts"
+import { ensureLocalPath, logLogger } from "../funcdefs.ts"
 import { nodeModulesResolverFactory, type resolverPlugin } from "../resolvers.ts"
 import type { CommonPluginData, EsbuildPlugin, EsbuildPluginBuild, EsbuildPluginSetup, LoggerFunction, OnResolveArgs, OnResolveCallback } from "../typedefs.ts"
 import { defaultEsbuildNamespaces, PLUGIN_NAMESPACE } from "../typedefs.ts"
@@ -240,12 +240,17 @@ export const npmPlugin = (config?: Partial<NpmPluginSetupConfig>): EsbuildPlugin
 
 const pathOrUrlToLocalPathConverter = (dir_path_or_url: Exclude<NodeModuleDirFormat, DIRECTORY>): string => {
 	const
-		dir_path = ensureEndSlash(isString(dir_path_or_url) ? dir_path_or_url : dir_path_or_url.href),
-		path_schema = getUriScheme(dir_path)
+		path = isString(dir_path_or_url) ? dir_path_or_url : dir_path_or_url.href,
+		path_schema = getUriScheme(path),
+		dir_path = ensureEndSlash(path_schema === "relative"
+			? joinPaths(ensureEndSlash(defaultGetCwd), path)
+			: path
+		)
 	switch (path_schema) {
-		case "local": return dir_path
-		case "relative": return joinPaths(ensureEndSlash(defaultGetCwd), dir_path)
-		case "file": return fileUriToLocalPath(dir_path)!
+		case "local":
+		case "relative":
+		case "file":
+			return ensureLocalPath(dir_path)
 		default: throw new Error(`expected a filesystem path, or a "file://" url, but received the incompatible uri scheme "${path_schema}".`)
 	}
 }

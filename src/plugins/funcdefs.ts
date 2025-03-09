@@ -1,4 +1,4 @@
-import { bind_array_push, dom_decodeURI, getUriScheme, isString, pathToPosixPath } from "../deps.ts"
+import { bind_array_push, DEBUG, dom_decodeURI, getUriScheme, isString, pathToPosixPath } from "../deps.ts"
 import type { LoggerFunction } from "./typedefs.ts"
 
 
@@ -57,4 +57,47 @@ export const fileUriToLocalPath = (file_url?: URL | string): string | undefined 
 		local_path_with_leading_slash = pathToPosixPath(dom_decodeURI(file_url.pathname)),
 		corrected_local_path = local_path_with_leading_slash.replace(windows_local_path_correction_regex, "$1:/")
 	return corrected_local_path
+}
+
+/** a fault tolerant variant of {@link fileUriToLocalPath} that converts the provided path into a filesystem local-path when possible,
+ * otherwise the string representation of the original path will be returned.
+ * 
+ * @example
+ * ```ts
+ * import { assertEquals } from "jsr:@std/assert"
+ * 
+ * // aliasing our functions for brevity
+ * const
+ * 	fn = ensureLocalPath,
+ * 	eq = assertEquals
+ * 
+ * eq(fn(        "C:/Users/me/projects/"),                  "C:/Users/me/projects/")
+ * eq(fn(        "C:\\Users\\me/projects/"),                "C:/Users/me/projects/")
+ * eq(fn(        "/sys\\etc/bin\\deno.so"),                 "/sys/etc/bin/deno.so")
+ * eq(fn(        "file:///C:/Users/me/projects/"),          "C:/Users/me/projects/")
+ * eq(fn(        "file:///C:\\Users\\me/projects/"),        "C:/Users/me/projects/")
+ * eq(fn(        "file:///sys\\etc/bin\\deno.so"),          "/sys/etc/bin/deno.so")
+ * eq(fn(        "file://localhost/C:/Users/me/projects/"), "C:/Users/me/projects/")
+ * eq(fn(new URL("file://localhost/sys/etc/bin/deno.so")),  "/sys/etc/bin/deno.so")
+ * eq(fn(        "http://localhost:8000/hello/world/"),     "http://localhost:8000/hello/world/")
+ * eq(fn(        "npm:react-jsx"),                          "npm:react-jsx")
+ * eq(fn(        "jsr:@std/assert"),                        "jsr:@std/assert")
+ * eq(fn(        "./src/mod.ts"),                           "./src/mod.ts")
+ * eq(fn(        ""),                                       "")
+ * ```
+*/
+export const ensureLocalPath = (path: string | URL): string => {
+	const
+		path_is_string = isString(path),
+		file_uri_to_local_path_conversion = fileUriToLocalPath(path)
+	if (DEBUG.ASSERT && !file_uri_to_local_path_conversion) {
+		const scheme = path_is_string ? getUriScheme(path) : "http"
+		if (scheme !== "local" && scheme !== "relative") {
+			logLogger(`[ensureLocalPath] WARNING! received non-convertible remote path: "${path_is_string ? path : path.href}"`)
+		}
+	}
+	return file_uri_to_local_path_conversion ?? (path_is_string
+		? pathToPosixPath(path)
+		: path.href
+	)
 }

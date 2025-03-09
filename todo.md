@@ -3,6 +3,8 @@
 ## bucket list
 
 - [ ] support for deno and node workspaces.
+  > give this more priority, as it's starting to become annoying when I have to temporarily flatten dependencies of valrious local deno packages into a single package,
+  > so that the bundle script is able to resolve imports of the other local packages.
 - [ ] support for `scopes` in `deno.json` (I haven't got a clue as to what it does anyway).
 - [ ] ~~add a plugin that add support for custom mime type declaration via `import "xyz" with { mime: "my-mime/type" }`.~~
   > better yet, see the generalized approach in the task below:
@@ -15,6 +17,28 @@
       in addition to inserting an `onLoad` plugin into the build args that captures the full path (`args.path`) and the resolution-directory (`args.resolveDir`).
       after that, the `onLoad` plugin will simply return a dummy string content (or just use the `loader: "empty"` for its result),
       and our namespaced node-module-resolution plugin will now have access to the full resolved `path` and `resolveDir`.
+- [ ] in the future, create an optional path-resolution caching mechanism to speed up path-resolution of follow-up builds.
+  - each input-resource will acquire a pseudo-unique key that will be computed based on the resource's `args'path`, `args.resolveDir`, `args.importer`, and maybe also `args.namespace`.
+  - in theory, the key should also be computed based on the `args.pluginData`, since the pluginData does influence the end result.
+    however, it unrealistic for scenario to occur where a resource has all identical fields in `args`, except for a mismatching `pluginData` field.
+    thus, for simplicity let's ignore encoding `pluginData` into the key.
+  - now, the cache will not only store the resolved path, but also the `pluginData`, since it contains essential information to resolve packages.
+    but now we run into another problem, and that is, the `pluginData` will need to be serializable, so that it can be reconstructed perfectly, and also instantiate the correct object classes (such as instances of `RuntimePackage` or `DenoPackage`).
+    this will create too much complexity, so perhaps the alternate approach in the next bullet point may be more appropriate.
+  - how about we _only_ cache resolved resources that either have not `pluginData` (such as resolved npm-packages),
+    or very basic `pluginData` that is disposable once the resource has been resolved (i.e. the `pluginData`'s inheritance will not change the dependencies' path-resolution).
+    this way, npm-package (which are almost always the bottle-neck for path-resolution of most projects) will always be cached, and follow up builds will not take as much time since filesystem read/scanning will be skipped.
+    moreover, we will not have to store/serialize any `pluginData` since it will be lacking any useful info, and just storing the final resolved path will suffice.
+  - don't forget: this path-resolution cache mechanism will need to exist inside of the entry-plugin,
+    since this is the only plugin that has inspection capabilities over all inputs and over all finalized outputs/resolved-results.
+  - moreover, the end user will need to have filesystem access to store the cache so that it can be reloaded upon a new build.
+    in fact, the `cacheLoad` and `cacheStore`/`cacheSave` options in the config should be async functions that the user should provide and implement on their own.
+    this way, the user will have freedom over how they wish to store the cache.
+    - `cacheLoad: () => Promise<PathResolutionCacheDict>`
+    - `cacheSave: (cache: PathResolutionCacheDict) => Promise<void>`
+- [ ] I noticed that deno can natively import arbitrary text files as strings when the `import "..." with { type: "string" }` import-attribute is used.
+      I should probably also add this as a supported feature in the future.
+      see the following deno pull-request for more details about this feature: [deno_core/pull/402](https://github.com/denoland/deno_core/pull/402)
 
 ## issues list
 
@@ -48,14 +72,19 @@
   - add the ability to set a custom directory in which the installation should take place.
     this custom directory should also be force added (unshift) to the list of `nodeModulesDirs`.
   - add the ability to specify which installation method should be used (auto, dynamic, npm-cli, deno-cli, bun-cli).
-- [ ] in `httpPlugin`, add an option to it's config to strip away the `file://` scheme, so that a local path is returned,
+    - maybe also add options for invoking `pnpm`, `yarn`, etc...
+  - in the function body, we should initially normalize all `nodeModulesDirs` and then pass it through a `Set<string>` so that there are no repeats.
+- [x] in `httpPlugin`, add an option to it's config to strip away the `file://` scheme, so that a local path is returned,
       which can be loaded by esbuild natively, instead of fetching it.
   - doing so will resolve an annoyance/bug whereby the node-module resolution fails because the `args.importer` uses a file uri,
     which esbuild cannot use as the value for `resolveDir` since it isn't an absolute local fs path, causing esbuild to fail.
   - another approach could be to convert all `args.importer` that are file uris into local paths before passing it on as the `resolveDir` to the node-package-path validator (`nodeModulesResolverFactory`).
-  - both approaches will work (and may be having both would be even better),
-    but the first approach will guarantee compatibility with other plugins as well (the ones that only filter local paths, not file-uri),
-    instead of just compatibility with esbuild's native resolver.
+  - [x] both approaches will work (and may be having both would be even better),
+        but the first approach will guarantee compatibility with other plugins as well (the ones that only filter local paths, not file-uri),
+        instead of just compatibility with esbuild's native resolver.
+    > I ended up implementing both techniques for best measures.
+	> although, I've made it so that `nodeModulesResolverFactory` itself accepts file-uris for all or its `args`,
+	> instead of making everything else ensure that the file-uris are converted into local paths.
 - [x] abstract away logging from a direct `console.log` a logger function call.
   - I need this because the log often exceeds the terminal's history/screen for huge projects,
     making it impossible to trace back where a resolution error may have originated from.

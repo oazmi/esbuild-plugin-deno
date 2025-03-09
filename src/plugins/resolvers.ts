@@ -42,7 +42,7 @@ import { DEBUG, defaultResolvePath, ensureEndSlash, ensureStartDotSlash, getUriS
 import { resolvePathFromImportMap } from "../importmap/mod.ts"
 import type { ImportMap } from "../importmap/typedefs.ts"
 import type { RuntimePackage } from "../packageman/base.ts"
-import { fileUriToLocalPath, logLogger } from "./funcdefs.ts"
+import { ensureLocalPath, logLogger } from "./funcdefs.ts"
 import type { CommonPluginData, EsbuildPlugin, EsbuildPluginBuild, EsbuildPluginSetup, LoggerFunction, OnResolveCallback, OnResolveResult } from "./typedefs.ts"
 import { PLUGIN_NAMESPACE, type OnResolveArgs } from "./typedefs.ts"
 
@@ -385,6 +385,15 @@ interface NodeModulesResolverInternalPluginSetupFactoryConfig {
  * 
  * the slyish way how it works is that we create a new build process to query esbuild what it would hypothetically do if so and so input arguments were given,
  * then through a custom inner plugin, we capture esbuild's response (the resolved path), and return it back to the user.
+ * 
+ * > [!note]
+ * > the internal resolver function accepts `"file://"` uris for the following list of {@link OnResolveArgs} fields,
+ * > and converts them to local paths for esbuild to understand:
+ * > - `path`
+ * > - `resolveDir`
+ * > - `importer`
+ * > 
+ * > with this feature, you won't have to worry about file-uris at all.
 */
 export const nodeModulesResolverFactory = (
 	config: NodeModulesResolverFactoryConfig,
@@ -401,14 +410,14 @@ export const nodeModulesResolverFactory = (
 				// below, in case the original `importer` had used a "file://" uri, we convert it back into a local path,
 				// otherwise we strip away the importer, since it will not be suitable for usage as `resolveDir`,
 				// since esbuild only understands local filesystem paths - no file/http uris.
-				importer_dir_as_uri = (importer === "" || getUriScheme(importer) === "relative")
-					? undefined
-					: resolveAsUrl("./", importer),
-				importer_dir_as_local_path = fileUriToLocalPath(importer_dir_as_uri),
-				resolve_dir = importer_dir_as_local_path ?? resolveDir
+				importer_path_scheme = getUriScheme(importer),
+				importer_dir_as_file_uri = (importer_path_scheme === "local" || importer_path_scheme === "file")
+					? resolveAsUrl("./", importer).href
+					: undefined,
+				resolve_dir = importer_dir_as_file_uri ?? resolveDir
 
-			if (resolve_dir === "") {
-				console.log(
+			if (DEBUG.ASSERT && resolve_dir === "") {
+				logLogger(
 					`[nodeModulesResolverFactory]: WARNING! received an empty resolve directory ("args.resolveDir").`,
 					`\n\twe will fallback to esbuild's current-working-directory for filling in the "resolveDir" value,`,
 					`\n\thowever, you must be using the "nodeModulesResolverFactory" function incorrectly to have encountered this situation.`,
@@ -418,9 +427,10 @@ export const nodeModulesResolverFactory = (
 
 			build.onResolve({ filter: /.*/ }, async (args) => {
 				if (args.pluginData?.[ALREADY_CAPTURED] === true) { return }
-				const { path, external, namespace, sideEffects, suffix } = await build.resolve(args.path, {
+				const { path, external, namespace, sideEffects, suffix } = await build.resolve(
+					ensureLocalPath(args.path), {
 					kind: "entry-point",
-					resolveDir: resolve_dir !== "" ? resolve_dir : args.resolveDir,
+					resolveDir: ensureLocalPath(resolve_dir !== "" ? resolve_dir : args.resolveDir),
 					pluginData: { [ALREADY_CAPTURED]: true },
 				})
 				resolve({ path: pathToPosixPath(path), external, namespace, sideEffects, suffix })
