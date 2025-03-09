@@ -4,7 +4,7 @@
  * @module
 */
 
-import { DEBUG, defaultGetCwd, ensureEndSlash, escapeLiteralStringForRegex, execShellCommand, getUriScheme, identifyCurrentRuntime, isString, joinPaths, parsePackageUrl, pathToPosixPath, replacePrefix, RUNTIME, type DeepPartial } from "../../deps.ts"
+import { DEBUG, defaultGetCwd, dom_decodeURI, ensureEndSlash, escapeLiteralStringForRegex, execShellCommand, getUriScheme, identifyCurrentRuntime, isString, joinPaths, parsePackageUrl, pathToPosixPath, replacePrefix, RUNTIME, type DeepPartial } from "../../deps.ts"
 import { ensureLocalPath, logLogger } from "../funcdefs.ts"
 import { nodeModulesResolverFactory, type resolverPlugin } from "../resolvers.ts"
 import type { CommonPluginData, EsbuildPlugin, EsbuildPluginBuild, EsbuildPluginSetup, LoggerFunction, OnResolveArgs, OnResolveCallback } from "../typedefs.ts"
@@ -350,7 +350,7 @@ export const npmInstallNpmPackage = async (package_name: string, cwd: string = d
 	const
 		pkg_pseudo_url = parsePackageUrl(package_name.startsWith("npm:") ? package_name : ("npm:" + package_name)),
 		pkg_name_and_version = pkg_pseudo_url.host
-	await execShellCommand(identifyCurrentRuntime(), `npm install ${pkg_name_and_version} --no-save`, { cwd })
+	await execShellCommand(identifyCurrentRuntime(), `npm install "${pkg_name_and_version}" --no-save`, { cwd })
 }
 
 /** this function indirectly makes the deno runtime automatically install an npm-package.
@@ -369,7 +369,8 @@ export const denoInstallNpmPackage = async (package_name: string): Promise<void>
 		pkg_import_url = pkg_pseudo_url.href
 			.replace(/^npm\:[\/\\]*/, "npm:")
 			.slice(0, pkg_pseudo_url.pathname === "/" ? -1 : undefined),
-		dynamic_export_script = `export * as myLib from "${pkg_import_url}"`,
+		// NOTE: we must decode the href uri, because deno will not accept version strings that are uri-encoded.
+		dynamic_export_script = `export * as myLib from "${dom_decodeURI(pkg_import_url)}"`,
 		dynamic_export_script_blob = new Blob([dynamic_export_script], { type: "text/javascript" }),
 		dynamic_export_script_url = URL.createObjectURL(dynamic_export_script_blob)
 	// now we perform a phony import, to force deno to cache this npm-package as a dependency inside of your `${cwd}/node_modules/`.
