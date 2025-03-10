@@ -1,16 +1,15 @@
-import { dom_decodeURI } from "@oazmi/kitchensink/alias"
 import { getRuntimeCwd, identifyCurrentRuntime } from "@oazmi/kitchensink/crossenv"
 import { ensureEndSlash, getUriScheme, pathToPosixPath, resolvePathFactory } from "@oazmi/kitchensink/pathman"
 
 
-export {bind_array_push} from "@oazmi/kitchensink/binder"
 export { dom_decodeURI, json_parse, json_stringify, object_assign, object_entries, object_fromEntries, object_keys, object_values, promise_outside, promise_resolve } from "@oazmi/kitchensink/alias"
+export { bind_array_push } from "@oazmi/kitchensink/binder"
 export { InvertibleMap, invertMap } from "@oazmi/kitchensink/collections"
 export { execShellCommand, identifyCurrentRuntime, RUNTIME } from "@oazmi/kitchensink/crossenv"
 export { memorize } from "@oazmi/kitchensink/lambda"
 export { ensureEndSlash, ensureStartDotSlash, getUriScheme, joinPaths, normalizePath, parseFilepathInfo, parsePackageUrl, pathToPosixPath, resolveAsUrl, resolvePathFactory } from "@oazmi/kitchensink/pathman"
 export { escapeLiteralStringForRegex, replacePrefix, replaceSuffix } from "@oazmi/kitchensink/stringman"
-export { isArray, isString } from "@oazmi/kitchensink/struct"
+export { isArray, isObject, isString } from "@oazmi/kitchensink/struct"
 export type { ConstructorOf, MaybePromise, Optional } from "@oazmi/kitchensink/typedefs"
 export { parse as jsoncParse } from "@std/jsonc"
 export { maxSatisfying as semverMaxSatisfying, minSatisfying as semverMinSatisfying, parse as semverParse, parseRange as semverParseRange, format as semverToString } from "@std/semver"
@@ -41,6 +40,6 @@ export const
 export const noop = (() => undefined)
 
 // TODO: import the fixed the implementation from kitchensink
-export type DeepPartial<T> = T extends (Function | Array<any> | String | BigInt | Number | Boolean | Symbol)
+export type DeepPartial<T> = T extends (Function | Array<any> | String | BigInt | Number | Boolean | Symbol | URL | Map<any, any> | Set<any>)
 	? T : T extends Record<string, any>
 	? { [P in keyof T]?: DeepPartial<T[P]> } : T
