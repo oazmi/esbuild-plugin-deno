@@ -2,14 +2,18 @@
  *
  * @module
 */
-import type { EsbuildLoaderType, EsbuildPlugin, EsbuildPluginSetup, OnLoadCallback } from "../typedefs.js";
+import { type DeepPartial } from "../../deps.js";
+import type { EsbuildLoaderType, EsbuildPlugin, EsbuildPluginSetup, LoggerFunction, OnLoadCallback } from "../typedefs.js";
 /** configuration options for the {@link urlLoaderFactory} function. */
 export interface UrlLoaderFactoryConfig {
     /** enable logging of the input arguments and preferred loader, when {@link DEBUG.LOG} is ennabled.
      *
+     * when set to `true`, the logs will show up in your console via `console.log()`.
+     * you may also provide your own custom logger function if you wish.
+     *
      * @defaultValue `false`
     */
-    log?: boolean;
+    log?: boolean | LoggerFunction;
     /** the default loader that the plugin's loader should use for unidentified content types.
      *
      * if you would like to use esbuild's _own_ default loader, set the value to `"default"`.
@@ -76,7 +80,10 @@ export interface HttpPluginSetupConfig {
      * @defaultValue `[/^https?\:\/\//, /^file\:\/\//]` (captures `"http://"`, `"https://"`, and `"file://"` uris)
     */
     filters: RegExp[];
-    /** specify the namespace that the http plugin's loader should use.
+    /** specify the namespace that the http plugin's loader should use for fetchable resources.
+     *
+     * if the {@link convertFileUriToLocalPath} option is enabled (default),
+     * then file-uris will **not** use this namespace, and instead adopt the regular `""` namespace.
      *
      * > [!caution]
      * > it is best if you don't modify it to something besides the default value {@link PLUGIN_NAMESPACE.LOADER_HTTP},
@@ -99,6 +106,32 @@ export interface HttpPluginSetupConfig {
      * @defaultValue `[undefined, "", "file"]` (also this plugin's {@link namespace} gets added later on)
     */
     acceptNamespaces: Array<string | undefined>;
+    /** specify if `"file://"` uris should be converted to local paths,
+     * so that esbuild natively loads them, instead of us fetching the resource ourselves.
+     *
+     * when this option is enabled, the resulting resolved local-path of a file uris will not use the {@link namespace} config option,
+     * and instead adopt the the default namespace `""`, so that esbuild (or some other plugin) would be capable of loading it.
+     *
+     * > [!warning]
+     * > for best compatibility with `./node_modules/` resolution and other plugins, it is best to have this option enabled always.
+     * > that's because if a file uri ends up becoming the `resolveDir` of an npm-package resource,
+     * > then esbuild will halt and complain that it does not understand the "non-absolute" local path specified,
+     * > because it is incapable of interpreting file uris, and will refuse to scan directories based on it.
+     *
+     * ### drawbacks
+     * - if esbuild's native resolver/loader intercepts the resolved path, then it will strip away the `pluginData`.
+     *   on the otherhand, our url-loader will not do such a thing
+     *
+     * @defaultValue `{ enabled: true, resolveAgain: true }` (file uris are converted to local paths, and re-resolved to give other plugins the chance to initercept it)
+    */
+    convertFileUriToLocalPath: {
+        /** enable or disable file-uri to local path conversion. @defaultValue `true` */
+        enabled: boolean;
+        /** enable or disable re-resolution of the local path, to allow other plugins to intercept. @defaultValue `true` */
+        resolveAgain: boolean;
+    };
+    /** {@link UrlLoaderFactoryConfig.log} */
+    log: UrlLoaderFactoryConfig["log"];
 }
 /** this plugin intercepts `"http://"`, `"https://"`, and `"file://"` resource paths and redirects them to the {@link PLUGIN_NAMESPACE.LOADER_HTTP} namespace,
  * where they can be fetched and loaded by a dedicated loader.
@@ -116,7 +149,7 @@ export interface HttpPluginSetupConfig {
  *   although, then it would not be recommended to use that standalone version along side an {@link entryPlugin},
  *   since it will lead to some redundant ping-pongging (but the final resolved result will remain unchanged).
 */
-export declare const httpPluginSetup: (config?: Partial<HttpPluginSetupConfig>) => EsbuildPluginSetup;
+export declare const httpPluginSetup: (config?: DeepPartial<HttpPluginSetupConfig>) => EsbuildPluginSetup;
 /** {@inheritDoc httpPluginSetup} */
 export declare const httpPlugin: (config?: Partial<HttpPluginSetupConfig>) => EsbuildPlugin;
 //# sourceMappingURL=http.d.ts.map

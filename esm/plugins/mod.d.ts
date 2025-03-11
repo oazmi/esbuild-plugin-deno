@@ -6,7 +6,7 @@ import { type EntryPluginSetupConfig } from "./filters/entry.js";
 import { type NpmPluginSetupConfig } from "./filters/npm.js";
 import { type ImportMapResolverConfig, type ResolverPluginSetupConfig } from "./resolvers.js";
 import { type EsbuildPlugin } from "./typedefs.js";
-export { DIRECTORY } from "./filters/npm.js";
+export { DIRECTORY } from "./typedefs.js";
 /** the configuration interface for the deno esbuild plugins suite {@link denoPlugins}. */
 export interface DenoPluginsConfig extends Pick<EntryPluginSetupConfig, "pluginData">, Pick<ResolverPluginSetupConfig, "log">, Pick<NpmPluginSetupConfig, "autoInstall" | "nodeModulesDirs">, Pick<ImportMapResolverConfig, "globalImportMap"> {
     /** provide an optional function (or a static `string`) that returns the absolute path to the current working directory.
@@ -33,6 +33,11 @@ export interface DenoPluginsConfig extends Pick<EntryPluginSetupConfig, "pluginD
      * @defaultValue `[undefined, "", "file"]`
     */
     acceptNamespaces: Array<string | undefined>;
+    /** specify which subset of plugins should log when {@link log} is enabled.
+     *
+     * @defaultValue `["npm", "resolver"]` (the npm-plugin, and the resolvers-pipeline plugin will log, but the http-plugin will not)
+    */
+    logFor: Array<"npm" | "http" | "resolver">;
 }
 /** creates an array esbuild plugins that can resolve imports in the same way deno can.
  *

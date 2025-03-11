@@ -203,11 +203,12 @@ export const jsrPackageToMetadataUrl = async (jsr_package) => {
     if (!resolved_semver) {
         throw new Error(`failed to find the desired version "${desired_semver}" of the jsr package "${jsr_package}", with available versions "${json_stringify(meta_json.versions)}"`);
     }
-    const resolved_version = semverToString(resolved_semver), base_host = resolveAsUrl(`@${scope}/${pkg}/${resolved_version}/`, jsr_base_url), deno_json_url = resolveAsUrl("./deno.json", base_host), jsr_json_url = resolveAsUrl("./jsr.json", base_host), package_json_url = resolveAsUrl("./package.json", base_host);
+    const resolved_version = semverToString(resolved_semver), base_host = resolveAsUrl(`@${scope}/${pkg}/${resolved_version}/`, jsr_base_url), deno_json_url = resolveAsUrl("./deno.json", base_host), deno_jsonc_url = resolveAsUrl("./deno.jsonc", base_host), jsr_json_url = resolveAsUrl("./jsr.json", base_host), jsr_jsonc_url = resolveAsUrl("./jsr.jsonc", base_host), package_json_url = resolveAsUrl("./package.json", base_host), package_jsonc_url = resolveAsUrl("./package.jsonc", base_host); // as if such a thing will ever exist, lol
     // TODO: the `package_json_url` (i.e. `package.json`) is unused for now, since it will complicate the parsing of the import/export-maps (due to having a different structure).
     //   in the future, I might write a `npmPackageToDenoJson` function to transform the imports (dependencies) and exports
-    // trying to fetch the package's `deno.json` file (via HEAD method), and if it fails (does not exist), then we fetch the `jsr.json` file instead.
-    const urls = [deno_json_url, jsr_json_url];
+    // trying to fetch the package's `deno.json` file (via HEAD method), and if it fails (does not exist),
+    // then we will try fetching `deno.jsonc`, `jsr.json`, and `jsr.jsonc` files, in order, as a replacement.
+    const urls = [deno_json_url, deno_jsonc_url, jsr_json_url, jsr_jsonc_url];
     for (const url of urls) {
         if ((await fetch(url, { ...defaultFetchConfig, method: "HEAD" })).ok) {
             return url;

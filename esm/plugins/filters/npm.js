@@ -3,21 +3,14 @@
  *
  * @module
 */
-import { DEBUG, defaultGetCwd, ensureEndSlash, escapeLiteralStringForRegex, execShellCommand, fileUrlToLocalPath, getUriScheme, identifyCurrentRuntime, isString, joinPaths, parsePackageUrl, pathToPosixPath, replacePrefix, RUNTIME } from "../../deps.js";
+import { DEBUG, defaultGetCwd, dom_decodeURI, ensureEndSlash, escapeLiteralStringForRegex, execShellCommand, getUriScheme, identifyCurrentRuntime, isObject, isString, joinPaths, normalizePath, parsePackageUrl, pathToPosixPath, replacePrefix, RUNTIME } from "../../deps.js";
+import { ensureLocalPath, logLogger } from "../funcdefs.js";
 import { nodeModulesResolverFactory } from "../resolvers.js";
-import { defaultEsbuildNamespaces, PLUGIN_NAMESPACE } from "../typedefs.js";
-/** an enum that represents special directories to use in {@link NpmPluginSetupConfig.nodeModulesDirs}. */
-export var DIRECTORY;
-(function (DIRECTORY) {
-    /** represents your js-runtime's current working directory (acquired via {@link defaultGetCwd}). */
-    DIRECTORY[DIRECTORY["CWD"] = 0] = "CWD";
-    /** represents the `absWorkingDir` option provided to your esbuild build config.
-     *
-     * note that if esbuild's `absWorkingDir` option was not specified,
-     * then the package scanner will fallback to  the current working director (i.e. {@link DIRECTORY.CWD}).
-    */
-    DIRECTORY[DIRECTORY["ABS_WORKING_DIR"] = 1] = "ABS_WORKING_DIR";
-})(DIRECTORY || (DIRECTORY = {}));
+import { defaultEsbuildNamespaces, DIRECTORY, PLUGIN_NAMESPACE } from "../typedefs.js";
+const defaultNpmAutoInstallCliConfig = {
+    dir: DIRECTORY.ABS_WORKING_DIR,
+    command: (package_name_and_version) => (`npm install "${package_name_and_version}" --no-save`),
+};
 const defaultNpmPluginSetupConfig = {
     specifiers: ["npm:"],
     sideEffects: "auto",
@@ -35,17 +28,25 @@ const defaultNpmPluginSetupConfig = {
  * so you'll have to pray that esbuild ends up in the `node_modules` folder consisting of the correct version, otherwise, rip.
 */
 export const npmPluginSetup = (config = {}) => {
-    const { specifiers, sideEffects, autoInstall, acceptNamespaces: _acceptNamespaces, nodeModulesDirs, log } = { ...defaultNpmPluginSetupConfig, ...config }, acceptNamespaces = new Set([..._acceptNamespaces, PLUGIN_NAMESPACE.LOADER_HTTP]), forcedSideEffectsMode = isString(sideEffects) ? undefined : sideEffects;
+    const { specifiers, sideEffects, autoInstall: _autoInstall, acceptNamespaces: _acceptNamespaces, nodeModulesDirs, log } = { ...defaultNpmPluginSetupConfig, ...config }, logFn = log ? (log === true ? logLogger : log) : undefined, acceptNamespaces = new Set([..._acceptNamespaces, PLUGIN_NAMESPACE.LOADER_HTTP]), forcedSideEffectsMode = isString(sideEffects) ? undefined : sideEffects, autoInstall = autoInstallOptionToNpmAutoInstallCliConfig(_autoInstall);
+    // if the npm-package installation directory has been specified for the installation cli-command,
+    // then prepend that path to `nodeModulesDirs`, so that the `validResolveDirFinder` function
+    // (which relies on esbuild's native node-module resolution) will be able locate the newly installed package.
+    if (isObject(autoInstall)) {
+        nodeModulesDirs.unshift(autoInstall.dir);
+    }
     return (async (build) => {
         // TODO: we must prioritize the user's `loader` preference over our `guessHttpResponseLoaders`,
         //   if they have an extension entry for the url path that we're loading
-        const { absWorkingDir, outdir, outfile, entryPoints, write, loader } = build.initialOptions, cwd = ensureEndSlash(defaultGetCwd), abs_working_dir = absWorkingDir ? ensureEndSlash(pathToPosixPath(absWorkingDir)) : defaultGetCwd, node_modules_dirs = nodeModulesDirs.map((dir_path) => {
+        const { absWorkingDir, outdir, outfile, entryPoints, write, loader } = build.initialOptions, cwd = ensureEndSlash(defaultGetCwd), abs_working_dir = absWorkingDir ? ensureEndSlash(pathToPosixPath(absWorkingDir)) : defaultGetCwd, dir_path_converter = (dir_path) => {
             switch (dir_path) {
                 case DIRECTORY.CWD: return cwd;
                 case DIRECTORY.ABS_WORKING_DIR: return abs_working_dir;
                 default: return pathOrUrlToLocalPathConverter(dir_path);
             }
-        }), validResolveDirFinder = findResolveDirOfNpmPackageFactory(build);
+        }, node_modules_dirs = [...(new Set(nodeModulesDirs.map(dir_path_converter)))], validResolveDirFinder = findResolveDirOfNpmPackageFactory(build), autoInstallConfig = isObject(autoInstall)
+            ? { dir: dir_path_converter(autoInstall.dir), command: autoInstall.command, log }
+            : autoInstall;
         const npmSpecifierResolverFactory = (specifier) => (async (args) => {
             // skip resolving any `namespace` that we do not accept
             if (!acceptNamespaces.has(args.namespace)) {
@@ -71,12 +72,12 @@ export const npmPluginSetup = (config = {}) => {
             // assuming that `"nodeModulesDir"` is set to `"auto"` in the current deno-runtime's "deno.json" config file.
             // otherwise the package will not be installed in `node_modules` fashion, and esbuild will not be able to discover it.
             let valid_resolve_dir = await validResolveDirFinder(resolved_npm_package_alias, scan_resolve_dir);
-            if (!valid_resolve_dir && autoInstall) {
-                await installNpmPackage(well_formed_npm_package_alias, abs_working_dir);
+            if (!valid_resolve_dir && autoInstallConfig) {
+                await installNpmPackage(well_formed_npm_package_alias, autoInstallConfig);
                 valid_resolve_dir = await validResolveDirFinder(resolved_npm_package_alias, scan_resolve_dir);
             }
             if (!valid_resolve_dir) {
-                console.log(`[npmPlugin]: WARNING! no valid "resolveDir" directory was found to contain the npm package named "${resolved_npm_package_alias}"`, `\n\twe will still continue with the path resolution (in case the global-import-map may alter the situation),`, `\n\tbut it is almost guaranteed not to work if the current-working-directory was already part of the scanned directories.`);
+                (logFn ?? logLogger)(`[npmPlugin]: WARNING! no valid "resolveDir" directory was found to contain the npm package named "${resolved_npm_package_alias}"`, `\n\twe will still continue with the path resolution (in case the global-import-map may alter the situation),`, `\n\tbut it is almost guaranteed not to work if the current-working-directory was already part of the scanned directories.`);
             }
             const abs_result = await build.resolve(resolved_npm_package_alias, {
                 ...rest_args,
@@ -85,12 +86,11 @@ export const npmPluginSetup = (config = {}) => {
                 pluginData: { ...restPluginData, resolverConfig: { useNodeModules: true } },
             });
             const resolved_path = abs_result.path;
-            if (DEBUG.LOG && log) {
-                console.log("[npmPlugin]       resolving:", path, "with resolveDir:", valid_resolve_dir);
-                if (resolved_path) {
-                    console.log(">> successfully resolved to:", resolved_path);
-                }
+            if (DEBUG.LOG && logFn) {
+                logFn(`[npmPlugin]       resolving: "${path}", with resolveDir: "${valid_resolve_dir}"` + (!resolved_path ? ""
+                    : `\n>> successfully resolved to: ${resolved_path}`));
             }
+            // if the user wants to force side-effect-free mode for all packages, then do so.
             if (forcedSideEffectsMode !== undefined) {
                 abs_result.sideEffects = forcedSideEffectsMode;
             }
@@ -113,11 +113,14 @@ export const npmPlugin = (config) => {
     };
 };
 const pathOrUrlToLocalPathConverter = (dir_path_or_url) => {
-    const dir_path = ensureEndSlash(isString(dir_path_or_url) ? dir_path_or_url : dir_path_or_url.href), path_schema = getUriScheme(dir_path);
+    const path = isString(dir_path_or_url) ? dir_path_or_url : dir_path_or_url.href, path_schema = getUriScheme(path), dir_path = normalizePath(ensureEndSlash(path_schema === "relative"
+        ? joinPaths(ensureEndSlash(defaultGetCwd), path)
+        : path));
     switch (path_schema) {
-        case "local": return dir_path;
-        case "relative": return joinPaths(ensureEndSlash(defaultGetCwd), dir_path);
-        case "file": return fileUrlToLocalPath(new URL(dir_path));
+        case "local":
+        case "relative":
+        case "file":
+            return ensureLocalPath(dir_path);
         default: throw new Error(`expected a filesystem path, or a "file://" url, but received the incompatible uri scheme "${path_schema}".`);
     }
 };
@@ -162,37 +165,61 @@ export const findResolveDirOfNpmPackageFactory = (build) => {
         }
     };
 };
+const current_js_runtime = identifyCurrentRuntime(), package_installation_command_deno = (package_name_and_version) => (`deno cache --node-modules-dir="auto" --allow-scripts --no-config "npm:${package_name_and_version}"`), package_installation_command_deno_noscript = (package_name_and_version) => (`deno cache --node-modules-dir="auto" --no-config "npm:${package_name_and_version}"`), package_installation_command_npm = (package_name_and_version) => (`npm install "${package_name_and_version}" --no-save`), package_installation_command_bun = (package_name_and_version) => (`bun install "${package_name_and_version}" --no-save`), package_installation_command_pnpm = (package_name_and_version) => (`pnpm install "${package_name_and_version}"`);
+const autoInstallOptionToNpmAutoInstallCliConfig = (option) => {
+    if (!option) {
+        return undefined;
+    }
+    if (isObject(option)) {
+        return { ...defaultNpmAutoInstallCliConfig, ...option };
+    }
+    switch (option) {
+        case "auto": return (current_js_runtime === RUNTIME.DENO || current_js_runtime === RUNTIME.BUN)
+            ? "dynamic"
+            : autoInstallOptionToNpmAutoInstallCliConfig("npm");
+        case true:
+        case "auto-cli": switch (current_js_runtime) {
+            case RUNTIME.DENO: return autoInstallOptionToNpmAutoInstallCliConfig("deno");
+            case RUNTIME.BUN: return autoInstallOptionToNpmAutoInstallCliConfig("bun");
+            case RUNTIME.NODE: return autoInstallOptionToNpmAutoInstallCliConfig("npm");
+            default: throw new Error("ERROR! cli-installation of npm-packages is not possible on web-browser runtimes.");
+        }
+        case "dynamic": return "dynamic";
+        case "deno": return { dir: DIRECTORY.ABS_WORKING_DIR, command: package_installation_command_deno };
+        case "deno-noscript": return { dir: DIRECTORY.ABS_WORKING_DIR, command: package_installation_command_deno_noscript };
+        case "bun": return { dir: DIRECTORY.ABS_WORKING_DIR, command: package_installation_command_bun };
+        case "npm": return { dir: DIRECTORY.ABS_WORKING_DIR, command: package_installation_command_npm };
+        case "pnpm": return { dir: DIRECTORY.ABS_WORKING_DIR, command: package_installation_command_pnpm };
+        default: return undefined;
+    }
+};
 /** this function installs an npm-package to your project's `"./node_modules/"` folder.
- * the method of installation will depend on your javascript runtime:
- * - for Deno and Bun, the {@link denoInstallNpmPackage} function will be invoked,
- *   which will perform a dynamic import of the said package so that it gets cached onto the filesystem.
- * - for Nodejs, the {@link npmInstallNpmPackage} function will be invoked,
- *   which will execute a shell command for the installation.
+ * see {@link NpmAutoInstallCliConfig} and {@link NpmPluginSetupConfig.autoInstall} for details on how to customize.
 */
-export const installNpmPackage = async (package_name, cwd = defaultGetCwd) => {
-    switch (identifyCurrentRuntime()) {
+export const installNpmPackage = async (package_name, config) => {
+    switch (current_js_runtime) {
         case RUNTIME.DENO:
         case RUNTIME.BUN:
-            console.log("[npmPlugin]: deno/bun is installing the missing npm-package:", package_name);
-            return denoInstallNpmPackage(package_name);
-        case RUNTIME.NODE:
-            console.log("[npmPlugin]: npm is installing the missing npm-package:", package_name);
-            return npmInstallNpmPackage(package_name, cwd);
+        case RUNTIME.NODE: {
+            return config === "dynamic"
+                ? installNpmPackageDynamic(package_name)
+                : installNpmPackageCli(package_name, config);
+        }
         default:
             throw new Error("ERROR! npm-package installation is not possible on web-browser runtimes.");
     }
 };
-/** this function executes the `npm install ${package_name} --no-save` command, in the provided `cwd` directory,
- * to install the desired npm-package in that directory's `"./node_modules/"` folder,
- * so that it will become available for esbuild to bundle.
- *
- * the `--no-save` flag warrants that your `package.json` file will not be modified (nor created if lacking) to add this package as dependency.
+/** this function executes a cli command to install an npm-package.
+ * see {@link NpmAutoInstallCliConfig} and {@link NpmPluginSetupConfig.autoInstall} for details on how to customize.
 */
-export const npmInstallNpmPackage = async (package_name, cwd = defaultGetCwd) => {
-    const pkg_pseudo_url = parsePackageUrl(package_name.startsWith("npm:") ? package_name : ("npm:" + package_name)), pkg_name_and_version = pkg_pseudo_url.host;
-    await execShellCommand(identifyCurrentRuntime(), `npm install ${pkg_name_and_version} --no-save`, { cwd });
+export const installNpmPackageCli = async (package_name, config) => {
+    const { command, dir, log } = config, logFn = log ? (log === true ? logLogger : log) : undefined, pkg_pseudo_url = parsePackageUrl(package_name.startsWith("npm:") ? package_name : ("npm:" + package_name)), pkg_name_and_version = pkg_pseudo_url.host, cli_command = command(pkg_name_and_version);
+    if (DEBUG.LOG && logFn) {
+        logFn(`[npmPlugin]      installing: "${package_name}", in directory "${dir}"\n>>    using the cli-command: \`${cli_command}\``);
+    }
+    await execShellCommand(current_js_runtime, cli_command, { cwd: dir });
 };
-/** this function indirectly makes the deno runtime automatically install an npm-package.
+/** this function indirectly makes the deno or bun runtimes automatically install an npm-package.
  * doing so will hopefully make it available under your project's `"./node_modules/"` directory,
  * allowing esbuild to access it when bundling code.
  *
@@ -202,10 +229,12 @@ export const npmInstallNpmPackage = async (package_name, cwd = defaultGetCwd) =>
  * > otherwise, the package will get cached in deno's cache directory which uses a different file structure from `node_modules`,
  * > making it impossible for esbuild to traverse through it to discover the package natively.
 */
-export const denoInstallNpmPackage = async (package_name) => {
+export const installNpmPackageDynamic = async (package_name) => {
     const pkg_pseudo_url = parsePackageUrl(package_name.startsWith("npm:") ? package_name : ("npm:" + package_name)), pkg_import_url = pkg_pseudo_url.href
         .replace(/^npm\:[\/\\]*/, "npm:")
-        .slice(0, pkg_pseudo_url.pathname === "/" ? -1 : undefined), dynamic_export_script = `export * as myLib from "${pkg_import_url}"`, dynamic_export_script_blob = new Blob([dynamic_export_script], { type: "text/javascript" }), dynamic_export_script_url = URL.createObjectURL(dynamic_export_script_blob);
+        .slice(0, pkg_pseudo_url.pathname === "/" ? -1 : undefined), 
+    // NOTE: we must decode the href uri, because deno will not accept version strings that are uri-encoded.
+    dynamic_export_script = `export * as myLib from "${dom_decodeURI(pkg_import_url)}"`, dynamic_export_script_blob = new Blob([dynamic_export_script], { type: "text/javascript" }), dynamic_export_script_url = URL.createObjectURL(dynamic_export_script_blob);
     // now we perform a phony import, to force deno to cache this npm-package as a dependency inside of your `${cwd}/node_modules/`.
     await import(dynamic_export_script_url);
     return;

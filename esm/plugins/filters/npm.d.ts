@@ -4,20 +4,39 @@
  * @module
 */
 import { type DeepPartial } from "../../deps.js";
-import type { EsbuildPlugin, EsbuildPluginBuild, EsbuildPluginSetup } from "../typedefs.js";
-/** an enum that represents special directories to use in {@link NpmPluginSetupConfig.nodeModulesDirs}. */
-export declare const enum DIRECTORY {
-    /** represents your js-runtime's current working directory (acquired via {@link defaultGetCwd}). */
-    CWD = 0,
-    /** represents the `absWorkingDir` option provided to your esbuild build config.
-     *
-     * note that if esbuild's `absWorkingDir` option was not specified,
-     * then the package scanner will fallback to  the current working director (i.e. {@link DIRECTORY.CWD}).
-    */
-    ABS_WORKING_DIR = 1
-}
+import type { EsbuildPlugin, EsbuildPluginBuild, EsbuildPluginSetup, LoggerFunction } from "../typedefs.js";
+import { DIRECTORY } from "../typedefs.js";
 /** acceptable directory formats for specifying your "resolve directory" for scanning and traversing `"./node_modules/"` folders. */
 export type NodeModuleDirFormat = (string | URL | DIRECTORY);
+/** these options let you precisely customize how and where your missing npm-packages should get installed. */
+export interface NpmAutoInstallCliConfig {
+    /** specify the working-directory where your `npm` {@link command} should be invoked,
+     * so that your package will get installed to `${dir}/node_modules/`.
+     *
+     * note that a trailing slash is always added to `dir` if it's missing it, and you can also provide a non-normalized path,
+     * or relative paths with respect to esbuild's `absWorkingDir` (which fallbacks to the runtime's current-working-directory if `undefined`).
+     *
+     * furthermore, you should **not** add this directory to the {@link NpmPluginSetupConfig.nodeModulesDirs} array,
+     * because the plugin **will** add this `dir` to the beginning of that array internally.
+     *
+     * @defaultValue `DIRECTORY.ABS_WORKING_DIR`
+    */
+    dir: NodeModuleDirFormat;
+    /** a function which should accept the package name-and-version string (such as `"react@17 - 19"`),
+     * and then return a cli command, that when executed, will install the npm-package to the `${dir}/node_modules/` folder.
+     *
+     * note that you _can_ technically change the directory where the command is executed using `cd`,
+     * however if you down a subdirectory (for instance `cd ./temp/ && npm install "${package_name_and_version}" --no-save`),
+     * then the installed package will not be discoverable by esbuild's node-resolution-algorithm, because it only traverses upwards.
+     * thus, you may only navigate to ancestral directories (such as `cd ../temp/ && npm install "${package_name_and_version}" --no-save`),
+     * for the new package to be discoverable by esbuild.
+     *
+     * @defaultValue ```(package_name_and_version: string) => (`npm install "${package_name_and_version}" --no-save`)```
+    */
+    command: (package_name_and_version: string) => string;
+    /** enable logging of the npm-package installation command, when DEBUG.LOG is ennabled. */
+    log?: boolean | LoggerFunction;
+}
 /** configuration options for the {@link npmPluginSetup} and {@link npmPlugin} functions. */
 export interface NpmPluginSetupConfig {
     /** provide a list of prefix specifiers used for npm packages.
@@ -45,28 +64,70 @@ export interface NpmPluginSetupConfig {
     sideEffects: boolean | "auto" | "defaultFalse" | "defaultTrue";
     /** auto install missing npm-package (the executed action/technique will vary based on the js-runtime-environment).
      *
-     * > [!warning]
-     * > the underlying technique used for this option will only work for Deno and Bun, but not Nodejs.
-     * >
-     * > moreover, you will **need** to have a certain configurations for this option to work on Deno and Bun:
-     * > - for Deno, your project's "deno.json" file's `"nodeModulesDir"` should be set to `"auto"`,
-     * >   so that a local `"./node_modules/"` folder will be created for installed packages.
-     * > - for Bun, your project's directory, or one of its ancesteral directory, must contain a `"./node_modules/"` folder,
-     * >   so that bun will opt for node-package-resolution instead of its default bun-style-resolution.
-     * >   TODO: I haven't actually tried it on bun, and I'm only speculating based on the information here:
-     * >   [link](https://bun.sh/docs/runtime/autoimport)
-     * >
+     * ### options
      *
-     * TODO: add the ability to set a custom directory in which the installation should take place.
-     *   right now, it defaults to using the `absWorkingDir`, with the `defaultGetCwd` as a fallback.
+     * - `false`: missing npm-packages are not installed.
+     *   this will result in esbuild's build process to terminate, since the missing package will not be resolvable.
      *
-     * TODO: add the ability to set which installation method should be used.
-     *   for instance, `"npm-cli"`, `"deno-cli"`, `"bun-cli"`,
-     *   `"dynamic"` (i.e. on-the-fly import caching), or `"auto"` (equivalent to `true`).
+     * - `true`: equivalent to the `"auto-cli"` option.
+     *
+     * - `"auto-cli"`: a cli-command will be picked depend on your js-runtime:
+     *   - for Deno, the cli-command of the `"deno"` option will be executed.
+     *   - for Bun, the cli-command of the `"bun"` option will be executed.
+     *   - for Nodejs, the cli-command of the `"npm"` option will be executed.
+     *
+     * - `"auto"`: the technique picked will depend on your js-runtime:
+     *   - for Deno and Bun, the `"dynamic"` option will be chosen.
+     *   - for Nodejs, the `"npm"` option will be chosen.
+     *
+     * - `"dynamic"`: a dynamic "on-the-fly" import will be performed,
+     *   forcing your runtime to cache the npm-package in a local `"./node_modules/"` directory.
+     *   > [!warning]
+     *   > the underlying technique for the `"dynamic"` option used will only work for Deno and Bun, but not Nodejs.
+     *   >
+     *   > moreover, you will **need** to have a certain configurations for this option to work on Deno and Bun:
+     *   > - for Deno, your project's "deno.json" file's `"nodeModulesDir"` should be set to `"auto"`,
+     *   >   so that a local `"./node_modules/"` folder will be created for installed packages.
+     *   > - for Bun, your project's directory, or one of its ancesteral directory, must contain a `"./node_modules/"` folder,
+     *   >   so that bun will opt for node-package-resolution instead of its default bun-style-resolution.
+     *   >   TODO: I haven't actually tried it on bun, and I'm only speculating based on the information here:
+     *   >   [link](https://bun.sh/docs/runtime/autoimport)
+     *
+     * - `"npm"`: this will run the `npm install "${pkg}" --no-save` cli-command in your `absWorkingDir`.
+     *   > [!note]
+     *   > the `--no-save` flag warrants that your `package.json` file will not be modified (nor created if lacking) when a package is being installed.
+     *
+     * - `"deno"`: this will run the `deno cache --no-config --node-modules-dir="auto" --allow-scripts "npm:${pkg}"` cli-command in your `absWorkingDir`.
+     *   > [!note]
+     *   > - `deno cache` installs the package, but without modifying (or creating) the "deno.json" file.
+     *   > - the `--no-config` option prevents deno from reading the "deno.json" (and "deno.lock") config file that may exist in an ancesteral directory of the desired installation directory,
+     *   >   thereby changing the location where the `"./node_modules/"` installation occurs.
+     *   >   moreover, giving deno access to the config file makes it reload all dependency modules listed in the "deno.json", not just our requested module alone.
+     *   >   this can be extremely annoying at times, and especially annoying when verifying the behavior of the plugins.
+     *   > - the `--node-modules-dir="auto"` flag ensures that the package is installed under the `absWorkingDir` directory's `"./node_modules/"` subdirectory,
+     *   >   instead of the global cache directory (which uses a non-node-module compatible layout).
+     *   > - the `--allow-scripts` flag permits `preinstall` and `postinstall` [lifecycle scripts](https://docs.npmjs.com/cli/v10/using-npm/scripts#life-cycle-scripts) to run.
+     *
+     * - `"deno-noscript"`: this will run the `deno cache --no-config --node-modules-dir="auto" "${pkg}"` cli-command in your `absWorkingDir`.
+     *   > [!note]
+     *   > this is different from the `"deno"` option because it does not permit the execution of `preinstall` and `postinstall` lifecycle scripts.
+     *   > lifecycle scripts could pose a security thread, but some popular packages that bind to native binaries (such as `npm:sqlite3`) require it.
+     *
+     * - `"bun"`: this will run the `bun install "${pkg}" --no-save` cli-command in your `absWorkingDir`.
+     *   > [!note]
+     *   > the `--no-save` flag warrants that your `package.json` file will not be modified (nor created if lacking) when a package is being installed.
+     *
+     * - `"pnpm"`: this will run the `pnpm install "${pkg}"` cli-command in your `absWorkingDir`.
+     *   > [!caution]
+     *   > since the `--no-save` flag is not supported in pnpm (see [issue#1237](https://github.com/pnpm/pnpm/issues/1237)),
+     *   > your `package.json` file will either get modified, or a new one will get created if it does not exist.
+     *
+     * - for any other custom cli-command, or to use an alternate installation directory,
+     *   you may provide an object that adheres to the {@link NpmAutoInstallCliConfig} interface.
      *
      * @defaultValue `true`
     */
-    autoInstall: boolean;
+    autoInstall: boolean | "auto-cli" | "auto" | "dynamic" | "npm" | "deno" | "deno-noscript" | "bun" | "pnpm" | Partial<NpmAutoInstallCliConfig>;
     /** specify which `namespace`s should be intercepted by the npm-specifier-plugin.
      * all other `namespace`s will not be processed by this plugin.
      *
@@ -84,7 +145,7 @@ export interface NpmPluginSetupConfig {
      * here, you may provide a collection of:
      * - absolute filesystem paths (`string`).
      * - paths relative to your current working directory (`string` beginning with "./" or "../").
-     * - file-urls which being with the `"file://"` protocol (`string` or `URL`).
+     * - file-uris which being with the `"file://"` protocol (`string` or `URL`).
      * - or one of the accepted special directory enums in {@link DIRECTORY}.
      *
      * each directory that you provide here will be used by esbuild's native resolver as a starting point for scanning for `node_modules` npm-packages,
@@ -98,11 +159,14 @@ export interface NpmPluginSetupConfig {
      * @defaultValue `[DIRECTORY.ABS_WORKING_DIR]` (equivalent to `[DIRECTORY.ABS_WORKING_DIR, DIRECTORY.CWD]`)
     */
     nodeModulesDirs: NodeModuleDirFormat[];
-    /** enable logging when a package's path is resolved.
+    /** enable logging of resolved npm-package's path, when {@link DEBUG.LOG} is ennabled.
+     *
+     * when set to `true`, the logs will show up in your console via `console.log()`.
+     * you may also provide your own custom logger function if you wish.
      *
      * @defaultValue `false`
     */
-    log: boolean;
+    log: boolean | LoggerFunction;
 }
 /** this plugin lets you redirect resource-paths beginning with an `"npm:"` specifier to your local `node_modules` folder.
  * after that, the module resolution task is carried by esbuild (for which you must ensure that you've ran `npm install`).
@@ -152,22 +216,19 @@ export type FindResolveDirOfNpmPackage_FunctionSignature = (package_name: string
  * ```
 */
 export declare const findResolveDirOfNpmPackageFactory: (build: EsbuildPluginBuild) => FindResolveDirOfNpmPackage_FunctionSignature;
+/** see {@link NpmAutoInstallCliConfig} and {@link NpmPluginSetupConfig.autoInstall} for details on how to customize. */
+export type InstallNpmPackageConfig = "dynamic" | NpmAutoInstallCliConfig & {
+    dir: string | URL;
+};
 /** this function installs an npm-package to your project's `"./node_modules/"` folder.
- * the method of installation will depend on your javascript runtime:
- * - for Deno and Bun, the {@link denoInstallNpmPackage} function will be invoked,
- *   which will perform a dynamic import of the said package so that it gets cached onto the filesystem.
- * - for Nodejs, the {@link npmInstallNpmPackage} function will be invoked,
- *   which will execute a shell command for the installation.
+ * see {@link NpmAutoInstallCliConfig} and {@link NpmPluginSetupConfig.autoInstall} for details on how to customize.
 */
-export declare const installNpmPackage: (package_name: string, cwd?: string) => Promise<void>;
-/** this function executes the `npm install ${package_name} --no-save` command, in the provided `cwd` directory,
- * to install the desired npm-package in that directory's `"./node_modules/"` folder,
- * so that it will become available for esbuild to bundle.
- *
- * the `--no-save` flag warrants that your `package.json` file will not be modified (nor created if lacking) to add this package as dependency.
+export declare const installNpmPackage: (package_name: string, config: InstallNpmPackageConfig) => Promise<void>;
+/** this function executes a cli command to install an npm-package.
+ * see {@link NpmAutoInstallCliConfig} and {@link NpmPluginSetupConfig.autoInstall} for details on how to customize.
 */
-export declare const npmInstallNpmPackage: (package_name: string, cwd?: string) => Promise<void>;
-/** this function indirectly makes the deno runtime automatically install an npm-package.
+export declare const installNpmPackageCli: (package_name: string, config: Exclude<InstallNpmPackageConfig, string>) => Promise<void>;
+/** this function indirectly makes the deno or bun runtimes automatically install an npm-package.
  * doing so will hopefully make it available under your project's `"./node_modules/"` directory,
  * allowing esbuild to access it when bundling code.
  *
@@ -177,5 +238,5 @@ export declare const npmInstallNpmPackage: (package_name: string, cwd?: string) 
  * > otherwise, the package will get cached in deno's cache directory which uses a different file structure from `node_modules`,
  * > making it impossible for esbuild to traverse through it to discover the package natively.
 */
-export declare const denoInstallNpmPackage: (package_name: string) => Promise<void>;
+export declare const installNpmPackageDynamic: (package_name: string) => Promise<void>;
 //# sourceMappingURL=npm.d.ts.map

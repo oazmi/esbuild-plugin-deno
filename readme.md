@@ -18,16 +18,23 @@ This permits it portablility across any runtime environment (web, deno, node, bu
   ~~The way it works is what it "unresolves" its internal namespaces, and queries other plugins (and esbuild's native resolver) to try and resolve the path first, before trying to do so itself.~~
   > TODO: update description, since it is no longer entirely true, as I now use a central pipeline of resolvers,
   > and the entry-plugin needs to redirect everything to it first for pre-resolution.
-- Uses web-compatible APIs only (with the exception of `Deno.cwd()` or `process.cwd()`, that is otherwise replaced by a stub function on the web).
+- _Mostly_ uses web-compatible APIs. The only two non-web APIs that are (occasionally) used are:
+  - `Deno.cwd()`/`process.cwd()` - needed for querying relative paths to the current directory.
+    But they get swapped for a stub function on the web (which returns `window.location.href`), so they're a non-issue.
+  - `node:child_process.exec` - needed for auto-installing missing npm-packages through the use of cli-commands.
+    The auto-installations are not necessary if you had all npm-dependencies cached beforehand (e.g. via `npm install`).
+    But obviously, you cannot install npm-packages on a web-browser, so rip.
 
 ## Downsides
 
 - Since this library does not utilize Deno's cache, nor does it take advantage of its semantic-versioning resolver (to figure out the best package version), bundling will probably likely take longer, and not speed up across successive builds.
   (maybe I'll add a file caching mechanism in the future, but that'll require filesystem write access, which isn't practical for web-portability)
-- for npm-packages (whether or not you use the `npm:` specifier), you will currently need to install the packages to your project's `./node_modules/` folder, either via `npm install`, or `deno install` with `"nodeModulesDir": "auto"` enabled in your `./deno.json` file.
-  I will be adding an auto-install feature in the future, but it will require filesystem write access,
-  since [npmjs.org](http://registry.npmjs.org/) only distributes tarballs, instead of individual fetchable files,
-  like the way [jsr.io](https://jsr.io/) does.
+- For missing npm-packages (whether or not you use the `npm:` specifier) which do not exist in one of your project's ancestral directory's `./node_modules/` folder,
+  in order for the plugin to install the missing package onto your filesystem, it will need access to executing shell-commands,
+  so that it can invoke your js-runtime's specific package installation command.
+- Version conflicts are very much possible with the default `autoInstall` option (which priorizes speed and flattened global dependencies).
+  So to avoid such a thing from happening, it would be in your best interest to use `npm install` or `deno install` (coupled with `nodeModulesDir` in "deno.json" set to `"auto"`).
+  This way, all packages will always receive their desired range of dependencies, and not something outside of it.
 
 ## Plugins featured
 
@@ -148,7 +155,10 @@ const [entry_plugin, http_plugin, jsr_plugin, npm_plugin, resolver_pipeline_plug
 	// enabling logging will let you see which resources are being resolved, and what their resolved path is.
 	log: true,
 	// auto-install npm-packages that have not been cached into a local "./node_modules/" directory.
-	autoInstall: true,
+	// the "auto-cli" method of installation will vary based on your runtime,
+	// however, you can greatly customize it and even provide a custom cli-command generator yourself.
+	// see the docs for the list of possible options.
+	autoInstall: "auto-cli", // or just provide `true`
 })
 
 const result = await esbuild.build({

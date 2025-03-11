@@ -6,13 +6,14 @@ import { defaultGetCwd, isAbsolutePath, resolvePathFactory } from "../deps.js";
 import { entryPlugin } from "./filters/entry.js";
 import { httpPlugin } from "./filters/http.js";
 import { jsrPlugin } from "./filters/jsr.js";
-import { DIRECTORY, npmPlugin } from "./filters/npm.js";
+import { npmPlugin } from "./filters/npm.js";
 import { resolverPlugin } from "./resolvers.js";
-import { defaultEsbuildNamespaces } from "./typedefs.js";
-export { DIRECTORY } from "./filters/npm.js";
+import { defaultEsbuildNamespaces, DIRECTORY } from "./typedefs.js";
+export { DIRECTORY } from "./typedefs.js";
 const defaultDenoPluginsConfig = {
     pluginData: {},
     log: false,
+    logFor: ["npm", "resolver"],
     autoInstall: true,
     nodeModulesDirs: [DIRECTORY.ABS_WORKING_DIR],
     globalImportMap: {},
@@ -31,14 +32,14 @@ const defaultDenoPluginsConfig = {
  * - {@link resolverPlugin}: a namespaced plugin that provides the backbone pipeline for resolving the paths of all of the plugins above.
 */
 export const denoPlugins = (config) => {
-    const { acceptNamespaces, autoInstall, getCwd, globalImportMap, log, nodeModulesDirs, pluginData } = { ...defaultDenoPluginsConfig, ...config }, resolvePath = resolvePathFactory(getCwd, isAbsolutePath);
+    const { acceptNamespaces, autoInstall, getCwd, globalImportMap, log, logFor, nodeModulesDirs, pluginData } = { ...defaultDenoPluginsConfig, ...config }, resolvePath = resolvePathFactory(getCwd, isAbsolutePath);
     return [
         entryPlugin({ pluginData, acceptNamespaces }),
-        httpPlugin({ acceptNamespaces }),
+        httpPlugin({ acceptNamespaces, log: logFor.includes("http") ? log : false }),
         jsrPlugin({ acceptNamespaces }),
-        npmPlugin({ acceptNamespaces, autoInstall, log, nodeModulesDirs }),
+        npmPlugin({ acceptNamespaces, autoInstall, log: logFor.includes("npm") ? log : false, nodeModulesDirs }),
         resolverPlugin({
-            log,
+            log: logFor.includes("resolver") ? log : false,
             importMap: { globalImportMap: globalImportMap },
             relativePath: { resolvePath: resolvePath },
         }),

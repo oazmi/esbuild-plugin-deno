@@ -37,8 +37,9 @@
  *
  * @module
 */
-import { DEBUG, defaultResolvePath, ensureEndSlash, ensureStartDotSlash, fileUrlToLocalPath, getUriScheme, isAbsolutePath, joinPaths, noop, pathToPosixPath, promise_outside, resolveAsUrl } from "../deps.js";
+import { DEBUG, defaultResolvePath, ensureEndSlash, ensureStartDotSlash, getUriScheme, isAbsolutePath, joinPaths, noop, pathToPosixPath, promise_outside, resolveAsUrl } from "../deps.js";
 import { resolvePathFromImportMap } from "../importmap/mod.js";
+import { ensureLocalPath, logLogger } from "./funcdefs.js";
 import { PLUGIN_NAMESPACE } from "./typedefs.js";
 const defaultRuntimePackageResolverConfig = {
     enabled: true,
@@ -113,7 +114,7 @@ const defaultResolverPluginSetupConfig = {
 */
 export const resolverPluginSetup = (config) => {
     const { runtimePackage: _runtimePackageResolverConfig, importMap: _importMapResolverConfig, nodeModules: _nodeModulesResolverConfig, relativePath: _relativePathResolverConfig, namespace: plugin_ns, log, } = { ...defaultResolverPluginSetupConfig, ...config };
-    const runtimePackageResolverConfig = { ...defaultRuntimePackageResolverConfig, ..._runtimePackageResolverConfig }, importMapResolverConfig = { ...defaultImportMapResolverConfig, ..._importMapResolverConfig }, nodeModulesResolverConfig = { ...defaultNodeModulesResolverConfig, ..._nodeModulesResolverConfig }, relativePathResolverConfig = { ...defaultRelativePathResolverConfig, ..._relativePathResolverConfig }, 
+    const runtimePackageResolverConfig = { ...defaultRuntimePackageResolverConfig, ..._runtimePackageResolverConfig }, importMapResolverConfig = { ...defaultImportMapResolverConfig, ..._importMapResolverConfig }, nodeModulesResolverConfig = { ...defaultNodeModulesResolverConfig, ..._nodeModulesResolverConfig }, relativePathResolverConfig = { ...defaultRelativePathResolverConfig, ..._relativePathResolverConfig }, logFn = log ? (log === true ? logLogger : log) : undefined, 
     // a non-empty string namespace is required if the file is not an absolute path on the filesystem.
     output_ns = "discard-this-namespace", plugin_filter = /.*/;
     return async (build) => {
@@ -131,11 +132,9 @@ export const resolverPluginSetup = (config) => {
             resolved_path = runtimePackage && !path.startsWith("./") && !path.startsWith("../")
                 ? runtimePackage.resolveImport(path)
                 : undefined;
-            if (DEBUG.LOG && log) {
-                console.log("[runtime-package] resolving:", path);
-                if (resolved_path) {
-                    console.log(">> successfully resolved to:", resolved_path);
-                }
+            if (DEBUG.LOG && logFn) {
+                logFn(`[runtime-package] resolving: ${path}` + (!resolved_path ? ""
+                    : `\n>> successfully resolved to: ${resolved_path}`));
             }
             return resolved_path ? {
                 path: resolved_path,
@@ -153,11 +152,9 @@ export const resolverPluginSetup = (config) => {
             // if the input `path` is an import being performed inside of a package, in addition to not being a relative import,
             // then use the package manager to resolve the imported path.
             resolved_path = resolvePathFromImportMap(path, importMap);
-            if (DEBUG.LOG && log) {
-                console.log("[import-map]      resolving:", path);
-                if (resolved_path) {
-                    console.log(">> successfully resolved to:", resolved_path);
-                }
+            if (DEBUG.LOG && logFn) {
+                logFn(`[import-map]      resolving: ${path}` + (!resolved_path ? ""
+                    : `\n>> successfully resolved to: ${resolved_path}`));
             }
             return resolved_path ? {
                 path: resolved_path,
@@ -186,11 +183,9 @@ export const resolverPluginSetup = (config) => {
             });
             const { path: resolved_path, namespace: _0, pluginData: _1, ...rest_results } = await (native_results_promise
                 .catch(() => { return {}; }));
-            if (DEBUG.LOG && log) {
-                console.log("[node-module]     resolving:", path);
-                if (resolved_path) {
-                    console.log(">> successfully resolved to:", resolved_path);
-                }
+            if (DEBUG.LOG && logFn) {
+                logFn(`[node-module]     resolving: ${path}` + (!resolved_path ? ""
+                    : `\n>> successfully resolved to: ${resolved_path}`));
             }
             return resolved_path ? {
                 ...rest_results,
@@ -209,11 +204,9 @@ export const resolverPluginSetup = (config) => {
                 : joinPaths(resolve_dir, importer), resolved_path = isAbsolutePath(path)
                 ? pathToPosixPath(path) // I don't want to see ugly windows back-slashes in the esbuild resolved-path comments and metafile
                 : resolvePath(dir, ensureStartDotSlash(path));
-            if (DEBUG.LOG && log) {
-                console.log("[absolute-path]   resolving:", path);
-                if (resolved_path) {
-                    console.log(">> successfully resolved to:", resolved_path);
-                }
+            if (DEBUG.LOG && logFn) {
+                logFn(`[absolute-path]   resolving: ${path}` + (!resolved_path ? "" :
+                    `\n>> successfully resolved to: ${resolved_path}`));
             }
             return {
                 path: resolved_path,
@@ -238,6 +231,15 @@ export const resolverPlugin = (config) => {
  *
  * the slyish way how it works is that we create a new build process to query esbuild what it would hypothetically do if so and so input arguments were given,
  * then through a custom inner plugin, we capture esbuild's response (the resolved path), and return it back to the user.
+ *
+ * > [!note]
+ * > the internal resolver function accepts `"file://"` uris for the following list of {@link OnResolveArgs} fields,
+ * > and converts them to local paths for esbuild to understand:
+ * > - `path`
+ * > - `resolveDir`
+ * > - `importer`
+ * >
+ * > with this feature, you won't have to worry about file-uris at all.
 */
 export const nodeModulesResolverFactory = (config, build) => {
     const { absWorkingDir } = config;
@@ -247,19 +249,19 @@ export const nodeModulesResolverFactory = (config, build) => {
             // below, in case the original `importer` had used a "file://" uri, we convert it back into a local path,
             // otherwise we strip away the importer, since it will not be suitable for usage as `resolveDir`,
             // since esbuild only understands local filesystem paths - no file/http uris.
-            importer_dir_as_uri = (importer === "" || getUriScheme(importer) === "relative")
-                ? undefined
-                : resolveAsUrl("./", importer), importer_dir_as_local_path = fileUrlToLocalPath(importer_dir_as_uri), resolve_dir = importer_dir_as_local_path ?? resolveDir;
-            if (resolve_dir === "") {
-                console.log(`[nodeModulesResolverFactory]: WARNING! received an empty resolve directory ("args.resolveDir").`, `\n\twe will fallback to esbuild's current-working-directory for filling in the "resolveDir" value,`, `\n\thowever, you must be using the "nodeModulesResolverFactory" function incorrectly to have encountered this situation.`, `\n\tremember, the purpose of this function is to scan for a node-module, starting from a directory that YOU provide.`);
+            importer_path_scheme = getUriScheme(importer), importer_dir_as_file_uri = (importer_path_scheme === "local" || importer_path_scheme === "file")
+                ? resolveAsUrl("./", importer).href
+                : undefined, resolve_dir = importer_dir_as_file_uri ?? resolveDir;
+            if (DEBUG.ASSERT && resolve_dir === "") {
+                logLogger(`[nodeModulesResolverFactory]: WARNING! received an empty resolve directory ("args.resolveDir").`, `\n\twe will fallback to esbuild's current-working-directory for filling in the "resolveDir" value,`, `\n\thowever, you must be using the "nodeModulesResolverFactory" function incorrectly to have encountered this situation.`, `\n\tremember, the purpose of this function is to scan for a node-module, starting from a directory that YOU provide.`);
             }
             build.onResolve({ filter: /.*/ }, async (args) => {
                 if (args.pluginData?.[ALREADY_CAPTURED] === true) {
                     return;
                 }
-                const { path, external, namespace, sideEffects, suffix } = await build.resolve(args.path, {
+                const { path, external, namespace, sideEffects, suffix } = await build.resolve(ensureLocalPath(args.path), {
                     kind: "entry-point",
-                    resolveDir: resolve_dir !== "" ? resolve_dir : args.resolveDir,
+                    resolveDir: ensureLocalPath(resolve_dir !== "" ? resolve_dir : args.resolveDir),
                     pluginData: { [ALREADY_CAPTURED]: true },
                 });
                 resolve({ path: pathToPosixPath(path), external, namespace, sideEffects, suffix });

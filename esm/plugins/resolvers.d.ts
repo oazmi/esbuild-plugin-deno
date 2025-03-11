@@ -39,7 +39,7 @@
 */
 import { type DeepPartial } from "../deps.js";
 import type { ImportMap } from "../importmap/typedefs.js";
-import type { EsbuildPlugin, EsbuildPluginBuild, EsbuildPluginSetup, OnResolveResult } from "./typedefs.js";
+import type { EsbuildPlugin, EsbuildPluginBuild, EsbuildPluginSetup, LoggerFunction, OnResolveResult } from "./typedefs.js";
 import { type OnResolveArgs } from "./typedefs.js";
 /** configuration for the runtime-package resolver in {@link resolverPluginSetup},
  * which operates on the {@link CommonPluginData.runtimePackage} plugin-data property.
@@ -117,9 +117,12 @@ export interface ResolverPluginSetupConfig {
     namespace: string;
     /** enable logging of the input arguments and resolved paths, when {@link DEBUG.LOG} is ennabled.
      *
+     * when set to `true`, the logs will show up in your console via `console.log()`.
+     * you may also provide your own custom logger function if you wish.
+     *
      * @defaultValue `false`
     */
-    log: boolean;
+    log: boolean | LoggerFunction;
 }
 /** this is a 4-in-1 namespaced-plugin that assists in resolving esbuild paths,
  * based on {@link CommonPluginData | `pluginData`}, esbuild's native-resolver, and relative path resolver.
@@ -186,6 +189,15 @@ export interface NodeModulesResolverFactoryConfig {
  *
  * the slyish way how it works is that we create a new build process to query esbuild what it would hypothetically do if so and so input arguments were given,
  * then through a custom inner plugin, we capture esbuild's response (the resolved path), and return it back to the user.
+ *
+ * > [!note]
+ * > the internal resolver function accepts `"file://"` uris for the following list of {@link OnResolveArgs} fields,
+ * > and converts them to local paths for esbuild to understand:
+ * > - `path`
+ * > - `resolveDir`
+ * > - `importer`
+ * >
+ * > with this feature, you won't have to worry about file-uris at all.
 */
 export declare const nodeModulesResolverFactory: (config: NodeModulesResolverFactoryConfig, build: EsbuildPluginBuild) => ((args: Pick<OnResolveArgs, "path" | "resolveDir" | "importer">) => Promise<OnResolveResult>);
 //# sourceMappingURL=resolvers.d.ts.map

@@ -2,8 +2,9 @@
  *
  * @module
 */
-import { DEBUG, defaultFetchConfig, json_stringify, resolveAsUrl } from "../../deps.js";
+import { DEBUG, defaultFetchConfig, getUriScheme, json_stringify, resolveAsUrl } from "../../deps.js";
 import { guessHttpResponseLoaders } from "../../loadermap/mod.js";
+import { fileUriToLocalPath, logLogger } from "../funcdefs.js";
 import { allEsbuildLoaders, defaultEsbuildNamespaces, PLUGIN_NAMESPACE } from "../typedefs.js";
 /** a factory function that returns a general purpose url content loading function for your esbuild plugin, tuned to your specific `config`.
  *
@@ -47,7 +48,7 @@ import { allEsbuildLoaders, defaultEsbuildNamespaces, PLUGIN_NAMESPACE } from ".
  *   so that it can fetch the contents of url-based paths when esbuild intercept
 */
 export const urlLoaderFactory = (config) => {
-    const { defaultLoader, acceptLoaders = allEsbuildLoaders, log = false } = config, accept_loaders_set = new Set(acceptLoaders);
+    const { defaultLoader, acceptLoaders = allEsbuildLoaders, log = false } = config, accept_loaders_set = new Set(acceptLoaders), logFn = log ? (log === true ? logLogger : log) : undefined;
     return async (args) => {
         // `args.path` is absolute when the entity is an entry point.
         // `args.path` is _possibly_ relative when the entity is imported by a another entity,
@@ -57,8 +58,8 @@ export const urlLoaderFactory = (config) => {
             throw new Error(`[urlLoaderFactory]: ERROR: network fetch response for url "${path_url.href}" was not ok (${response.status}). response header:\n${json_stringify(response.headers)}`);
         }
         const guessed_loaders = guessHttpResponseLoaders(response), available_loaders = accept_loaders_set.intersection(guessed_loaders), preferred_loader = [...available_loaders].at(0) ?? defaultLoader, contents = await response.bytes();
-        if (DEBUG.LOG && log) {
-            console.log(`[urlLoaderFactory]:`, { path, path_url: path_url.href, guessed_loaders, preferred_loader, args });
+        if (DEBUG.LOG && logFn) {
+            logFn(`[urlLoaderFactory]:`, { path, path_url: path_url.href, guessed_loaders, preferred_loader, args });
         }
         return {
             contents,
@@ -73,12 +74,15 @@ export const urlLoaderFactory = (config) => {
         };
     };
 };
+const defaultConvertFileUriToLocalPath = { enabled: true, resolveAgain: true };
 const defaultHttpPluginSetupConfig = {
     filters: [/^https?\:\/\//, /^file\:\/\//],
     namespace: PLUGIN_NAMESPACE.LOADER_HTTP,
     acceptNamespaces: defaultEsbuildNamespaces,
     defaultLoader: "copy",
     acceptLoaders: undefined,
+    convertFileUriToLocalPath: defaultConvertFileUriToLocalPath,
+    log: false,
 };
 /** this plugin intercepts `"http://"`, `"https://"`, and `"file://"` resource paths and redirects them to the {@link PLUGIN_NAMESPACE.LOADER_HTTP} namespace,
  * where they can be fetched and loaded by a dedicated loader.
@@ -97,18 +101,24 @@ const defaultHttpPluginSetupConfig = {
  *   since it will lead to some redundant ping-pongging (but the final resolved result will remain unchanged).
 */
 export const httpPluginSetup = (config = {}) => {
-    const { acceptLoaders, defaultLoader, filters, namespace: plugin_ns, acceptNamespaces: _acceptNamespaces } = { ...defaultHttpPluginSetupConfig, ...config }, acceptNamespaces = new Set([..._acceptNamespaces, plugin_ns]), pluginLoaderConfig = { acceptLoaders, defaultLoader };
+    const { acceptLoaders, defaultLoader, filters, namespace: plugin_ns, acceptNamespaces: _acceptNamespaces, log, convertFileUriToLocalPath: _convertFileUriToLocalPath } = { ...defaultHttpPluginSetupConfig, ...config }, acceptNamespaces = new Set([..._acceptNamespaces, plugin_ns]), pluginLoaderConfig = { acceptLoaders, defaultLoader, log }, convertFileUriToLocalPath = { ...defaultConvertFileUriToLocalPath, ..._convertFileUriToLocalPath };
     return async (build) => {
         // TODO: we must prioritize the user's `loader` preference over our `guessHttpResponseLoaders`,
         //   if they have an extension entry for the url path that we're loading
         const { absWorkingDir, outdir, outfile, entryPoints, write, loader } = build.initialOptions;
         const httpResolver = async (args) => {
+            const { path, pluginData, namespace, ...rest_args } = args, original_ns = namespace === plugin_ns ? "" : namespace;
             // skip resolving any `namespace` that we do not accept
-            if (!acceptNamespaces.has(args.namespace)) {
+            if (!acceptNamespaces.has(namespace)) {
                 return;
             }
-            const { path, pluginData } = args;
-            return { path, pluginData, namespace: plugin_ns };
+            // if the user wants file-uris converted into local paths (default behavior),
+            // then we will not namespace the resulting path, since it won't be fetchable.
+            // plus we would like to give other plugins the chance to process it.
+            return convertFileUriToLocalPath.enabled && getUriScheme(path) === "file"
+                ? (convertFileUriToLocalPath.resolveAgain
+                    ? build.resolve(fileUriToLocalPath(path), { ...rest_args, pluginData, namespace: original_ns })
+                    : { path: fileUriToLocalPath(path), pluginData, namespace: original_ns }) : { path, pluginData, namespace: plugin_ns };
         };
         filters.forEach((filter) => {
             build.onResolve({ filter }, httpResolver);
