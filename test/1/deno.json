@@ -6,7 +6,7 @@
 		"@remote-file-alias": "https://jsr.io/@oazmi/kitchensink/0.9.8/src/pathman.ts",
 		"@local-file-alias": "./aliased_file.ts"
 	},
-	"nodeModulesDir": "auto",
+	"nodeModulesDir": "none",
 	"fmt": {
 		"useTabs": true,
 		"semiColons": false,

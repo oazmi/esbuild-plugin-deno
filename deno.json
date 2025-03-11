@@ -1,6 +1,6 @@
 {
 	"name": "@oazmi/esbuild-plugin-deno",
-	"version": "0.2.1",
+	"version": "0.2.2",
 	"description": "A portable non-invasive suite of esbuild plugins for loading http, jsr, npm, and import-maps. Supports Deno, Node, Bun, Web. Alternate to @luca/esbuild-deno-loader , while compatible with other plugins and native esbuild resolvers (e.g. css loader).",
 	"author": "Omar Azmi",
 	"license": "Lulz plz don't steal yet",
@@ -28,6 +28,7 @@
 		"./plugins/filters/jsr": "./src/plugins/filters/jsr.ts",
 		"./plugins/filters/npm": "./src/plugins/filters/npm.ts",
 		"./plugins/resolvers": "./src/plugins/resolvers.ts",
+		"./plugins/funcdefs": "./src/plugins/funcdefs.ts",
 		"./plugins/typedefs": "./src/plugins/typedefs.ts"
 	},
 	"imports": {
@@ -35,7 +36,7 @@
 		"@std/jsonc": "jsr:@std/jsonc@^1.0.1",
 		"@std/semver": "jsr:@std/semver@^1.0.3"
 	},
-	"nodeModulesDir": "auto",
+	"nodeModulesDir": "none",
 	"publish": {
 		"exclude": [
 			"./.devcontainer/",

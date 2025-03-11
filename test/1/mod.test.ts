@@ -26,7 +26,7 @@ Deno.test("test http plugin", async () => {
 		"npm:d3-brush@3.0.0", // this, despite not being part of "deno.json", will get auto-installed via our npm-plugin.
 	].map((path) => ({
 		in: path,
-		out: "entry-" + parseFilepathInfo(path).basename,
+		out: "entry-" + parseFilepathInfo(path).basename.replace(/^npm:/, ""),
 	}))
 
 	const result = await esbuild.build({

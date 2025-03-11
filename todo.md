@@ -39,6 +39,11 @@
 - [ ] I noticed that deno can natively import arbitrary text files as strings when the `import "..." with { type: "string" }` import-attribute is used.
       I should probably also add this as a supported feature in the future.
       see the following deno pull-request for more details about this feature: [deno_core/pull/402](https://github.com/denoland/deno_core/pull/402)
+- [ ] In the far future, add a web-compatible simple npm-package fetcher and loader, which will fetch package tarballs from [npmjs.org](http://registry.npmjs.org/),
+      and then create a virtual filesystem to resolve requested resources from the package.
+      doing this will definitely require us to create a `class NodePackage extends RuntimePackage { ... }`,
+      since we will need to resolve the "package.json" dependencies ourselves.
+	  for the tarball decoding, don't forget to use the [tar codec](https://github.com/omar-azmi/fbicodec_ts/blob/main/examples/tar_parser.ts) from your fbicodec library.
 
 ## issues list
 
@@ -59,20 +64,33 @@
 
 - [x] optional global import map config at top level of the "all-in-one" plugin config
 - [ ] a function to detect the current runtime, so that it can be later used for predicting the base-project-level scope's `runtimePackage: RuntimePackage` (i.e. is it a `package.json(c)` or `deno.json(c)` or `jsr.json(c)`).
+  - consider creating a function `fetchScan: (urls: (URL | string)[]) => URL`,
+    which will sequentially try fetching the provided `urls` using the `"HEAD"` method, and follow any redirects,
+    then return the first (fully-followed) url that results in a valid http response.
+  - use the said function for validating the existence of multiple runtime-package json(c) files, sequentially,
+    and acquire the first one that exists to use as the url to the `runtimePackage`.
 - [ ] ~~rename old cached fetch to `memCachedFetch`~~
   > will not implement right now (maybe in the future).
 - [ ] ~~create a filesystem based cached fetch named `fsCachedFetch`~~
   > will not implement right now (maybe in the future).
 - [x] the jsr plugin setup should accept `runtimePackage: DenoPackage | URL | string` configuration option for specifying the current scope/project's `deno.json` file (if there's one).
   > instead of this, in version `0.1.4 (2025-02-22)` I had implemented an "initial plugin-data" plugin that injected the user's current project's `DenoPackage` into `pluginData.runtimePackage`, for all entry-points, and their dependencies.
+- [ ] in the entry plugin:
+  - change the `entryPluginDataInjector` resolver's operation to **only** apply its initial-plugin-data when `args.kind === "entry-points"` and when `args.pluginData === undefined`.
+  - add a new resolver (`pluginDataInheritor`) between the `entryPluginDataInjector` and the `absolutePathResolver`.
+    this new resolver should provide plugin-data-inheritance from the `args.importer` if `args.pluginData === undefined`.
+    once it has implicitly called the `absolutePathResolver` and acquired the resolved `result`,
+    the function should store `data = result.pluginData` in a global `importer_plugin_data_map = Map<normalized(result.path), data>`,
+    so that it its dependencies will be able to inherit the same plugin data of its parent resource,
+    if they've been stripped away from their plugin data due to a non-preserving plugin or esbuild's own native loader.
 
-## pre-version `0.2.2` todo list
+## (2025-03-10) pre-version `0.2.2` todo list
 
-- [ ] in `npmPlugin`'s `autoInstall` config option:
+- [x] in `npmPlugin`'s `autoInstall` config option:
   - add the ability to set a custom directory in which the installation should take place.
     this custom directory should also be force added (unshift) to the list of `nodeModulesDirs`.
   - add the ability to specify which installation method should be used (auto, dynamic, npm-cli, deno-cli, bun-cli).
-    - maybe also add options for invoking `pnpm`, `yarn`, etc...
+    - [x] maybe also add options for invoking `pnpm`, `yarn`, etc...
   - in the function body, we should initially normalize all `nodeModulesDirs` and then pass it through a `Set<string>` so that there are no repeats.
 - [x] in `httpPlugin`, add an option to it's config to strip away the `file://` scheme, so that a local path is returned,
       which can be loaded by esbuild natively, instead of fetching it.
@@ -83,8 +101,8 @@
         but the first approach will guarantee compatibility with other plugins as well (the ones that only filter local paths, not file-uri),
         instead of just compatibility with esbuild's native resolver.
     > I ended up implementing both techniques for best measures.
-	> although, I've made it so that `nodeModulesResolverFactory` itself accepts file-uris for all or its `args`,
-	> instead of making everything else ensure that the file-uris are converted into local paths.
+    > although, I've made it so that `nodeModulesResolverFactory` itself accepts file-uris for all or its `args`,
+    > instead of making everything else ensure that the file-uris are converted into local paths.
 - [x] abstract away logging from a direct `console.log` a logger function call.
   - I need this because the log often exceeds the terminal's history/screen for huge projects,
     making it impossible to trace back where a resolution error may have originated from.
@@ -94,7 +112,10 @@
     and successive synchronous logs are often jumbled up.
     also, I think esbuild's own stderr logs originate from the go-binary, not the javascript wrapper code,
     causing abrupt intermediate interference with my logs, messing up the formatting and color.
-- [ ] migrate all utility functions to `/src/plugins/funcdefs.ts`, and migrate the `DIRECTORY` enum to `/src/plugins/typedefs.ts`.
+- [x] migrate all utility functions to `/src/plugins/funcdefs.ts`, and migrate the `DIRECTORY` enum to `/src/plugins/typedefs.ts`.
+- [x] fix [issue#4](https://github.com/oazmi/esbuild-plugin-deno/issues/4):
+      in the `jsrPackageToMetadataUrl` helper function of the `DenoPackage` class's module,
+      I forgot to include the "jsonc" variants of the package json files in the list of urls that I attempt fetch.
 
 ## (2025-03-07) pre-version `0.2.1` todo list
 
