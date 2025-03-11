@@ -7,12 +7,12 @@ import { defaultGetCwd, isAbsolutePath, resolvePathFactory } from "../deps.ts"
 import { entryPlugin, type EntryPluginSetupConfig } from "./filters/entry.ts"
 import { httpPlugin } from "./filters/http.ts"
 import { jsrPlugin } from "./filters/jsr.ts"
-import { DIRECTORY, npmPlugin, type NpmPluginSetupConfig } from "./filters/npm.ts"
+import { npmPlugin, type NpmPluginSetupConfig } from "./filters/npm.ts"
 import { type ImportMapResolverConfig, resolverPlugin, type ResolverPluginSetupConfig } from "./resolvers.ts"
-import { defaultEsbuildNamespaces, type EsbuildPlugin } from "./typedefs.ts"
+import { defaultEsbuildNamespaces, DIRECTORY, type EsbuildPlugin } from "./typedefs.ts"
 
 
-export { DIRECTORY } from "./filters/npm.ts"
+export { DIRECTORY } from "./typedefs.ts"
 
 /** the configuration interface for the deno esbuild plugins suite {@link denoPlugins}. */
 export interface DenoPluginsConfig extends
