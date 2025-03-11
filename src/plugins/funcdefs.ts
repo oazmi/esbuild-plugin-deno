@@ -14,7 +14,7 @@ const arrayLoggerFactory = (history: Array<any[]>): LoggerFunction => {
 export const arrayLoggerHistory: Array<any[]> = []
 
 /** an array based logging function. the log history is kept in the {@link arrayLoggerHistory} array. */
-export const arrayLogger = /*@__PURE__*/ arrayLoggerFactory(arrayLoggerHistory)
+export const arrayLogger: LoggerFunction = /*@__PURE__*/ arrayLoggerFactory(arrayLoggerHistory)
 
 const windows_local_path_correction_regex = /^[\/\\]([a-z])\:[\/\\]/i
 
