@@ -313,7 +313,6 @@ export const resolverPluginSetup = (config?: DeepPartial<ResolverPluginSetupConf
 			const { path: resolved_path, namespace: _0, pluginData: _1, ...rest_results } = await (native_results_promise
 				.catch((): Partial<OnResolveResult> => { return {} })
 			)
-			if (module_path_alias === "react") { console.log("[RESOLVING REACT:]", args) }
 			if (DEBUG.LOG && logFn) {
 				logFn(`[node-module]     resolving: ${path}` + (!resolved_path ? ""
 					: `\n>> successfully resolved to: ${resolved_path}`

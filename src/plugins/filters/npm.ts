@@ -8,21 +8,8 @@ import { DEBUG, defaultGetCwd, dom_decodeURI, ensureEndSlash, escapeLiteralStrin
 import { ensureLocalPath, logLogger } from "../funcdefs.ts"
 import { nodeModulesResolverFactory, type resolverPlugin } from "../resolvers.ts"
 import type { CommonPluginData, EsbuildPlugin, EsbuildPluginBuild, EsbuildPluginSetup, LoggerFunction, OnResolveArgs, OnResolveCallback } from "../typedefs.ts"
-import { defaultEsbuildNamespaces, PLUGIN_NAMESPACE } from "../typedefs.ts"
+import { defaultEsbuildNamespaces, DIRECTORY, PLUGIN_NAMESPACE } from "../typedefs.ts"
 
-
-/** an enum that represents special directories to use in {@link NpmPluginSetupConfig.nodeModulesDirs}. */
-export const enum DIRECTORY {
-	/** represents your js-runtime's current working directory (acquired via {@link defaultGetCwd}). */
-	CWD = 0,
-
-	/** represents the `absWorkingDir` option provided to your esbuild build config.
-	 * 
-	 * note that if esbuild's `absWorkingDir` option was not specified,
-	 * then the package scanner will fallback to  the current working director (i.e. {@link DIRECTORY.CWD}).
-	*/
-	ABS_WORKING_DIR = 1,
-}
 
 /** acceptable directory formats for specifying your "resolve directory" for scanning and traversing `"./node_modules/"` folders. */
 export type NodeModuleDirFormat = (string | URL | DIRECTORY)
