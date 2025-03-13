@@ -52,7 +52,17 @@ export interface EntryPluginSetupConfig {
 	filters: RegExp[]
 
 	/** {@inheritDoc InitialPluginData} */
-	pluginData?: Partial<InitialPluginData>
+	initialPluginData?: Partial<InitialPluginData>
+
+	/** specify the mode for forcefully inserting {@link initialPluginData} into `args.pluginData` of all entry-points:
+	 * - `false`: don't insert {@link initialPluginData} into entry-points with existing `args.pluginData`.
+	 * - `true`: equivalent to the `"overwrite"` option.
+	 * - `"overwrite"`: discard any existing `args.pluginData`, and replace it with {@link initialPluginData}.
+	 * - `"merge"`: join the old plugin-data and the initial plugin-data in the following way: `{ ...initialPluginData, ...args.pluginData }`.
+	 * 
+	 * @defaultValue `false`
+	*/
+	forceInitialPluginData: boolean | "merge" | "overwrite"
 
 	/** specify if you wish for the dependencies of the captured `"entry-points"` to be captured as well?
 	 * 
@@ -83,7 +93,8 @@ export interface EntryPluginSetupConfig {
 
 const defaultEntryPluginSetup: EntryPluginSetupConfig = {
 	filters: [/.*/],
-	pluginData: undefined,
+	initialPluginData: undefined,
+	forceInitialPluginData: false,
 	captureDependencies: true,
 	acceptNamespaces: defaultEsbuildNamespaces,
 }
@@ -95,16 +106,16 @@ const defaultEntryPluginSetup: EntryPluginSetupConfig = {
 */
 export const entryPluginSetup = (config?: Partial<EntryPluginSetupConfig>): EsbuildPluginSetup => {
 	const
-		{ filters, pluginData: _initialPluginData, captureDependencies, acceptNamespaces: _acceptNamespaces } = { ...defaultEntryPluginSetup, ...config },
+		{ filters, initialPluginData: _initialPluginData, forceInitialPluginData, acceptNamespaces: _acceptNamespaces } = { ...defaultEntryPluginSetup, ...config },
 		acceptNamespaces = new Set([..._acceptNamespaces, PLUGIN_NAMESPACE.LOADER_HTTP]),
-		captured_resolved_paths = new Set<string>(),
-		ALREADY_CAPTURED_BY_INJECTOR: unique symbol = Symbol(),
+		ALREADY_CAPTURED_BY_INITIAL: unique symbol = Symbol(),
 		ALREADY_CAPTURED_BY_RESOLVER: unique symbol = Symbol()
 
 	return async (build: EsbuildPluginBuild) => {
 		const
 			{ runtimePackage: initialRuntimePackage, ...rest_initialPluginData } = _initialPluginData ?? {},
-			initialPluginData: Partial<CommonPluginData> = rest_initialPluginData
+			initialPluginData: Partial<CommonPluginData> = rest_initialPluginData,
+			initialPluginDataExists = _initialPluginData !== undefined
 
 		build.onStart(async () => {
 			// here we resolve the path to the "deno.json" file if `initialRuntimePackage` is either a url or a local path.
@@ -113,27 +124,31 @@ export const entryPluginSetup = (config?: Partial<EntryPluginSetupConfig>): Esbu
 			initialPluginData.runtimePackage = await resolveRuntimePackage(build, initialRuntimePackage)
 		})
 
-		const entryPluginDataInjector: OnResolveCallback = async (args: OnResolveArgs) => {
+		/** this resolver simply inserts the user's {@link initialPluginData} to **all** entry-points which lack a `args.pluginData`.
+		 * but when {@link forceInitialPluginData} is `true`, the entry-points with existing pluginData will be overwritten.
+		*/
+		const initialPluginDataInjector: OnResolveCallback = async (args: OnResolveArgs) => {
+			const
+				{ path, pluginData, ...rest_args } = args,
+				{ kind, namespace } = rest_args
+
+			// if no `initialPluginData` exists, then return immediately.
+			if (!initialPluginDataExists) { return }
+			// if the entity is not an entry-point, then skip it.
+			if (kind !== "entry-point") { return }
 			// if the plugin marker already exists for this entity, then we've already processed it once,
 			// therefore we should return `undefined` so that we don't end in an infinite onResolve recursion.
 			// this way, the next resolver registered to esbuild (or its native resolver) will take up the task for resolving this entity.
-			if ((args.pluginData ?? {})[ALREADY_CAPTURED_BY_INJECTOR]) { return }
-			// moreover, if the entity explicitly does not want to use the initial plugin-data injection for itself, then we'll not do so.
-			// as a consequence, all of this entity's dependency will also lose the ability to acquire the initial plugin-data,
-			// since their parent `args.importer` will not be registered onto `captured_resolved_paths` (even if they don't have `useInitialPluginData` set to `false`).
-			if (args.pluginData?.resolverConfig?.useInitialPluginData === false) { return }
-			// NOTE: for some reason, not specifying the `namespace` in the `build.onResolve` function, or setting it to just `""` will capture ALL namespaces!
-			//   which is why it is absolutely essential to use the validation below,
-			//   otherwise these resolvers will even capture the `PLUGIN_NAMESPACE.RESOLVER_PIPELINE` namespace, resulting in an infinite loop.
-			if (!acceptNamespaces.has(args.namespace)) { return }
-			const
-				{ path, pluginData = {}, ...rest_args } = args,
-				merged_plugin_data = { ...initialPluginData, ...pluginData, [ALREADY_CAPTURED_BY_INJECTOR]: true },
-				{ kind, importer } = rest_args
+			if ((pluginData ?? {})[ALREADY_CAPTURED_BY_INITIAL]) { return }
+			// since all namespaces are captured by the `onResolve` options,
+			// we skip processing any resource with a namespace not in the `acceptNamespaces` list.
+			if (!acceptNamespaces.has(namespace)) { return }
+			// if there is an existing non-empty plugin data and `forceInitialPluginData` is not enabled (default), then skip this entity
+			if (pluginData !== undefined && !forceInitialPluginData) { return }
 
-			// if the `kind` is not an entrypoint, nor is the `importer` one of the files that has been previously captured for initial-data injection,
-			// then skip, since this plugin is intended to insert plugin data only to entry points, and their dependencies.
-			if (kind !== "entry-point" && !captured_resolved_paths.has(normalizePath(importer))) { return }
+			const merged_plugin_data = forceInitialPluginData === "merge"
+				? { ...initialPluginData, ...pluginData, [ALREADY_CAPTURED_BY_INITIAL]: true }
+				: { ...initialPluginData, [ALREADY_CAPTURED_BY_INITIAL]: true }
 
 			// below, we implicitly (hope to) call the `absolutePathResolver`, so long as no other "capture-all" plugin exists before this plugin.
 			const resolved_result = await build.resolve(path, { ...rest_args, pluginData: merged_plugin_data })
@@ -141,15 +156,10 @@ export const entryPluginSetup = (config?: Partial<EntryPluginSetupConfig>): Esbu
 			// i.e. `resolved_result.pluginData === undefined` if esbuild's native resolver took care of the path-resolution.
 			// in such cases, we would like to re-insert our `merged_plugin_data` again, before returning the result
 			if (resolved_result.pluginData === undefined) { resolved_result.pluginData = merged_plugin_data }
-			// if we intend to capture the dependencies of this entity for `pluginData` injection operation,
-			// then we must add this entity's path to `captured_resolved_paths`, so that entities with the same `args.importer`
-			// can be identified as dependencies of this entity, and thereby be injected.
-			if (captureDependencies) { captured_resolved_paths.add(normalizePath(resolved_result.path)) }
-			// NOTICE: unlike `absolutePathResolver`, we intentionally do not remove the `ALREADY_CAPTURED_BY_INJECTOR` marker from the result,
-			//   because any plugin-data preserving loader-function or resolver-function will also keep our injected `pluginData` intact,
-			//   hence there would be no need to re-inject the plugin-data (since it might also break stuff, like if we intentionally omit a plugin data in a loader).
-			//   however, for non-plugin-data preserving plugins (such as esbuild's native loader and resolvers), they would strip away our marker themselves,
-			//   leading us to re-inject the initial plugin-data upon its re-discovery (or the discovery of one of its dependencies).
+
+			// NOTICE: we intentionally do not remove the `ALREADY_CAPTURED_BY_INITIAL` marker from the result's plugin-data.
+			//   even though it is practically impossible for this resource to somehow end up back inside this resolver,
+			//   we still keep it around for safety measures.
 			return resolved_result
 		}
 
@@ -175,7 +185,7 @@ export const entryPluginSetup = (config?: Partial<EntryPluginSetupConfig>): Esbu
 		}
 
 		for (const filter of filters) {
-			build.onResolve({ filter }, entryPluginDataInjector)
+			build.onResolve({ filter }, initialPluginDataInjector)
 			build.onResolve({ filter }, absolutePathResolver)
 		}
 	}
