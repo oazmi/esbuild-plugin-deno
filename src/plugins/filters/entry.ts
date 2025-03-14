@@ -242,7 +242,7 @@ export const entryPluginSetup = (config?: Partial<EntryPluginSetupConfig>): Esbu
 				resolved_result = await build.resolve(path, { ...rest_args, pluginData: prior_pluginData }),
 				resolved_pluginData = {
 					// if esbuild's native resolver had resolved the `path`, then the `prior_pluginData` WILL be lost, and we will need to re-insert it.
-					...(resolved_result.pluginData ?? prior_pluginData),
+					...((resolved_result.pluginData as (CommonPluginData | undefined)) ?? prior_pluginData),
 
 					// we must also disable the `ALREADY_CAPTURED_BY_INHERITOR` marker, since the `resolved_result` is ready to go to the loader,
 					// however, we don't want the dependencies (which will inherit the `pluginData`) to have their capture marker set to `true`,
@@ -250,11 +250,14 @@ export const entryPluginSetup = (config?: Partial<EntryPluginSetupConfig>): Esbu
 					[ALREADY_CAPTURED_BY_INHERITOR]: false,
 				}
 
-			// finally, we save the resolved plugin data to the global record, so that its dependencies can inherit it when needed.
+			// finally (if the `useInheritPluginData` option is not explicitly disabled),
+			// we save the resolved plugin data to the global record, so that its dependencies can inherit it when needed.
 			// TODO: consider the scenario where the same `path` is processed,
 			//   leading up to the same `resolved_result.path` that already exists in `importerPluginDataRecord`.
 			//   should we still update the record with a potentially new and different `resolved_pluginData`?, or should we abstain from that?
-			importerPluginDataRecord.set(pathToPosixPath(resolved_result.path), resolved_pluginData)
+			if (resolved_pluginData.resolverConfig?.useInheritPluginData !== false) {
+				importerPluginDataRecord.set(pathToPosixPath(resolved_result.path), resolved_pluginData)
+			}
 			resolved_result.pluginData = resolved_pluginData
 			return resolved_result
 		}
@@ -318,7 +321,7 @@ const resolveRuntimePackage = async (build: EsbuildPluginBuild, initialRuntimePa
 				? resolveAsUrl((await build.resolve(initialRuntimePackage, {
 					kind: "entry-point",
 					namespace: PLUGIN_NAMESPACE.RESOLVER_PIPELINE,
-					pluginData: { resolverConfig: { useInitialPluginData: false, useNodeModules: false } } satisfies CommonPluginData,
+					pluginData: { resolverConfig: { useNodeModules: false } } satisfies CommonPluginData,
 				})).path)
 				: initialRuntimePackage
 	const denoPackage = !denoPackageJson_exists ? undefined

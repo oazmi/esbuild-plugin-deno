@@ -44,7 +44,7 @@ Deno.test("test http plugin", async () => {
 		plugins: [
 			npmPlugin({ autoInstall: true, log: true, }),
 			entryPlugin({
-				pluginData: {
+				initialPluginData: {
 					runtimePackage: "./deno.json",
 					importMap: { "https://2d-lib": "https://jsr.io/@oazmi/kitchensink/0.9.2/src/array2d.ts" },
 					resolverConfig: { useNodeModules: false },
