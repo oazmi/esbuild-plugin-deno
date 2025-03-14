@@ -11,7 +11,7 @@ import { resolverPlugin } from "./resolvers.js";
 import { defaultEsbuildNamespaces, DIRECTORY } from "./typedefs.js";
 export { DIRECTORY } from "./typedefs.js";
 const defaultDenoPluginsConfig = {
-    pluginData: {},
+    initialPluginData: undefined,
     log: false,
     logFor: ["npm", "resolver"],
     autoInstall: true,
@@ -32,9 +32,9 @@ const defaultDenoPluginsConfig = {
  * - {@link resolverPlugin}: a namespaced plugin that provides the backbone pipeline for resolving the paths of all of the plugins above.
 */
 export const denoPlugins = (config) => {
-    const { acceptNamespaces, autoInstall, getCwd, globalImportMap, log, logFor, nodeModulesDirs, pluginData } = { ...defaultDenoPluginsConfig, ...config }, resolvePath = resolvePathFactory(getCwd, isAbsolutePath);
+    const { acceptNamespaces, autoInstall, getCwd, globalImportMap, log, logFor, nodeModulesDirs, initialPluginData } = { ...defaultDenoPluginsConfig, ...config }, resolvePath = resolvePathFactory(getCwd, isAbsolutePath);
     return [
-        entryPlugin({ pluginData, acceptNamespaces }),
+        entryPlugin({ initialPluginData, acceptNamespaces }),
         httpPlugin({ acceptNamespaces, log: logFor.includes("http") ? log : false }),
         jsrPlugin({ acceptNamespaces }),
         npmPlugin({ acceptNamespaces, autoInstall, log: logFor.includes("npm") ? log : false, nodeModulesDirs }),

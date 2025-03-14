@@ -83,7 +83,7 @@ export const npmPluginSetup = (config = {}) => {
                 ...rest_args,
                 resolveDir: valid_resolve_dir,
                 namespace: PLUGIN_NAMESPACE.RESOLVER_PIPELINE,
-                pluginData: { ...restPluginData, resolverConfig: { useNodeModules: true } },
+                pluginData: { ...restPluginData, resolverConfig: { useRuntimePackage: false, useImportMap: false, useNodeModules: true } },
             });
             const resolved_path = abs_result.path;
             if (DEBUG.LOG && logFn) {

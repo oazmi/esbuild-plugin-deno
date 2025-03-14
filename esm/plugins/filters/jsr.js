@@ -49,9 +49,10 @@ export const jsrPluginSetup = (config = {}) => {
                 pluginData: {
                     ...restPluginData,
                     runtimePackage,
-                    // since we don't want the the entry-plugin's initial plugin-data injection to intervene any more,
-                    // we'll set the `useInitialPluginData` plugin-data option to `false`.
-                    resolverConfig: { ...resolverConfig, useInitialPluginData: false },
+                    // we don't want node-resolution occurring inside of the jsr-package.
+                    // however, any dependency in the jsr-package that uses the "npm:" specifier will be resolved correctly via the npm-plugin,
+                    // and inside of that npm-package, the node-resolution will be re-enabled.
+                    resolverConfig: { ...resolverConfig, useNodeModules: false },
                 },
             });
         };

@@ -1916,38 +1916,64 @@ var DIRECTORY = /* @__PURE__ */ ((DIRECTORY2) => {
 // src/plugins/filters/entry.ts
 var defaultEntryPluginSetup = {
   filters: [/.*/],
-  pluginData: void 0,
-  captureDependencies: true,
+  initialPluginData: void 0,
+  forceInitialPluginData: false,
+  enableInheritPluginData: true,
   acceptNamespaces: defaultEsbuildNamespaces
 };
 var entryPluginSetup = (config) => {
-  const { filters, pluginData: _initialPluginData, captureDependencies, acceptNamespaces: _acceptNamespaces } = { ...defaultEntryPluginSetup, ...config }, acceptNamespaces = /* @__PURE__ */ new Set([..._acceptNamespaces, "oazmi-loader-http" /* LOADER_HTTP */]), captured_resolved_paths = /* @__PURE__ */ new Set(), ALREADY_CAPTURED_BY_INJECTOR = Symbol(), ALREADY_CAPTURED_BY_RESOLVER = Symbol();
+  const { filters, initialPluginData: _initialPluginData, forceInitialPluginData, enableInheritPluginData, acceptNamespaces: _acceptNamespaces } = { ...defaultEntryPluginSetup, ...config }, acceptNamespaces = /* @__PURE__ */ new Set([..._acceptNamespaces, "oazmi-loader-http" /* LOADER_HTTP */]), importerPluginDataRecord = /* @__PURE__ */ new Map(), importerPluginDataRecord_get = bind_map_get(importerPluginDataRecord), importerPluginDataRecord_set = bind_map_set(importerPluginDataRecord), importerPluginDataRecord_has = bind_map_has(importerPluginDataRecord), ALREADY_CAPTURED_BY_INITIAL = Symbol(0 /* MINIFY */ ? "" : "[oazmi-entry]: already captured by initial-data-injector"), ALREADY_CAPTURED_BY_INHERITOR = Symbol(0 /* MINIFY */ ? "" : "[oazmi-entry]: already captured by inherit-data-injector"), ALREADY_CAPTURED_BY_RESOLVER = Symbol(0 /* MINIFY */ ? "" : "[oazmi-entry]: already captured by absolute-path-resolver");
   return async (build) => {
-    const { runtimePackage: initialRuntimePackage, ...rest_initialPluginData } = _initialPluginData ?? {}, initialPluginData = rest_initialPluginData;
+    const { runtimePackage: initialRuntimePackage, ...rest_initialPluginData } = _initialPluginData ?? {}, initialPluginData = rest_initialPluginData, initialPluginDataExists = _initialPluginData !== void 0;
     build.onStart(async () => {
       initialPluginData.runtimePackage = await resolveRuntimePackage(build, initialRuntimePackage);
     });
-    const entryPluginDataInjector = async (args) => {
-      if ((args.pluginData ?? {})[ALREADY_CAPTURED_BY_INJECTOR]) {
+    const initialPluginDataInjector = async (args) => {
+      const { path, pluginData, ...rest_args } = args, { kind, namespace } = rest_args;
+      if (kind !== "entry-point") {
         return;
       }
-      if (args.pluginData?.resolverConfig?.useInitialPluginData === false) {
+      if ((pluginData ?? {})[ALREADY_CAPTURED_BY_INITIAL]) {
         return;
       }
-      if (!acceptNamespaces.has(args.namespace)) {
+      if (!acceptNamespaces.has(namespace)) {
         return;
       }
-      const { path, pluginData = {}, ...rest_args } = args, merged_plugin_data = { ...initialPluginData, ...pluginData, [ALREADY_CAPTURED_BY_INJECTOR]: true }, { kind, importer } = rest_args;
-      if (kind !== "entry-point" && !captured_resolved_paths.has(normalizePath(importer))) {
+      if (pluginData !== void 0 && !forceInitialPluginData) {
         return;
       }
-      const resolved_result = await build.resolve(path, { ...rest_args, pluginData: merged_plugin_data });
-      if (resolved_result.pluginData === void 0) {
-        resolved_result.pluginData = merged_plugin_data;
+      const merged_pluginData = forceInitialPluginData === "merge" ? { ...initialPluginData, ...pluginData, [ALREADY_CAPTURED_BY_INITIAL]: true } : { ...initialPluginData, [ALREADY_CAPTURED_BY_INITIAL]: true };
+      const resolved_result = await build.resolve(path, { ...rest_args, pluginData: merged_pluginData });
+      resolved_result.pluginData ??= merged_pluginData;
+      return resolved_result;
+    };
+    const inheritPluginDataInjector = async (args) => {
+      const { path, pluginData, ...rest_args } = args, { importer = "", namespace } = rest_args;
+      if ((pluginData ?? {})[ALREADY_CAPTURED_BY_INHERITOR]) {
+        return;
       }
-      if (captureDependencies) {
-        captured_resolved_paths.add(normalizePath(resolved_result.path));
+      if (!acceptNamespaces.has(namespace)) {
+        return;
       }
+      if ((pluginData === void 0 || pluginData === null) && importer !== "") {
+        const parentPluginData = importerPluginDataRecord_get(pathToPosixPath(importer));
+        return parentPluginData ? inheritPluginDataInjector({ ...rest_args, path, pluginData: parentPluginData }) : void 0;
+      }
+      const prior_pluginData = { ...pluginData, [ALREADY_CAPTURED_BY_INHERITOR]: true }, resolved_result = await build.resolve(path, { ...rest_args, pluginData: prior_pluginData }), resolved_pluginData = {
+        // if esbuild's native resolver had resolved the `path`, then the `prior_pluginData` WILL be lost, and we will need to re-insert it.
+        ...resolved_result.pluginData ?? prior_pluginData,
+        // we must also disable the `ALREADY_CAPTURED_BY_INHERITOR` marker, since the `resolved_result` is ready to go to the loader,
+        // however, we don't want the dependencies (which will inherit the `pluginData`) to have their capture marker set to `true`,
+        // since they haven't actually been captured by this resolver yet.
+        [ALREADY_CAPTURED_BY_INHERITOR]: false
+      };
+      if (resolved_pluginData.resolverConfig?.useInheritPluginData !== false) {
+        const resolved_path = pathToPosixPath(resolved_result.path);
+        if (!importerPluginDataRecord_has(resolved_path)) {
+          importerPluginDataRecord_set(pathToPosixPath(resolved_result.path), resolved_pluginData);
+        }
+      }
+      resolved_result.pluginData = resolved_pluginData;
       return resolved_result;
     };
     const absolutePathResolver = async (args) => {
@@ -1959,14 +1985,23 @@ var entryPluginSetup = (config) => {
       }
       const { path, namespace: original_ns, ...rest_args } = args, abs_result = await build.resolve(path, { ...rest_args, namespace: "oazmi-resolver-pipeline" /* RESOLVER_PIPELINE */ });
       const { path: abs_path, pluginData: abs_pluginData = {}, namespace: _0 } = abs_result, next_pluginData = { ...abs_pluginData, [ALREADY_CAPTURED_BY_RESOLVER]: true }, resolved_result = await build.resolve(abs_path, { ...rest_args, namespace: original_ns, pluginData: next_pluginData });
-      if (resolved_result.pluginData === void 0) {
-        resolved_result.pluginData = next_pluginData;
-      }
-      resolved_result.pluginData = { ...resolved_result.pluginData, [ALREADY_CAPTURED_BY_RESOLVER]: false };
+      resolved_result.pluginData = {
+        // if esbuild's native resolver had resolved the `path`, then the `next_pluginData` WILL be lost, and we will need to re-insert it.
+        ...resolved_result.pluginData ?? next_pluginData,
+        // we must also disable the `ALREADY_CAPTURED_BY_RESOLVER` marker, since the `resolved_result` is ready to go to the loader,
+        // however, we don't want the dependencies (which will inherit the `pluginData`) to have their capture marker set to `true`,
+        // since they haven't actually been captured by this resolver yet.
+        [ALREADY_CAPTURED_BY_RESOLVER]: false
+      };
       return resolved_result;
     };
     for (const filter of filters) {
-      build.onResolve({ filter }, entryPluginDataInjector);
+      if (initialPluginDataExists) {
+        build.onResolve({ filter }, initialPluginDataInjector);
+      }
+      if (enableInheritPluginData) {
+        build.onResolve({ filter }, inheritPluginDataInjector);
+      }
       build.onResolve({ filter }, absolutePathResolver);
     }
   };
@@ -1981,7 +2016,7 @@ var resolveRuntimePackage = async (build, initialRuntimePackage) => {
   const denoPackageJson_exists = initialRuntimePackage !== void 0, denoPackageJson_isRuntimePackage = initialRuntimePackage instanceof RuntimePackage, denoPackageJson_url = !denoPackageJson_exists || denoPackageJson_isRuntimePackage ? void 0 : isString(initialRuntimePackage) ? resolveAsUrl((await build.resolve(initialRuntimePackage, {
     kind: "entry-point",
     namespace: "oazmi-resolver-pipeline" /* RESOLVER_PIPELINE */,
-    pluginData: { resolverConfig: { useInitialPluginData: false, useNodeModules: false } }
+    pluginData: { resolverConfig: { useNodeModules: false } }
   })).path) : initialRuntimePackage;
   const denoPackage = !denoPackageJson_exists ? void 0 : denoPackageJson_isRuntimePackage ? initialRuntimePackage : await DenoPackage.fromUrl(denoPackageJson_url);
   return denoPackage;
@@ -2219,9 +2254,10 @@ var jsrPluginSetup = (config = {}) => {
         pluginData: {
           ...restPluginData,
           runtimePackage,
-          // since we don't want the the entry-plugin's initial plugin-data injection to intervene any more,
-          // we'll set the `useInitialPluginData` plugin-data option to `false`.
-          resolverConfig: { ...resolverConfig, useInitialPluginData: false }
+          // we don't want node-resolution occurring inside of the jsr-package.
+          // however, any dependency in the jsr-package that uses the "npm:" specifier will be resolved correctly via the npm-plugin,
+          // and inside of that npm-package, the node-resolution will be re-enabled.
+          resolverConfig: { ...resolverConfig, useNodeModules: false }
         }
       });
     };
@@ -2466,7 +2502,7 @@ var npmPluginSetup = (config = {}) => {
         ...rest_args,
         resolveDir: valid_resolve_dir,
         namespace: "oazmi-resolver-pipeline" /* RESOLVER_PIPELINE */,
-        pluginData: { ...restPluginData, resolverConfig: { useNodeModules: true } }
+        pluginData: { ...restPluginData, resolverConfig: { useRuntimePackage: false, useImportMap: false, useNodeModules: true } }
       });
       const resolved_path = abs_result.path;
       if (1 /* LOG */ && logFn) {
@@ -2595,7 +2631,7 @@ var installNpmPackageDynamic = async (package_name) => {
 
 // src/plugins/mod.ts
 var defaultDenoPluginsConfig = {
-  pluginData: {},
+  initialPluginData: void 0,
   log: false,
   logFor: ["npm", "resolver"],
   autoInstall: true,
@@ -2605,9 +2641,9 @@ var defaultDenoPluginsConfig = {
   acceptNamespaces: defaultEsbuildNamespaces
 };
 var denoPlugins = (config) => {
-  const { acceptNamespaces, autoInstall, getCwd, globalImportMap, log, logFor, nodeModulesDirs, pluginData } = { ...defaultDenoPluginsConfig, ...config }, resolvePath = resolvePathFactory(getCwd, isAbsolutePath2);
+  const { acceptNamespaces, autoInstall, getCwd, globalImportMap, log, logFor, nodeModulesDirs, initialPluginData } = { ...defaultDenoPluginsConfig, ...config }, resolvePath = resolvePathFactory(getCwd, isAbsolutePath2);
   return [
-    entryPlugin({ pluginData, acceptNamespaces }),
+    entryPlugin({ initialPluginData, acceptNamespaces }),
     httpPlugin({ acceptNamespaces, log: logFor.includes("http") ? log : false }),
     jsrPlugin({ acceptNamespaces }),
     npmPlugin({ acceptNamespaces, autoInstall, log: logFor.includes("npm") ? log : false, nodeModulesDirs }),

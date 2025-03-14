@@ -1,7 +1,7 @@
 import { getRuntimeCwd, identifyCurrentRuntime } from "@oazmi/kitchensink/crossenv";
 import { ensureEndSlash, getUriScheme, pathToPosixPath, resolvePathFactory } from "@oazmi/kitchensink/pathman";
 export { dom_decodeURI, json_parse, json_stringify, object_assign, object_entries, object_fromEntries, object_keys, object_values, promise_outside, promise_resolve } from "@oazmi/kitchensink/alias";
-export { bind_array_push } from "@oazmi/kitchensink/binder";
+export { bind_array_push, bind_map_get, bind_map_has, bind_map_set } from "@oazmi/kitchensink/binder";
 export { InvertibleMap, invertMap } from "@oazmi/kitchensink/collections";
 export { execShellCommand, identifyCurrentRuntime, RUNTIME } from "@oazmi/kitchensink/crossenv";
 export { memorize } from "@oazmi/kitchensink/lambda";
@@ -17,7 +17,7 @@ export var DEBUG;
     DEBUG[DEBUG["ASSERT"] = 1] = "ASSERT";
     DEBUG[DEBUG["ERROR"] = 0] = "ERROR";
     DEBUG[DEBUG["PRODUCTION"] = 1] = "PRODUCTION";
-    DEBUG[DEBUG["MINIFY"] = 1] = "MINIFY";
+    DEBUG[DEBUG["MINIFY"] = 0] = "MINIFY";
 })(DEBUG || (DEBUG = {}));
 // below is a custom path segment's absoluteness test function that will identify all `UriScheme` segments that are not "relative" as absolute paths,
 export const isAbsolutePath = (segment) => {

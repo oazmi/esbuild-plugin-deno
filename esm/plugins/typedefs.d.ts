@@ -40,14 +40,24 @@ export interface CommonPluginData {
     runtimePackage?: RuntimePackage<any>;
     /** you may control which resolvers to disable through the use of this property. */
     resolverConfig?: {
-        /** enable or disable the initial `pluginData` injection (performed by the {@link entryPlugin}) for the current entity.
-         * setting this to `false` is needed when switching the scope to a new package,
-         * so that your current initial runtime-package and import-maps do not interfere/overwite the intended plugin data.
-         * (for instance, this will be needed when moving to a self-contained remote jsr-package scope, away from your filesystem).
+        /** enable or disable missing `pluginData` inheritance (performed by the {@link entryPlugin}) for the current entity.
+         *
+         * setting this to `false` will make the inheritance injector **not** record this entity's `pluginData`.
+         * thus, in effect, all of the current entity's dependencies will not be able to inherit this entity's `pluginData`,
+         * even when they (the dependencies) are lacking one (i.e. `dependency_args.pluginData === undefined`).
+         *
+         * this _could_ be useful when switching the scope to a new, isolated, package.
+         * but you could also strip away the plugin data in the current entity so that its dependencies don't pick up anything.
+         * so, the only scenario where this could be useful is when:
+         * - you've got a custom loader, which requires some `pluginData` specific to the current entity.
+         * - but your loader also returns `puginData: undefined`, making its dependencies acquire `dependency_args.puginData === undefined`.
+         * - however, you **don't** want `dependency_args.puginData` to now inherit from `args.pluginData` (the importer's plugin data).
+         * - thus, to solve this issue, you make sure that the importer's `args.pluginData` is never recorded by the inheritance resolver.
+         *   so, you achieve that by setting `args.pluginData.resolverConfig.useInheritPluginData` to `false`.
          *
          * @defaultValue `true` (enabled)
         */
-        useInitialPluginData?: boolean;
+        useInheritPluginData?: boolean;
         /** enable or disable import-map resolution for the current entity.
          *
          * @defaultValue `true` (enabled)
