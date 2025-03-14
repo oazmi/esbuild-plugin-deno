@@ -43,7 +43,8 @@
       and then create a virtual filesystem to resolve requested resources from the package.
       doing this will definitely require us to create a `class NodePackage extends RuntimePackage { ... }`,
       since we will need to resolve the "package.json" dependencies ourselves.
-	  for the tarball decoding, don't forget to use the [tar codec](https://github.com/omar-azmi/fbicodec_ts/blob/main/examples/tar_parser.ts) from your fbicodec library.
+      for the tarball decoding, don't forget to use the [tar codec](https://github.com/omar-azmi/fbicodec_ts/blob/main/examples/tar_parser.ts) from your fbicodec library.
+- [ ] add new options to `autoInstall` that prompts the user (via `alert()`) if they wish to install the missing npm-package (and also let them know the installation directory).
 
 ## issues list
 
@@ -60,29 +61,60 @@
 
 - [ ] npm-package download plugin (it will probably need access to the filesystem, for esbuild to discover it natively)
 
-## pre-version `0.3.0` todo list
+## pre-version `0.3.2` todo list
 
-- [x] optional global import map config at top level of the "all-in-one" plugin config
 - [ ] a function to detect the current runtime, so that it can be later used for predicting the base-project-level scope's `runtimePackage: RuntimePackage` (i.e. is it a `package.json(c)` or `deno.json(c)` or `jsr.json(c)`).
   - consider creating a function `fetchScan: (urls: (URL | string)[]) => URL`,
     which will sequentially try fetching the provided `urls` using the `"HEAD"` method, and follow any redirects,
     then return the first (fully-followed) url that results in a valid http response.
   - use the said function for validating the existence of multiple runtime-package json(c) files, sequentially,
     and acquire the first one that exists to use as the url to the `runtimePackage`.
+- [ ] in the entry-plugin, consider merging the initial-plugin-data resolver (`initialPluginDataInjector`) into the inherit-plugin-data resolver (`inheritPluginDataInjector`),
+      if it provides significant speed boost.
+      doing so might undo the 60% slowdown introduced in version `0.3.0` (where inherit-plugin-data was added).
+
+## pre-version `0.3.1` todo list
+
+- [ ] fix critical filesystem vulnerability when performing `autoInstall`!
+      suppose your script encounters two "npm:" libraries that need to be auto installed.
+      now, two terminal processes will be invoked to perform the installation, and so both terminals may compete over who gets to write first.
+      it will be even worse when the _same_ npm-package is being installed simultaneously in multiple terminals.
+      God knows what your filesystem would be going through during this moment, when each terminal will be trying to write over the same set of files.
+      the solution would be to do one of the following two options:
+  - create only a single long-lived terminal, though which all cli-installations commands should go through.
+    but then, to change the `cwd` directory, of the terminal, we will have to run the `cd "/abs/path/to/cwd/"` command on it everytime before processing the user's cli-command.
+  - create a global queue for executing cli-commands, one by one, each in a new terminal.
+    however, there shall be only a single terminal running at a given time.
+
+## (2025-04-13) pre-version `0.3.0` todo list
+
+- [x] optional global import map config at top level of the "all-in-one" plugin config
 - [ ] ~~rename old cached fetch to `memCachedFetch`~~
   > will not implement right now (maybe in the future).
 - [ ] ~~create a filesystem based cached fetch named `fsCachedFetch`~~
   > will not implement right now (maybe in the future).
 - [x] the jsr plugin setup should accept `runtimePackage: DenoPackage | URL | string` configuration option for specifying the current scope/project's `deno.json` file (if there's one).
   > instead of this, in version `0.1.4 (2025-02-22)` I had implemented an "initial plugin-data" plugin that injected the user's current project's `DenoPackage` into `pluginData.runtimePackage`, for all entry-points, and their dependencies.
-- [ ] in the entry plugin:
-  - change the `entryPluginDataInjector` resolver's operation to **only** apply its initial-plugin-data when `args.kind === "entry-points"` and when `args.pluginData === undefined`.
-  - add a new resolver (`pluginDataInheritor`) between the `entryPluginDataInjector` and the `absolutePathResolver`.
+- [x] in the entry plugin:
+  - change the `entryPluginDataInjector` resolver's operation to **only** apply its initial-plugin-data when `args.kind === "entry-points"` and when `args.pluginData === undefined`, and rename the resolver to `initialPluginDataInjector`.
+  - add a new resolver (`inheritPluginDataInjector`) between the `initialPluginDataInjector` and the `absolutePathResolver`.
     this new resolver should provide plugin-data-inheritance from the `args.importer` if `args.pluginData === undefined`.
     once it has implicitly called the `absolutePathResolver` and acquired the resolved `result`,
-    the function should store `data = result.pluginData` in a global `importer_plugin_data_map = Map<normalized(result.path), data>`,
+    the function should store `data = result.pluginData` in a global `importerPluginDataRecord = Map<normalized(result.path), data>`,
     so that it its dependencies will be able to inherit the same plugin data of its parent resource,
     if they've been stripped away from their plugin data due to a non-preserving plugin or esbuild's own native loader.
+  > while the inherit-plugin-data resolver works wonders and simplifies logic,
+  > I saw an increase in bundling time of `https://github.com/goatplatform/todo` when using this plugin as a drop-in replacement for `https://github.com/goatplatform/goatdb`'s internal bundler.
+  > previously my plugin took around 10s for bundling, but now it takes 16s.
+  > I am only assuming that the newly added plugin-data inhertior resolver might be the culprit.
+  > to find out the actual reason, I should attach a debugger to take note of the "hot-spots" causing the slowdown.
+  >
+  > edit: now it's working faster than before all of a sudden (takes 6.5s now when logs are disabled).
+  > I should really benchmark in a more consistent environment.
+- [x] ensure that `watch-mode` compatible results are returned by the resolvers and loaders.
+  > since everything besides the http files are loaded by esbuild's native loader,
+  > the `watchFile`/`watchDir` operations are taken care of by esbuild itself.
+  > moreover, I am intentionally leaving out the loaded `file://` uris from being watched (when `HttpPluginSetupConfig.convertFileUriToLocalPath` is not enabled).
 
 ## (2025-03-10) pre-version `0.2.2` todo list
 

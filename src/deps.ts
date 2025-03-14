@@ -3,7 +3,7 @@ import { ensureEndSlash, getUriScheme, pathToPosixPath, resolvePathFactory } fro
 
 
 export { dom_decodeURI, json_parse, json_stringify, object_assign, object_entries, object_fromEntries, object_keys, object_values, promise_outside, promise_resolve } from "@oazmi/kitchensink/alias"
-export { bind_array_push } from "@oazmi/kitchensink/binder"
+export { bind_array_push, bind_map_get, bind_map_has, bind_map_set } from "@oazmi/kitchensink/binder"
 export { InvertibleMap, invertMap } from "@oazmi/kitchensink/collections"
 export { execShellCommand, identifyCurrentRuntime, RUNTIME } from "@oazmi/kitchensink/crossenv"
 export { memorize } from "@oazmi/kitchensink/lambda"
@@ -21,7 +21,7 @@ export const enum DEBUG {
 	ASSERT = 1,
 	ERROR = 0,
 	PRODUCTION = 1,
-	MINIFY = 1,
+	MINIFY = 0,
 }
 
 // below is a custom path segment's absoluteness test function that will identify all `UriScheme` segments that are not "relative" as absolute paths,
