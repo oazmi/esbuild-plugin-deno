@@ -65,7 +65,7 @@
  * @module
 */
 
-import { DEBUG, isString, pathToPosixPath, resolveAsUrl } from "../../deps.ts"
+import { bind_map_get, bind_map_has, bind_map_set, DEBUG, isString, pathToPosixPath, resolveAsUrl } from "../../deps.ts"
 import { RuntimePackage } from "../../packageman/base.ts"
 import { DenoPackage } from "../../packageman/deno.ts"
 import type { nodeModulesResolverFactory, resolverPlugin } from "../resolvers.ts"
@@ -158,6 +158,9 @@ export const entryPluginSetup = (config?: Partial<EntryPluginSetupConfig>): Esbu
 		// so that dependency resources which have been stripped out of their `pluginData` can inherit it back from their `importer`'s saved `pluginData`.
 		// the keys are resolved paths (posix enforced), and the values are the plugin-data of the resolved resource.
 		importerPluginDataRecord = new Map<string, CommonPluginData>(),
+		importerPluginDataRecord_get = bind_map_get(importerPluginDataRecord),
+		importerPluginDataRecord_set = bind_map_set(importerPluginDataRecord),
+		importerPluginDataRecord_has = bind_map_has(importerPluginDataRecord),
 		ALREADY_CAPTURED_BY_INITIAL: unique symbol = Symbol(DEBUG.MINIFY ? "" : "[oazmi-entry]: already captured by initial-data-injector"),
 		ALREADY_CAPTURED_BY_INHERITOR: unique symbol = Symbol(DEBUG.MINIFY ? "" : "[oazmi-entry]: already captured by inherit-data-injector"),
 		ALREADY_CAPTURED_BY_RESOLVER: unique symbol = Symbol(DEBUG.MINIFY ? "" : "[oazmi-entry]: already captured by absolute-path-resolver")
@@ -224,13 +227,13 @@ export const entryPluginSetup = (config?: Partial<EntryPluginSetupConfig>): Esbu
 		const inheritPluginDataInjector: OnResolveCallback = async (args: OnResolveArgs) => {
 			const
 				{ path, pluginData, ...rest_args } = args,
-				{ importer, namespace } = rest_args
+				{ importer = "", namespace } = rest_args
 			if ((pluginData ?? {})[ALREADY_CAPTURED_BY_INHERITOR]) { return }
 			if (!acceptNamespaces.has(namespace)) { return }
 
-			// if `pluginData` is missing, then inherit it from the parent `importer`, and retry (via recursion).
-			if (pluginData === undefined) {
-				const parentPluginData = importerPluginDataRecord.get(pathToPosixPath(importer))
+			// if `pluginData` is missing (and an `importer` exists), then inherit it from the parent `importer`, and retry (via recursion).
+			if ((pluginData === undefined || pluginData === null) && importer !== "") {
+				const parentPluginData = importerPluginDataRecord_get(pathToPosixPath(importer))
 				return parentPluginData
 					? inheritPluginDataInjector({ ...rest_args, path, pluginData: parentPluginData })
 					: undefined
@@ -255,8 +258,12 @@ export const entryPluginSetup = (config?: Partial<EntryPluginSetupConfig>): Esbu
 			// TODO: consider the scenario where the same `path` is processed,
 			//   leading up to the same `resolved_result.path` that already exists in `importerPluginDataRecord`.
 			//   should we still update the record with a potentially new and different `resolved_pluginData`?, or should we abstain from that?
+			//   currently, I only accept the first plugin-data, and no more re-writes.
 			if (resolved_pluginData.resolverConfig?.useInheritPluginData !== false) {
-				importerPluginDataRecord.set(pathToPosixPath(resolved_result.path), resolved_pluginData)
+				const resolved_path = pathToPosixPath(resolved_result.path)
+				if (!importerPluginDataRecord_has(resolved_path)) {
+					importerPluginDataRecord_set(pathToPosixPath(resolved_result.path), resolved_pluginData)
+				}
 			}
 			resolved_result.pluginData = resolved_pluginData
 			return resolved_result
