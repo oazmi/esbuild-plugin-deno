@@ -5,7 +5,7 @@
 */
 
 import { DEBUG, defaultGetCwd, dom_decodeURI, ensureEndSlash, escapeLiteralStringForRegex, execShellCommand, getUriScheme, identifyCurrentRuntime, isObject, isString, joinPaths, normalizePath, parsePackageUrl, pathToPosixPath, replacePrefix, RUNTIME, type DeepPartial } from "../../deps.ts"
-import { ensureLocalPath, logLogger } from "../funcdefs.ts"
+import { ensureLocalPath, logLogger, syncTaskQueueFactory } from "../funcdefs.ts"
 import { nodeModulesResolverFactory, type resolverPlugin } from "../resolvers.ts"
 import type { CommonPluginData, EsbuildPlugin, EsbuildPluginBuild, EsbuildPluginSetup, LoggerFunction, OnResolveArgs, OnResolveCallback } from "../typedefs.ts"
 import { defaultEsbuildNamespaces, DIRECTORY, PLUGIN_NAMESPACE } from "../typedefs.ts"
@@ -50,6 +50,14 @@ const defaultNpmAutoInstallCliConfig: NpmAutoInstallCliConfig = {
 	dir: DIRECTORY.ABS_WORKING_DIR,
 	command: (package_name_and_version: string) => (`npm install "${package_name_and_version}" --no-save`),
 }
+
+/** this is a synchronous task queuer that executes task-functions sequentially.
+ * we need this in order to ensure that only ONE shell process is instantiated at a time to execute `npm install` or equivalent.
+ * this is because otherwise, multiple `npm install` commands running on the same directory will cause conflicts in your filesystem read and write operation.
+ * this problem of multiple installation combating over the same set of files is very evident in large projects that require multiple auto installations,
+ * resulting in corrupted/missing files even after installation.
+*/
+const sync_task_queuer = syncTaskQueueFactory()
 
 /** configuration options for the {@link npmPluginSetup} and {@link npmPlugin} functions. */
 export interface NpmPluginSetupConfig {
@@ -268,7 +276,8 @@ export const npmPluginSetup = (config: DeepPartial<NpmPluginSetupConfig> = {}): 
 			// otherwise the package will not be installed in `node_modules` fashion, and esbuild will not be able to discover it.
 			let valid_resolve_dir = await validResolveDirFinder(resolved_npm_package_alias, scan_resolve_dir)
 			if (!valid_resolve_dir && autoInstallConfig) {
-				await installNpmPackage(well_formed_npm_package_alias, autoInstallConfig)
+				// below, `sync_task_queuer` ensures that only one instance of a new terminal is running, to avoid parallel `npm install`s from occurring.
+				await sync_task_queuer(installNpmPackage, well_formed_npm_package_alias, autoInstallConfig)
 				valid_resolve_dir = await validResolveDirFinder(resolved_npm_package_alias, scan_resolve_dir)
 			}
 			if (!valid_resolve_dir) {
@@ -283,7 +292,7 @@ export const npmPluginSetup = (config: DeepPartial<NpmPluginSetupConfig> = {}): 
 				...rest_args,
 				resolveDir: valid_resolve_dir,
 				namespace: PLUGIN_NAMESPACE.RESOLVER_PIPELINE,
-				pluginData: { ...restPluginData, resolverConfig: { useNodeModules: true } } satisfies CommonPluginData,
+				pluginData: { ...restPluginData, resolverConfig: { useRuntimePackage: false, useImportMap: false, useNodeModules: true } } satisfies CommonPluginData,
 			})
 			const resolved_path = abs_result.path
 			if (DEBUG.LOG && logFn) {
@@ -433,6 +442,17 @@ export type InstallNpmPackageConfig = "dynamic" | NpmAutoInstallCliConfig & { di
 
 /** this function installs an npm-package to your project's `"./node_modules/"` folder.
  * see {@link NpmAutoInstallCliConfig} and {@link NpmPluginSetupConfig.autoInstall} for details on how to customize.
+ * 
+ * > [!caution]
+ * > make sure that you run only a SINGLE instance of this function at a time.
+ * > that's because running multiple installations in parallel on the same working-directory will corrupt shared files.
+ * > 
+ * > this becomes very evident in larger projects when multiple `npm install` commands are run in parallel,
+ * > resulting in only a few of them actually successfully installing,
+ * > while the rest are either partially installed, or ignored altogether.
+ * > 
+ * > to mitigate this issue, run your multiple `npm install` commands through a synchronous task queuer,
+ * > like the one that can be generated from the {@link syncTaskQueueFactory} utility function in this library.
 */
 export const installNpmPackage = async (package_name: string, config: InstallNpmPackageConfig): Promise<void> => {
 	switch (current_js_runtime) {
