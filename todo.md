@@ -61,7 +61,7 @@
 
 - [ ] npm-package download plugin (it will probably need access to the filesystem, for esbuild to discover it natively)
 
-## pre-version `0.3.2` todo list
+## pre-version `0.3.3` todo list
 
 - [ ] a function to detect the current runtime, so that it can be later used for predicting the base-project-level scope's `runtimePackage: RuntimePackage` (i.e. is it a `package.json(c)` or `deno.json(c)` or `jsr.json(c)`).
   - consider creating a function `fetchScan: (urls: (URL | string)[]) => URL`,
@@ -73,9 +73,46 @@
       if it provides significant speed boost.
       doing so might undo the 60% slowdown introduced in version `0.3.0` (where inherit-plugin-data was added).
 
-## pre-version `0.3.1` todo list
+## pre-version `0.3.2` todo list
 
-- [ ] fix critical filesystem vulnerability when performing `autoInstall`!
+- [ ] `npm install` does not install peer-dependencies.
+      so if that peer-dependency is **not** a part of your own direct bundled code (i.e. imported within your project's direct scope),
+      but the npm-package that you just installed expects it and has an implicit import-dependency on it,
+      then the bundling will fail because my plugin will not install the peer-dependency since that peer-dependency will not be prefixed with the `"npm:"` specifier to pass through our `npmPlugin`.
+      here are some solution that will partially reduce this issue:
+  1. add your known peer-dependencies to the global-import-map of the `resolverPlugin`'s config, ensuring the use of the `"npm:"` specifier in the value portion, and the exact alias string in the key portion.
+  2. add a new plugin configuration option for specifying `peerDependencies` that **must** always be installed prior to resolving any `"npm:"` specifier.
+  3. use `deno install` with `"nodeModulesDir": "auto"` in "deno.json".
+  4. in the installation directory (hopefully your project's root), add a `./.npmrc` text file,
+     and inside of it, set `auto-install-peers=true`.
+     this will make both `npm` and `pnpm` install any peer-dependencies.
+     unfortunately, there is no cli flag for this option, so the creation of this file is our only choice.
+     > I just tried this method and it didn't work :/
+  5. whenever you install a new npm-package, immediately after its installation, query for its `package.json` file via `build.resolve()`,
+     then read through it and collect any peer-dependencies that it may require.
+     after that, before proceeding any further, queue those dependencies for installation.
+     do note that an alternate path into the package may be accessed meanwhile the peer-dependencies are being installed.
+     this will cause them to be unable to resolve the peer-dependency.
+     to avoid these race conditions, follow the next optimization checkbox.
+     also note that this will only work correctly when either a _clean_ installation is being performed,
+     or when we have the perfectly good `"./node_modules/"` artifacts available from an auto-installation.
+- [ ] when an npm-package is auto-installed (or in the process of being), it is possible for:
+  - an alternate entry point to the same package to get successfully resolved (because the file exists),
+    but then its own dependency would fail to load, because the file hasn't been added yet.
+  - an alternate entry point to the same package discover that the package hasn't been installed (due to failing to resolve),
+    and then it will queue up _another_ `npm install` command to the _same_ package that is already underway.
+
+  to stop these two scenarios from happening, we need to make all resolvers that are trying to resolve the same package wait for a central promise to resolve before proceeding.
+  to achieve this, we will need to create a `packageAvailability: Map<packageName, Promise<void>>` variable,
+  and the first resolver to come across a package that is not contained in `packageAvailability`,
+  will insert a new unresolved promise into it, and then let the resource try resolving its path (and auto-installing the package if needed),
+  then once the resource's path has been resolved successfully (and any auto-installation has been taken care of),
+  we will resolve the promise contained inside `packageAvailability`,
+  so that other resources that are waiting for it could be given the green light to then proceed.
+
+## (2025-03-14) pre-version `0.3.1` todo list
+
+- [x] fix critical filesystem vulnerability when performing `autoInstall`!
       suppose your script encounters two "npm:" libraries that need to be auto installed.
       now, two terminal processes will be invoked to perform the installation, and so both terminals may compete over who gets to write first.
       it will be even worse when the _same_ npm-package is being installed simultaneously in multiple terminals.
@@ -86,7 +123,7 @@
   - create a global queue for executing cli-commands, one by one, each in a new terminal.
     however, there shall be only a single terminal running at a given time.
 
-## (2025-04-13) pre-version `0.3.0` todo list
+## (2025-03-13) pre-version `0.3.0` todo list
 
 - [x] optional global import map config at top level of the "all-in-one" plugin config
 - [ ] ~~rename old cached fetch to `memCachedFetch`~~
