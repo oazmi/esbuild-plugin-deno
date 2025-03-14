@@ -222,6 +222,17 @@ export type InstallNpmPackageConfig = "dynamic" | NpmAutoInstallCliConfig & {
 };
 /** this function installs an npm-package to your project's `"./node_modules/"` folder.
  * see {@link NpmAutoInstallCliConfig} and {@link NpmPluginSetupConfig.autoInstall} for details on how to customize.
+ *
+ * > [!caution]
+ * > make sure that you run only a SINGLE instance of this function at a time.
+ * > that's because running multiple installations in parallel on the same working-directory will corrupt shared files.
+ * >
+ * > this becomes very evident in larger projects when multiple `npm install` commands are run in parallel,
+ * > resulting in only a few of them actually successfully installing,
+ * > while the rest are either partially installed, or ignored altogether.
+ * >
+ * > to mitigate this issue, run your multiple `npm install` commands through a synchronous task queuer,
+ * > like the one that can be generated from the {@link syncTaskQueueFactory} utility function in this library.
 */
 export declare const installNpmPackage: (package_name: string, config: InstallNpmPackageConfig) => Promise<void>;
 /** this function executes a cli command to install an npm-package.

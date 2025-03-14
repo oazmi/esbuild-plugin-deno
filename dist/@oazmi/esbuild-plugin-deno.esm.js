@@ -96,6 +96,7 @@ function createMergeProxy(baseObj, extObj) {
 // node_modules/@oazmi/kitchensink/esm/alias.js
 var json_constructor = JSON;
 var object_constructor = Object;
+var promise_constructor = Promise;
 var symbol_constructor = Symbol;
 var array_isEmpty = (array) => array.length === 0;
 var json_stringify = /* @__PURE__ */ (() => json_constructor.stringify)();
@@ -110,6 +111,7 @@ var promise_outside = () => {
   });
   return [promise, resolve, reject];
 };
+var promise_resolve = /* @__PURE__ */ promise_constructor.resolve.bind(promise_constructor);
 var symbol_iterator = /* @__PURE__ */ (() => symbol_constructor.iterator)();
 var symbol_toStringTag = /* @__PURE__ */ (() => symbol_constructor.toStringTag)();
 var dom_encodeURI = encodeURI;
@@ -2171,6 +2173,18 @@ var ensureLocalPath = (path) => {
   }
   return file_uri_to_local_path_conversion ?? (path_is_string ? pathToPosixPath(path) : path.href);
 };
+var syncTaskQueueFactory = () => {
+  let latest_promise = promise_resolve();
+  const task_queuer = (task_fn, ...args) => {
+    const original_latest_promise = latest_promise, [promise_current_task_value, resolve_current_task_value] = promise_outside();
+    latest_promise = promise_current_task_value;
+    original_latest_promise.finally(() => {
+      resolve_current_task_value(task_fn(...args));
+    });
+    return promise_current_task_value;
+  };
+  return task_queuer;
+};
 
 // src/plugins/filters/http.ts
 var urlLoaderFactory = (config) => {
@@ -2455,6 +2469,7 @@ var defaultNpmAutoInstallCliConfig = {
   dir: 1 /* ABS_WORKING_DIR */,
   command: (package_name_and_version) => `npm install "${package_name_and_version}" --no-save`
 };
+var sync_task_queuer = syncTaskQueueFactory();
 var defaultNpmPluginSetupConfig = {
   specifiers: ["npm:"],
   sideEffects: "auto",
@@ -2486,7 +2501,7 @@ var npmPluginSetup = (config = {}) => {
       const { path, pluginData = {}, resolveDir = "", namespace: original_ns, ...rest_args } = args, well_formed_npm_package_alias = replacePrefix(path, specifier, "npm:"), { scope, pkg, pathname, version: desired_version } = parsePackageUrl(well_formed_npm_package_alias), resolved_npm_package_alias = `${scope ? "@" + scope + "/" : ""}${pkg}${pathname === "/" ? "" : pathname}`, { importMap: _0, runtimePackage: _1, resolverConfig: _2, ...restPluginData } = pluginData, scan_resolve_dir = resolveDir === "" ? node_modules_dirs : [resolveDir, ...node_modules_dirs];
       let valid_resolve_dir = await validResolveDirFinder(resolved_npm_package_alias, scan_resolve_dir);
       if (!valid_resolve_dir && autoInstallConfig) {
-        await installNpmPackage(well_formed_npm_package_alias, autoInstallConfig);
+        await sync_task_queuer(installNpmPackage, well_formed_npm_package_alias, autoInstallConfig);
         valid_resolve_dir = await validResolveDirFinder(resolved_npm_package_alias, scan_resolve_dir);
       }
       if (!valid_resolve_dir) {
