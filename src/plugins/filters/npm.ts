@@ -4,7 +4,7 @@
  * @module
 */
 
-import { DEBUG, defaultGetCwd, dom_decodeURI, ensureEndSlash, escapeLiteralStringForRegex, execShellCommand, getUriScheme, identifyCurrentRuntime, isObject, isString, joinPaths, normalizePath, parsePackageUrl, pathToPosixPath, replacePrefix, RUNTIME, type DeepPartial } from "../../deps.ts"
+import { DEBUG, defaultGetCwd, dom_decodeURI, ensureEndSlash, escapeLiteralStringForRegex, execShellCommand, getUriScheme, identifyCurrentRuntime, isObject, isString, joinPaths, normalizePath, parsePackageUrl, pathToPosixPath, promise_outside, replacePrefix, RUNTIME, type DeepPartial } from "../../deps.ts"
 import { ensureLocalPath, logLogger, syncTaskQueueFactory } from "../funcdefs.ts"
 import { nodeModulesResolverFactory, type resolverPlugin } from "../resolvers.ts"
 import type { CommonPluginData, EsbuildPlugin, EsbuildPluginBuild, EsbuildPluginSetup, LoggerFunction, OnResolveArgs, OnResolveCallback } from "../typedefs.ts"
@@ -58,6 +58,15 @@ const defaultNpmAutoInstallCliConfig: NpmAutoInstallCliConfig = {
  * resulting in corrupted/missing files even after installation.
 */
 const sync_task_queuer = syncTaskQueueFactory()
+
+/** this is a global dictionary that dictates which npm-libraries have been installed through the `autoInstall`er.
+ * this ensures that:
+ * - the same library is not queued for installation twice or more, due to two or more entries requesting for the same package almost simultaneously.
+ * - a partially installed package's resolvable resource (i.e. when installation is in progress) will wait to resolve until the package is fully installed.
+ *   this is because we don't want the resolvable resource to be loaded, which will in turn require the resolution of relative-resources,
+ *   which may not exist at the moment (since installation is in progress), causing the output path provided by resolver-pipeline's relative-path resolver to not load and fail.
+*/
+const packageAvailability = new Map<string, Promise<void>>()
 
 /** configuration options for the {@link npmPluginSetup} and {@link npmPlugin} functions. */
 export interface NpmPluginSetupConfig {
@@ -254,7 +263,8 @@ export const npmPluginSetup = (config: DeepPartial<NpmPluginSetupConfig> = {}): 
 				{ path, pluginData = {}, resolveDir = "", namespace: original_ns, ...rest_args } = args,
 				well_formed_npm_package_alias = replacePrefix(path, specifier, "npm:")!,
 				{ scope, pkg, pathname, version: desired_version } = parsePackageUrl(well_formed_npm_package_alias),
-				resolved_npm_package_alias = `${scope ? "@" + scope + "/" : ""}${pkg}${pathname === "/" ? "" : pathname}`,
+				npm_package_name = (scope ? "@" + scope + "/" : "") + pkg,
+				resolved_npm_package_alias = `${npm_package_name}${pathname === "/" ? "" : pathname}`,
 				// below, we flush away any previous import-map and runtime-package manager stored in the plugin-data,
 				// as we will need to reset them for the current self-contained npm package's scope.
 				{ importMap: _0, runtimePackage: _1, resolverConfig: _2, ...restPluginData } = pluginData,
@@ -268,12 +278,25 @@ export const npmPluginSetup = (config: DeepPartial<NpmPluginSetupConfig> = {}): 
 				//   instead of the `desired_version`. unless we ask deno to install/import that specific version to our `node_modules`.
 				scan_resolve_dir: string[] = resolveDir === "" ? node_modules_dirs : [resolveDir, ...node_modules_dirs]
 
+			// first, we will ensure that we wait for the npm-package if its installation is underway
+			let
+				package_availability_promise = packageAvailability.get(npm_package_name),
+				package_availability_promise_resolver: (undefined | (() => void)) = undefined
+			if (!package_availability_promise) {
+				// this is the first time we've encountered this package, so we must create a new promise for its availability,
+				// to stop subsequent attempts at resolving this package from succeeding _before_ this request has been resolved first (which may involve auto-installation).
+				const [promise, resolve] = promise_outside<void>()
+				packageAvailability.set(npm_package_name, (package_availability_promise = promise))
+				package_availability_promise_resolver = resolve
+			} else {
+				// if this package awas encounter previously (via a different resource), then wait for its availability to be confirmed.
+				await package_availability_promise
+			}
+
 			// we now let esbuild scan and traverse multiple directories in search for our desired npm-package.
 			// if we don't initially land on a hit (i.e. none of the directories lead to the desired package),
-			// then if the `autoInstall` option is enabled, we will indirectly invoke deno to install the npm-package.
-			// hopefully that will lead to the package now being available under some `"./node_modules/"` directory,
-			// assuming that `"nodeModulesDir"` is set to `"auto"` in the current deno-runtime's "deno.json" config file.
-			// otherwise the package will not be installed in `node_modules` fashion, and esbuild will not be able to discover it.
+			// then if the `autoInstall` option is enabled, we will invoke deno/bun.npm/pnpm to install the npm-package (either via the cli, or dynamic-import).
+			// hopefully that will lead to the package now being available under some `"./node_modules/"` directory, for esbuild to discover it.
 			let valid_resolve_dir = await validResolveDirFinder(resolved_npm_package_alias, scan_resolve_dir)
 			if (!valid_resolve_dir && autoInstallConfig) {
 				// below, `sync_task_queuer` ensures that only one instance of a new terminal is running, to avoid parallel `npm install`s from occurring.
@@ -287,6 +310,9 @@ export const npmPluginSetup = (config: DeepPartial<NpmPluginSetupConfig> = {}): 
 					`\n\tbut it is almost guaranteed not to work if the current-working-directory was already part of the scanned directories.`,
 				)
 			}
+			// by this point, the auto-installation would have taken place if necessary.
+			// so, if this was the first encounter of this package, then we better signal that it is now available.
+			package_availability_promise_resolver?.()
 
 			const abs_result = await build.resolve(resolved_npm_package_alias, {
 				...rest_args,

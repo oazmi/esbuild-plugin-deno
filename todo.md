@@ -57,21 +57,25 @@
 
 - [ ] add granulated tests for each plugin, and combination of plugins (for intertwined path resolution)
 
-## pre-version `0.4.0` todo list
+## pre-version `0.4.x` todo list
 
-- [ ] npm-package download plugin (it will probably need access to the filesystem, for esbuild to discover it natively)
-
-## pre-version `0.3.3` todo list
-
-- [ ] a function to detect the current runtime, so that it can be later used for predicting the base-project-level scope's `runtimePackage: RuntimePackage` (i.e. is it a `package.json(c)` or `deno.json(c)` or `jsr.json(c)`).
+- [ ] add support for parsing `package.json` in the `DenoPackage` class for achieving full jsr-compatibility in the jsr-plugin.
+- [ ] add a function to detect the current runtime, so that it can be later used for predicting the base-project-level scope's `runtimePackage: RuntimePackage` (i.e. is it a `package.json(c)` or `deno.json(c)` or `jsr.json(c)`).
   - consider creating a function `fetchScan: (urls: (URL | string)[]) => URL`,
     which will sequentially try fetching the provided `urls` using the `"HEAD"` method, and follow any redirects,
     then return the first (fully-followed) url that results in a valid http response.
   - use the said function for validating the existence of multiple runtime-package json(c) files, sequentially,
     and acquire the first one that exists to use as the url to the `runtimePackage`.
-- [ ] in the entry-plugin, consider merging the initial-plugin-data resolver (`initialPluginDataInjector`) into the inherit-plugin-data resolver (`inheritPluginDataInjector`),
+- [ ] ~~in the entry-plugin, consider merging the initial-plugin-data resolver (`initialPluginDataInjector`) into the inherit-plugin-data resolver (`inheritPluginDataInjector`),
       if it provides significant speed boost.
-      doing so might undo the 60% slowdown introduced in version `0.3.0` (where inherit-plugin-data was added).
+      doing so might undo the 60% slowdown introduced in version `0.3.0` (where inherit-plugin-data was added).~~
+  > the reduction in speed was a government propaganda, the cake was a lie, and carbon killed oxide (carbon "die" oxide, get it? haha humor +100, and everyone clapped while congratulating for eternity - [quack quack](https://www.youtube.com/watch?v=oyFQVZ2h0V8&t=11s))
+
+## pre-version `0.3.3` todo list
+
+- [ ] implement your own jsonc parser (or jsonc comment-remover) in `@oazmi/kitchensink/stringman`.
+- [ ] use an alternative smaller library for semver resolution, preferebly from `npm`.
+      I really dislike how `jsr:@std/jsonc` and `jsr:@std/semver` collectively add about 450 files to the npm-release (via `dnt`).
 
 ## pre-version `0.3.2` todo list
 
@@ -96,7 +100,7 @@
      to avoid these race conditions, follow the next optimization checkbox.
      also note that this will only work correctly when either a _clean_ installation is being performed,
      or when we have the perfectly good `"./node_modules/"` artifacts available from an auto-installation.
-- [ ] when an npm-package is auto-installed (or in the process of being), it is possible for:
+- [x] when an npm-package is auto-installed (or in the process of being), it is possible for:
   - an alternate entry point to the same package to get successfully resolved (because the file exists),
     but then its own dependency would fail to load, because the file hasn't been added yet.
   - an alternate entry point to the same package discover that the package hasn't been installed (due to failing to resolve),
@@ -109,6 +113,9 @@
   then once the resource's path has been resolved successfully (and any auto-installation has been taken care of),
   we will resolve the promise contained inside `packageAvailability`,
   so that other resources that are waiting for it could be given the green light to then proceed.
+- [ ] add an option in `npmPlugin`'s config for force installing a list of the user's peer dependencies.
+  - name the option `NpmPluginSetupConfig.peerDependencies: ImportMap | string | ({in: string, out: string}, [in: string, out: string])[]`.
+  - the installation should initiate in the `build.onStart` call, and the directory of installation (cwd) should be the same as dictated by `autoInstallConfig.cwd`.
 
 ## (2025-03-14) pre-version `0.3.1` todo list
 
