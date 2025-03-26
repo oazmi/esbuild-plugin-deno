@@ -71,13 +71,47 @@
       doing so might undo the 60% slowdown introduced in version `0.3.0` (where inherit-plugin-data was added).~~
   > the reduction in speed was a government propaganda, the cake was a lie, and carbon killed oxide (carbon "die" oxide, get it? haha humor +100, and everyone clapped while congratulating for eternity - [quack quack](https://www.youtube.com/watch?v=oyFQVZ2h0V8&t=11s))
 
+## pre-version `0.3.4` todo list
+
+- [ ] some websites (like [esm.sh](https://esm.sh/)) that use absolute referencing within their domains via `"/some/abs/path.ts"` fail with the current resolver-pipeline.
+  - to solve this, I might have to do one of the following (or both):
+    - [ ] introduce a new `pluginData` field that stores the current context's base path (such as base domain url, or base filesystem path),
+          and then whenever a path beginning with "/" is encountered, we join it with the base domain path.
+    - [ ] modify your `resolveAsUrl` in `@oazmi/kitchensink/pathman` so that it does not return a `file:///` uri whenever an absolute path is encountered with a base-url.
+          instead, it should carefully explore which is the more viable possibility.
+      > FIXED in [`@oazmi/kitchensink@0.9.10`](https://github.com/omar-azmi/kitchensink_ts/commit/0ab8afefaf998f7d47c288990b63f21183712d70).
+      > so simply update to that version.
+  - an example to highlight issue:
+    ```ts
+    const bundle_result = await esbuild.build({
+    	entryPoints: ["https://esm.sh/typedoc-plugin-mermaid"],
+    	plugins: [...denoPlugins({ autoInstall: false })],
+    	format: "esm",
+    	bundle: true,
+    	write: false,
+    })
+    ```
+    where the entrypoint looks like:
+    ```js
+    /* esm.sh - typedoc-plugin-mermaid@1.12.0 */
+    import "/html-escaper@^3.0.3?target=es2022"
+    import "/typedoc@^0.28.0?target=es2022"
+    export * from "/typedoc-plugin-mermaid@1.12.0/es2022/typedoc-plugin-mermaid.mjs"
+    ```
+
 ## pre-version `0.3.3` todo list
 
 - [ ] implement your own jsonc parser (or jsonc comment-remover) in `@oazmi/kitchensink/stringman`.
+  > ADDED in [`@oazmi/kitchensink@0.9.9`](https://github.com/omar-azmi/kitchensink_ts/commit/655666bb4acd8989ce8e4c39e0e0002f31256089).
+  > simply update the dependency to resolve this.
 - [ ] use an alternative smaller library for semver resolution, preferebly from `npm`.
       I really dislike how `jsr:@std/jsonc` and `jsr:@std/semver` collectively add about 450 files to the npm-release (via `dnt`).
+- [ ] import `fileUriToLocalPath` and `ensureLocalPath` from [`@oazmi/kitchensink@0.9.10`](https://github.com/omar-azmi/kitchensink_ts/commit/1b768d45d9dfd6152cb0facbacb14c07f54fd4aa),
+      and replace the ones inside `/src/plugins/funcdefs.ts`.
 
-## pre-version `0.3.2` todo list
+## (2025-03-26) pre-version `0.3.2` todo list
+
+> TODO: POSTPONE the package.json based peer-dependencies auto-installation feature for some other release.
 
 - [ ] `npm install` does not install peer-dependencies.
       so if that peer-dependency is **not** a part of your own direct bundled code (i.e. imported within your project's direct scope),
@@ -113,8 +147,8 @@
   then once the resource's path has been resolved successfully (and any auto-installation has been taken care of),
   we will resolve the promise contained inside `packageAvailability`,
   so that other resources that are waiting for it could be given the green light to then proceed.
-- [ ] add an option in `npmPlugin`'s config for force installing a list of the user's peer dependencies.
-  - name the option `NpmPluginSetupConfig.peerDependencies: ImportMap | string | ({in: string, out: string}, [in: string, out: string])[]`.
+- [x] add an option in `npmPlugin`'s config for force installing a list of the user's peer dependencies.
+  - name the option `NpmPluginSetupConfig.peerDependencies: ImportMap | (string | {in: string, out: string} | [in: string, out: string])[]`.
   - the installation should initiate in the `build.onStart` call, and the directory of installation (cwd) should be the same as dictated by `autoInstallConfig.cwd`.
 
 ## (2025-03-14) pre-version `0.3.1` todo list

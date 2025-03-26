@@ -1,6 +1,6 @@
 {
 	"name": "@oazmi/esbuild-plugin-deno",
-	"version": "0.3.1",
+	"version": "0.3.2",
 	"description": "A portable non-invasive suite of esbuild plugins for loading http, jsr, npm, and import-maps. Supports Deno, Node, Bun, Web. Alternate to @luca/esbuild-deno-loader , while compatible with other plugins and native esbuild resolvers (e.g. css loader).",
 	"author": "Omar Azmi",
 	"license": "Lulz plz don't steal yet",
@@ -69,9 +69,7 @@
 		"devDependencies": {
 			"typescript": "^5.6.0",
 			"esbuild": "^0.25.0",
-			"typedoc": "^0.27.7",
-			"typedoc-plugin-missing-exports": "^3.1.0",
-			"typedoc-plugin-mermaid": "^1.12.0"
+			"typedoc": "^0.27.7"
 		},
 		"bundledDependencies": [
 			"@std/jsonc",
@@ -125,15 +123,15 @@
 	},
 	"tasks": {
 		"build-dist": {
-			"command": "deno run -A \"jsr:@oazmi/build-tools@0.2.6/cli/dist\" --config=\"./deno.json\"",
+			"command": "deno run -A \"jsr:@oazmi/build-tools@0.2.7/cli/dist\" --config=\"./deno.json\"",
 			"description": "transpiles the library to minified esm-distributable javascript multi-entry source code.\nuses the `buildDist` field in `deno.json` for configuration.\ndepends on `npm:esbuild` and `jsr:@oazmi/build-tools`."
 		},
 		"build-docs": {
-			"command": "deno run -A \"jsr:@oazmi/build-tools@0.2.6/cli/docs\" --config=\"./deno.json\"",
+			"command": "deno run -A \"jsr:@oazmi/build-tools@0.2.7/cli/docs\" --config=\"./deno.json\"",
 			"description": "generates github-pages compatible documentation site for the library.\nuses the `buildDocs` field in `deno.json` for configuration.\ndepends on `npm:typedoc` and `jsr:@oazmi/build-tools`."
 		},
 		"build-npm": {
-			"command": "deno run -A \"jsr:@oazmi/build-tools@0.2.6/cli/npm\" --config=\"./deno.json\"",
+			"command": "deno run -A \"jsr:@oazmi/build-tools@0.2.7/cli/npm\" --config=\"./deno.json\"",
 			"description": "converts the library code to a nodejs compatible project.\nuses the `buildNpm` field in `deno.json` for configuration.\ndepends on `jsr:@deno/dnt` and `jsr:@oazmi/build-tools`."
 		},
 		"build-npm-dist": {
