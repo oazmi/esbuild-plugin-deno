@@ -94,14 +94,17 @@ function createMergeProxy(baseObj, extObj) {
 }
 
 // node_modules/@oazmi/kitchensink/esm/alias.js
+var array_constructor = Array;
 var json_constructor = JSON;
 var object_constructor = Object;
 var promise_constructor = Promise;
 var symbol_constructor = Symbol;
 var array_isEmpty = (array) => array.length === 0;
+var array_isArray = /* @__PURE__ */ (() => array_constructor.isArray)();
 var json_stringify = /* @__PURE__ */ (() => json_constructor.stringify)();
 var object_assign = /* @__PURE__ */ (() => object_constructor.assign)();
 var object_entries = /* @__PURE__ */ (() => object_constructor.entries)();
+var object_fromEntries = /* @__PURE__ */ (() => object_constructor.fromEntries)();
 var object_keys = /* @__PURE__ */ (() => object_constructor.keys)();
 var promise_outside = () => {
   let resolve, reject;
@@ -161,6 +164,7 @@ var isComplex = (obj) => {
 var isObject = (obj) => {
   return typeof obj === "object";
 };
+var isArray = array_isArray;
 var isString = (obj) => {
   return typeof obj === "string";
 };
@@ -2056,7 +2060,7 @@ var extensions_default = {
   "jsx": [".jsx"],
   "local-css": [".module.css"],
   "text": [".txt", ".html", ".md", ".xml", ".csv"],
-  "ts": [".ts"],
+  "ts": [".ts", ".mts", ".cts"],
   "tsx": [".tsx"]
 };
 
@@ -2184,6 +2188,14 @@ var syncTaskQueueFactory = () => {
     return promise_current_task_value;
   };
   return task_queuer;
+};
+var entryPointsToImportMapEntries = (entry_points) => {
+  if (!isArray(entry_points)) {
+    entry_points = object_entries(entry_points);
+  }
+  return entry_points.map((entry) => {
+    return isString(entry) ? [entry, entry] : !isArray(entry) ? [entry.in, entry.out] : entry;
+  });
 };
 
 // src/plugins/filters/http.ts
@@ -2470,16 +2482,24 @@ var defaultNpmAutoInstallCliConfig = {
   command: (package_name_and_version) => `npm install "${package_name_and_version}" --no-save`
 };
 var sync_task_queuer = syncTaskQueueFactory();
+var packageAvailability = /* @__PURE__ */ new Map();
+var npm_prefix = "npm:";
 var defaultNpmPluginSetupConfig = {
-  specifiers: ["npm:"],
+  specifiers: [npm_prefix],
   sideEffects: "auto",
   autoInstall: true,
+  peerDependencies: {},
   acceptNamespaces: defaultEsbuildNamespaces,
   nodeModulesDirs: [1 /* ABS_WORKING_DIR */],
   log: false
 };
 var npmPluginSetup = (config = {}) => {
-  const { specifiers, sideEffects, autoInstall: _autoInstall, acceptNamespaces: _acceptNamespaces, nodeModulesDirs, log } = { ...defaultNpmPluginSetupConfig, ...config }, logFn = log ? log === true ? logLogger : log : void 0, acceptNamespaces = /* @__PURE__ */ new Set([..._acceptNamespaces, "oazmi-loader-http" /* LOADER_HTTP */]), forcedSideEffectsMode = isString(sideEffects) ? void 0 : sideEffects, autoInstall = autoInstallOptionToNpmAutoInstallCliConfig(_autoInstall);
+  const { specifiers, sideEffects, autoInstall: _autoInstall, peerDependencies: _peerDependencies, acceptNamespaces: _acceptNamespaces, nodeModulesDirs, log } = { ...defaultNpmPluginSetupConfig, ...config }, logFn = log ? log === true ? logLogger : log : void 0, acceptNamespaces = /* @__PURE__ */ new Set([..._acceptNamespaces, "oazmi-loader-http" /* LOADER_HTTP */]), forcedSideEffectsMode = isString(sideEffects) ? void 0 : sideEffects, autoInstall = autoInstallOptionToNpmAutoInstallCliConfig(_autoInstall), peerDependenciesImportMap = object_fromEntries(
+    entryPointsToImportMapEntries(_peerDependencies).map(([alias, pkg_name]) => {
+      const well_formed_alias_with_version_and_path = replacePrefix(alias, npm_prefix, "") ?? alias, { scope: alias_scope, pkg: alias_pkg } = parsePackageUrl(npm_prefix + well_formed_alias_with_version_and_path), well_formed_alias = (alias_scope ? "@" + alias_scope + "/" : "") + alias_pkg, well_formed_pkg_with_version_and_path = replacePrefix(pkg_name, npm_prefix, "") ?? pkg_name, { host: well_formed_pkg_with_version } = parsePackageUrl(npm_prefix + well_formed_pkg_with_version_and_path);
+      return [well_formed_alias, npm_prefix + well_formed_pkg_with_version];
+    })
+  );
   if (isObject(autoInstall)) {
     nodeModulesDirs.unshift(autoInstall.dir);
   }
@@ -2494,11 +2514,40 @@ var npmPluginSetup = (config = {}) => {
           return pathOrUrlToLocalPathConverter(dir_path);
       }
     }, node_modules_dirs = [...new Set(nodeModulesDirs.map(dir_path_converter))], validResolveDirFinder = findResolveDirOfNpmPackageFactory(build), autoInstallConfig = isObject(autoInstall) ? { dir: dir_path_converter(autoInstall.dir), command: autoInstall.command, log } : autoInstall;
+    if (autoInstallConfig) {
+      build.onStart(async () => {
+        const is_dynamic_installation = autoInstallConfig === "dynamic", well_formed_peer_deps = object_entries(peerDependenciesImportMap);
+        if (!array_isEmpty(well_formed_peer_deps) && 1 /* LOG */ && logFn) {
+          logFn(`[npmPlugin] peer-dependency: the following peer dependencies were specified:`, peerDependenciesImportMap);
+        }
+        for (const [alias, pkg_name] of well_formed_peer_deps) {
+          const { host: pkg_with_version, version: desired_version } = parsePackageUrl(pkg_name), no_aliasing_is_being_performed = desired_version === void 0 ? alias === pkg_with_version : pkg_with_version.startsWith(alias + "@"), pkg_aliased_installation_string = `${alias}@npm:${pkg_with_version}`, pkg_installation_string = no_aliasing_is_being_performed || is_dynamic_installation ? pkg_with_version : pkg_aliased_installation_string;
+          if (!no_aliasing_is_being_performed && is_dynamic_installation) {
+            (logFn ?? logLogger)(
+              `[npmPlugin]: WARNING! auto peer dependency package installation under an aliased name is not possible with "autoInstall" set to "dynamic".`,
+              `
+	this will very likely lead to a broken import. please set "autoInstall" to one of the cli options, such as "auto-cli".`,
+              `
+	warning generated for the peer dependency package: "${pkg_name}", with alias: "${alias}".`
+            );
+          }
+          await sync_task_queuer(installNpmPackage, pkg_installation_string, autoInstallConfig);
+        }
+      });
+    }
     const npmSpecifierResolverFactory = (specifier) => async (args) => {
       if (!acceptNamespaces.has(args.namespace)) {
         return;
       }
-      const { path, pluginData = {}, resolveDir = "", namespace: original_ns, ...rest_args } = args, well_formed_npm_package_alias = replacePrefix(path, specifier, "npm:"), { scope, pkg, pathname, version: desired_version } = parsePackageUrl(well_formed_npm_package_alias), resolved_npm_package_alias = `${scope ? "@" + scope + "/" : ""}${pkg}${pathname === "/" ? "" : pathname}`, { importMap: _0, runtimePackage: _1, resolverConfig: _2, ...restPluginData } = pluginData, scan_resolve_dir = resolveDir === "" ? node_modules_dirs : [resolveDir, ...node_modules_dirs];
+      const { path, pluginData = {}, resolveDir = "", namespace: original_ns, ...rest_args } = args, well_formed_npm_package_alias = replacePrefix(path, specifier, npm_prefix), { scope, pkg, pathname, version: desired_version } = parsePackageUrl(well_formed_npm_package_alias), npm_package_name = (scope ? "@" + scope + "/" : "") + pkg, resolved_npm_package_alias = `${npm_package_name}${pathname === "/" ? "" : pathname}`, { importMap: _0, runtimePackage: _1, resolverConfig: originalResolverConfig, ...restPluginData } = pluginData, scan_resolve_dir = resolveDir === "" ? node_modules_dirs : [resolveDir, ...node_modules_dirs];
+      let package_availability_promise = packageAvailability.get(npm_package_name), package_availability_promise_resolver = void 0;
+      if (!package_availability_promise) {
+        const [promise, resolve] = promise_outside();
+        packageAvailability.set(npm_package_name, package_availability_promise = promise);
+        package_availability_promise_resolver = resolve;
+      } else {
+        await package_availability_promise;
+      }
       let valid_resolve_dir = await validResolveDirFinder(resolved_npm_package_alias, scan_resolve_dir);
       if (!valid_resolve_dir && autoInstallConfig) {
         await sync_task_queuer(installNpmPackage, well_formed_npm_package_alias, autoInstallConfig);
@@ -2513,6 +2562,7 @@ var npmPluginSetup = (config = {}) => {
 	but it is almost guaranteed not to work if the current-working-directory was already part of the scanned directories.`
         );
       }
+      package_availability_promise_resolver?.();
       const abs_result = await build.resolve(resolved_npm_package_alias, {
         ...rest_args,
         resolveDir: valid_resolve_dir,
@@ -2528,6 +2578,7 @@ var npmPluginSetup = (config = {}) => {
         abs_result.sideEffects = forcedSideEffectsMode;
       }
       abs_result.namespace = "";
+      Object.assign(abs_result.pluginData.resolverConfig, { ...originalResolverConfig, useRuntimePackage: false, useNodeModules: true });
       return abs_result;
     };
     specifiers.forEach((specifier) => {
@@ -2631,7 +2682,7 @@ var installNpmPackage = async (package_name, config) => {
   }
 };
 var installNpmPackageCli = async (package_name, config) => {
-  const { command, dir, log } = config, logFn = log ? log === true ? logLogger : log : void 0, pkg_pseudo_url = parsePackageUrl(package_name.startsWith("npm:") ? package_name : "npm:" + package_name), pkg_name_and_version = pkg_pseudo_url.host, cli_command = command(pkg_name_and_version);
+  const { command, dir, log } = config, logFn = log ? log === true ? logLogger : log : void 0, pkg_pseudo_url = parsePackageUrl(package_name.startsWith(npm_prefix) ? package_name : npm_prefix + package_name), pkg_name_and_version = pkg_pseudo_url.host, is_using_package_aliasing = pkg_name_and_version.includes("@npm:"), cli_command = command(is_using_package_aliasing ? package_name : pkg_name_and_version);
   if (1 /* LOG */ && logFn) {
     logFn(`[npmPlugin]      installing: "${package_name}", in directory "${dir}"
 >>    using the cli-command: \`${cli_command}\``);
@@ -2639,7 +2690,7 @@ var installNpmPackageCli = async (package_name, config) => {
   await execShellCommand(current_js_runtime, cli_command, { cwd: dir });
 };
 var installNpmPackageDynamic = async (package_name) => {
-  const pkg_pseudo_url = parsePackageUrl(package_name.startsWith("npm:") ? package_name : "npm:" + package_name), pkg_import_url = pkg_pseudo_url.href.replace(/^npm\:[\/\\]*/, "npm:").slice(0, pkg_pseudo_url.pathname === "/" ? -1 : void 0), dynamic_export_script = `export * as myLib from "${dom_decodeURI(pkg_import_url)}"`, dynamic_export_script_blob = new Blob([dynamic_export_script], { type: "text/javascript" }), dynamic_export_script_url = URL.createObjectURL(dynamic_export_script_blob);
+  const pkg_pseudo_url = parsePackageUrl(package_name.startsWith(npm_prefix) ? package_name : npm_prefix + package_name), pkg_import_url = pkg_pseudo_url.href.replace(/^npm\:[\/\\]*/, npm_prefix).slice(0, pkg_pseudo_url.pathname === "/" ? -1 : void 0), dynamic_export_script = `export * as myLib from "${dom_decodeURI(pkg_import_url)}"`, dynamic_export_script_blob = new Blob([dynamic_export_script], { type: "text/javascript" }), dynamic_export_script_url = URL.createObjectURL(dynamic_export_script_blob);
   await import(dynamic_export_script_url);
   return;
 };
@@ -2650,18 +2701,19 @@ var defaultDenoPluginsConfig = {
   log: false,
   logFor: ["npm", "resolver"],
   autoInstall: true,
+  peerDependencies: {},
   nodeModulesDirs: [1 /* ABS_WORKING_DIR */],
   globalImportMap: {},
   getCwd: defaultGetCwd,
   acceptNamespaces: defaultEsbuildNamespaces
 };
 var denoPlugins = (config) => {
-  const { acceptNamespaces, autoInstall, getCwd, globalImportMap, log, logFor, nodeModulesDirs, initialPluginData } = { ...defaultDenoPluginsConfig, ...config }, resolvePath = resolvePathFactory(getCwd, isAbsolutePath2);
+  const { acceptNamespaces, autoInstall, getCwd, globalImportMap, log, logFor, peerDependencies, nodeModulesDirs, initialPluginData } = { ...defaultDenoPluginsConfig, ...config }, resolvePath = resolvePathFactory(getCwd, isAbsolutePath2);
   return [
     entryPlugin({ initialPluginData, acceptNamespaces }),
     httpPlugin({ acceptNamespaces, log: logFor.includes("http") ? log : false }),
     jsrPlugin({ acceptNamespaces }),
-    npmPlugin({ acceptNamespaces, autoInstall, log: logFor.includes("npm") ? log : false, nodeModulesDirs }),
+    npmPlugin({ acceptNamespaces, autoInstall, peerDependencies, nodeModulesDirs, log: logFor.includes("npm") ? log : false }),
     resolverPlugin({
       log: logFor.includes("resolver") ? log : false,
       importMap: { globalImportMap },

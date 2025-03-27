@@ -15,6 +15,7 @@ const defaultDenoPluginsConfig = {
     log: false,
     logFor: ["npm", "resolver"],
     autoInstall: true,
+    peerDependencies: {},
     nodeModulesDirs: [DIRECTORY.ABS_WORKING_DIR],
     globalImportMap: {},
     getCwd: defaultGetCwd,
@@ -32,12 +33,12 @@ const defaultDenoPluginsConfig = {
  * - {@link resolverPlugin}: a namespaced plugin that provides the backbone pipeline for resolving the paths of all of the plugins above.
 */
 export const denoPlugins = (config) => {
-    const { acceptNamespaces, autoInstall, getCwd, globalImportMap, log, logFor, nodeModulesDirs, initialPluginData } = { ...defaultDenoPluginsConfig, ...config }, resolvePath = resolvePathFactory(getCwd, isAbsolutePath);
+    const { acceptNamespaces, autoInstall, getCwd, globalImportMap, log, logFor, peerDependencies, nodeModulesDirs, initialPluginData } = { ...defaultDenoPluginsConfig, ...config }, resolvePath = resolvePathFactory(getCwd, isAbsolutePath);
     return [
         entryPlugin({ initialPluginData, acceptNamespaces }),
         httpPlugin({ acceptNamespaces, log: logFor.includes("http") ? log : false }),
         jsrPlugin({ acceptNamespaces }),
-        npmPlugin({ acceptNamespaces, autoInstall, log: logFor.includes("npm") ? log : false, nodeModulesDirs }),
+        npmPlugin({ acceptNamespaces, autoInstall, peerDependencies, nodeModulesDirs, log: logFor.includes("npm") ? log : false }),
         resolverPlugin({
             log: logFor.includes("resolver") ? log : false,
             importMap: { globalImportMap: globalImportMap },

@@ -4,7 +4,7 @@
  * @module
 */
 import { type DeepPartial } from "../../deps.js";
-import type { EsbuildPlugin, EsbuildPluginBuild, EsbuildPluginSetup, LoggerFunction } from "../typedefs.js";
+import type { EsbuildEntryPointsType, EsbuildPlugin, EsbuildPluginBuild, EsbuildPluginSetup, LoggerFunction } from "../typedefs.js";
 import { DIRECTORY } from "../typedefs.js";
 /** acceptable directory formats for specifying your "resolve directory" for scanning and traversing `"./node_modules/"` folders. */
 export type NodeModuleDirFormat = (string | URL | DIRECTORY);
@@ -128,6 +128,25 @@ export interface NpmPluginSetupConfig {
      * @defaultValue `true`
     */
     autoInstall: boolean | "auto-cli" | "auto" | "dynamic" | "npm" | "deno" | "deno-noscript" | "bun" | "pnpm" | Partial<NpmAutoInstallCliConfig>;
+    /** specify implicit peer-dependencies that your project requires, or it can even serve as a dependency aliasing import-map.
+     *
+     * when {@link autoInstall} is enabled, these peer-dependencies will be the first thing to get installed in bulk (during esbuild's `build.onStart` phase).
+     *
+     * moreover, an `npm:` prefix will always be ensured in your collection of peer-dependencies.
+     * this means you cannot use this field to route a package to anywhere other than an npm-package.
+     * for instance `{ "react": "react@18" }` will be converted to `{ "react": "npm:react@18" }`.
+     *
+     * TODO: currently, I'm not inserting `peerDependencies` as an import-map for all resolved npm-packages.
+     *   this is because, if the user had intended to use an npm-package alias, they could've set an entry in the `globalImportMap`,
+     *   and it would have sufficed in most cases.
+     *   but I may implement it in the future, since the user may only wish to expose this alias to npm-packages captured by this plugin,
+     *   rather the global scope (which includes entities from http, jsr, etc...).
+     *   moreover, since dynamic-import-based installations cannot be aliased,
+     *   injecting the `peerDependencies` as an import-map inside the `pluginData` would be needed for the package to be discoverable.
+     *
+     * @defaultValue `{}` (no peer-dependencies)
+    */
+    peerDependencies: EsbuildEntryPointsType;
     /** specify which `namespace`s should be intercepted by the npm-specifier-plugin.
      * all other `namespace`s will not be processed by this plugin.
      *

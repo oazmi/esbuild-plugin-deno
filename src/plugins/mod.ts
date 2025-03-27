@@ -18,7 +18,7 @@ export { DIRECTORY } from "./typedefs.js"
 export interface DenoPluginsConfig extends
 	Pick<EntryPluginSetupConfig, "initialPluginData">,
 	Pick<ResolverPluginSetupConfig, "log">,
-	Pick<NpmPluginSetupConfig, "autoInstall" | "nodeModulesDirs">,
+	Pick<NpmPluginSetupConfig, "autoInstall" | "peerDependencies" | "nodeModulesDirs">,
 	Pick<ImportMapResolverConfig, "globalImportMap"> {
 	/** provide an optional function (or a static `string`) that returns the absolute path to the current working directory.
 	 * make sure that it always returns a posix-style path (i.e. uses "/" for directory separator, and not "\\").
@@ -58,6 +58,7 @@ const defaultDenoPluginsConfig: DenoPluginsConfig = {
 	log: false,
 	logFor: ["npm", "resolver"],
 	autoInstall: true,
+	peerDependencies: {},
 	nodeModulesDirs: [DIRECTORY.ABS_WORKING_DIR],
 	globalImportMap: {},
 	getCwd: defaultGetCwd,
@@ -83,14 +84,14 @@ export const denoPlugins = (config?: Partial<DenoPluginsConfig>): [
 	resolver_pipeline_plugin: EsbuildPlugin,
 ] => {
 	const
-		{ acceptNamespaces, autoInstall, getCwd, globalImportMap, log, logFor, nodeModulesDirs, initialPluginData } = { ...defaultDenoPluginsConfig, ...config },
+		{ acceptNamespaces, autoInstall, getCwd, globalImportMap, log, logFor, peerDependencies, nodeModulesDirs, initialPluginData } = { ...defaultDenoPluginsConfig, ...config },
 		resolvePath = resolvePathFactory(getCwd, isAbsolutePath)
 
 	return [
 		entryPlugin({ initialPluginData, acceptNamespaces }),
 		httpPlugin({ acceptNamespaces, log: logFor.includes("http") ? log : false }),
 		jsrPlugin({ acceptNamespaces }),
-		npmPlugin({ acceptNamespaces, autoInstall, log: logFor.includes("npm") ? log : false, nodeModulesDirs }),
+		npmPlugin({ acceptNamespaces, autoInstall, peerDependencies, nodeModulesDirs, log: logFor.includes("npm") ? log : false }),
 		resolverPlugin({
 			log: logFor.includes("resolver") ? log : false,
 			importMap: { globalImportMap: globalImportMap },

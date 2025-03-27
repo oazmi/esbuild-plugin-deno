@@ -24,6 +24,7 @@ This permits it portablility across any runtime environment (web, deno, node, bu
   - `node:child_process.exec` - needed for auto-installing missing npm-packages through the use of cli-commands.
     The auto-installations are not necessary if you had all npm-dependencies cached beforehand (e.g. via `npm install`).
     But obviously, you cannot install npm-packages on a web-browser, so rip.
+- Allows you to specify your project's implicit `peerDependencies`, so that they can be auto-installed (cached into `./node_modules/`) at the very beginning of the build process.
 
 ## Downsides
 
@@ -44,6 +45,7 @@ This permits it portablility across any runtime environment (web, deno, node, bu
 - {@link "mod"!jsrPlugin}: provides a `jsr:` to `https://jsr.io/` path-resolver.
 - {@link "mod"!npmPlugin}: provides a resolver that strips away `npm:` specifier prefixes,
   so that package-resources can be obtained from your `./node_modules/` folder.
+  moreover, it supports auto-installation of any uncached npm-package.
 - {@link "mod"!resolverPlugin}: a namespaced plugin that provides the backbone pipeline for resolving the paths of all of the plugins above.
 - {@link "mod"!denoPlugins}: cumulation of the five plugins above, so that you can bundle code that deno natively understands, free of hassles.
 
@@ -58,8 +60,11 @@ This permits it portablility across any runtime environment (web, deno, node, bu
 
 - for deno: `deno add jsr:@oazmi/esbuild-plugin-deno`
 - for node: `npm install @oazmi/esbuild-plugin-deno --save-dev`
+- for bun: `bun install @oazmi/esbuild-plugin-deno --save-dev`
 
 ## Example
+
+TODO: also add an entry point that has an implicit `peerDependencies` on an npm-package without the `npm:` specifier.
 
 entry point 1:
 
@@ -159,6 +164,10 @@ const [entry_plugin, http_plugin, jsr_plugin, npm_plugin, resolver_pipeline_plug
 	// however, you can greatly customize it and even provide a custom cli-command generator yourself.
 	// see the docs for the list of possible options.
 	autoInstall: "auto-cli", // or just provide `true`
+	// provide any implicit (i.e. unspecified) npm dependencies which your project, or one of your npm packages may have.
+	// these will be the first thing to get auto-installed when `autoInstall` is enabled,
+	// and you may also install the package under a different alias.
+	peerDependencies: ["preact@10", { in: "@alias/signal", out: "@oazmi/tsignal" }],
 })
 
 const result = await esbuild.build({

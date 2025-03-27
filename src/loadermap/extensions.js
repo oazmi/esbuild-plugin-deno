@@ -29,6 +29,6 @@ export default {
 	"jsx": [".jsx"],
 	"local-css": [".module.css"],
 	"text": [".txt", ".html", ".md", ".xml", ".csv"],
-	"ts": [".ts"],
+	"ts": [".ts", ".mts", ".cts"],
 	"tsx": [".tsx"]
 };

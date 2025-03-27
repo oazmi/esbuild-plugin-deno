@@ -8,7 +8,7 @@ import { type ImportMapResolverConfig, type ResolverPluginSetupConfig } from "./
 import { type EsbuildPlugin } from "./typedefs.js";
 export { DIRECTORY } from "./typedefs.js";
 /** the configuration interface for the deno esbuild plugins suite {@link denoPlugins}. */
-export interface DenoPluginsConfig extends Pick<EntryPluginSetupConfig, "initialPluginData">, Pick<ResolverPluginSetupConfig, "log">, Pick<NpmPluginSetupConfig, "autoInstall" | "nodeModulesDirs">, Pick<ImportMapResolverConfig, "globalImportMap"> {
+export interface DenoPluginsConfig extends Pick<EntryPluginSetupConfig, "initialPluginData">, Pick<ResolverPluginSetupConfig, "log">, Pick<NpmPluginSetupConfig, "autoInstall" | "peerDependencies" | "nodeModulesDirs">, Pick<ImportMapResolverConfig, "globalImportMap"> {
     /** provide an optional function (or a static `string`) that returns the absolute path to the current working directory.
      * make sure that it always returns a posix-style path (i.e. uses "/" for directory separator, and not "\\").
      *

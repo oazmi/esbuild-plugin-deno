@@ -1,6 +1,6 @@
 {
   "name": "@oazmi/esbuild-plugin-deno",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "A portable non-invasive suite of esbuild plugins for loading http, jsr, npm, and import-maps. Supports Deno, Node, Bun, Web. Alternate to @luca/esbuild-deno-loader , while compatible with other plugins and native esbuild resolvers (e.g. css loader).",
   "keywords": [
     "esbuild-plugin",
@@ -68,6 +68,7 @@
     "build-iife": "npx esbuild \"./src/mod.ts\" --bundle --format=iife --outfile=\"./dist/@oazmi/esbuild-plugin-deno.iife.js\"",
     "build-iife-minify": "npx esbuild \"./src/mod.ts\" --bundle --minify --format=iife --outfile=\"./dist/@oazmi/esbuild-plugin-deno.iife.min.js\""
   },
+  "type": "module",
   "sideEffects": false,
   "bundledDependencies": [
     "@std/jsonc",
@@ -83,9 +84,7 @@
     "@types/node": "^20.9.0",
     "typescript": "^5.6.0",
     "esbuild": "^0.25.0",
-    "typedoc": "^0.27.7",
-    "typedoc-plugin-missing-exports": "^3.1.0",
-    "typedoc-plugin-mermaid": "^1.12.0"
+    "typedoc": "^0.27.7"
   },
   "_generatedBy": "dnt@dev"
 }

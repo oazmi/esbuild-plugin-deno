@@ -3,8 +3,8 @@
  *
  * @module
 */
-import { DEBUG, defaultGetCwd, dom_decodeURI, ensureEndSlash, escapeLiteralStringForRegex, execShellCommand, getUriScheme, identifyCurrentRuntime, isObject, isString, joinPaths, normalizePath, parsePackageUrl, pathToPosixPath, replacePrefix, RUNTIME } from "../../deps.js";
-import { ensureLocalPath, logLogger, syncTaskQueueFactory } from "../funcdefs.js";
+import { array_isEmpty, DEBUG, defaultGetCwd, dom_decodeURI, ensureEndSlash, escapeLiteralStringForRegex, execShellCommand, getUriScheme, identifyCurrentRuntime, isObject, isString, joinPaths, normalizePath, object_entries, object_fromEntries, parsePackageUrl, pathToPosixPath, promise_outside, replacePrefix, RUNTIME } from "../../deps.js";
+import { ensureLocalPath, entryPointsToImportMapEntries, logLogger, syncTaskQueueFactory } from "../funcdefs.js";
 import { nodeModulesResolverFactory } from "../resolvers.js";
 import { defaultEsbuildNamespaces, DIRECTORY, PLUGIN_NAMESPACE } from "../typedefs.js";
 const defaultNpmAutoInstallCliConfig = {
@@ -18,10 +18,20 @@ const defaultNpmAutoInstallCliConfig = {
  * resulting in corrupted/missing files even after installation.
 */
 const sync_task_queuer = syncTaskQueueFactory();
+/** this is a global dictionary that dictates which npm-libraries have been installed through the `autoInstall`er.
+ * this ensures that:
+ * - the same library is not queued for installation twice or more, due to two or more entries requesting for the same package almost simultaneously.
+ * - a partially installed package's resolvable resource (i.e. when installation is in progress) will wait to resolve until the package is fully installed.
+ *   this is because we don't want the resolvable resource to be loaded, which will in turn require the resolution of relative-resources,
+ *   which may not exist at the moment (since installation is in progress), causing the output path provided by resolver-pipeline's relative-path resolver to not load and fail.
+*/
+const packageAvailability = new Map();
+const npm_prefix = "npm:";
 const defaultNpmPluginSetupConfig = {
-    specifiers: ["npm:"],
+    specifiers: [npm_prefix],
     sideEffects: "auto",
     autoInstall: true,
+    peerDependencies: {},
     acceptNamespaces: defaultEsbuildNamespaces,
     nodeModulesDirs: [DIRECTORY.ABS_WORKING_DIR],
     log: false,
@@ -35,7 +45,14 @@ const defaultNpmPluginSetupConfig = {
  * so you'll have to pray that esbuild ends up in the `node_modules` folder consisting of the correct version, otherwise, rip.
 */
 export const npmPluginSetup = (config = {}) => {
-    const { specifiers, sideEffects, autoInstall: _autoInstall, acceptNamespaces: _acceptNamespaces, nodeModulesDirs, log } = { ...defaultNpmPluginSetupConfig, ...config }, logFn = log ? (log === true ? logLogger : log) : undefined, acceptNamespaces = new Set([..._acceptNamespaces, PLUGIN_NAMESPACE.LOADER_HTTP]), forcedSideEffectsMode = isString(sideEffects) ? undefined : sideEffects, autoInstall = autoInstallOptionToNpmAutoInstallCliConfig(_autoInstall);
+    const { specifiers, sideEffects, autoInstall: _autoInstall, peerDependencies: _peerDependencies, acceptNamespaces: _acceptNamespaces, nodeModulesDirs, log } = { ...defaultNpmPluginSetupConfig, ...config }, logFn = log ? (log === true ? logLogger : log) : undefined, acceptNamespaces = new Set([..._acceptNamespaces, PLUGIN_NAMESPACE.LOADER_HTTP]), forcedSideEffectsMode = isString(sideEffects) ? undefined : sideEffects, autoInstall = autoInstallOptionToNpmAutoInstallCliConfig(_autoInstall), 
+    // we have to use `as EsbuildEntryPointsType` below because the `DeepPartial` utility type converts `ImportMap` type to `Partial<ImportMap>`.
+    peerDependenciesImportMap = object_fromEntries(entryPointsToImportMapEntries(_peerDependencies).map(([alias, pkg_name]) => {
+        // the alias must never contain the "npm:" prefix, and the package name must always be prefixed with "npm:".
+        // TODO: furthermore, we must prepare a set of two aliases: one with a leading slash after the alias name, and one without.
+        const well_formed_alias_with_version_and_path = replacePrefix(alias, npm_prefix, "") ?? alias, { scope: alias_scope, pkg: alias_pkg } = parsePackageUrl(npm_prefix + well_formed_alias_with_version_and_path), well_formed_alias = (alias_scope ? "@" + alias_scope + "/" : "") + alias_pkg, well_formed_pkg_with_version_and_path = (replacePrefix(pkg_name, npm_prefix, "") ?? pkg_name), { host: well_formed_pkg_with_version } = parsePackageUrl(npm_prefix + well_formed_pkg_with_version_and_path);
+        return [well_formed_alias, (npm_prefix + well_formed_pkg_with_version)];
+    }));
     // if the npm-package installation directory has been specified for the installation cli-command,
     // then prepend that path to `nodeModulesDirs`, so that the `validResolveDirFinder` function
     // (which relies on esbuild's native node-module resolution) will be able locate the newly installed package.
@@ -54,15 +71,37 @@ export const npmPluginSetup = (config = {}) => {
         }, node_modules_dirs = [...(new Set(nodeModulesDirs.map(dir_path_converter)))], validResolveDirFinder = findResolveDirOfNpmPackageFactory(build), autoInstallConfig = isObject(autoInstall)
             ? { dir: dir_path_converter(autoInstall.dir), command: autoInstall.command, log }
             : autoInstall;
+        // first of all, we auto install any peer dependencies specified by the user
+        if (autoInstallConfig) {
+            build.onStart(async () => {
+                const is_dynamic_installation = autoInstallConfig === "dynamic", well_formed_peer_deps = object_entries(peerDependenciesImportMap);
+                if (!array_isEmpty(well_formed_peer_deps) && DEBUG.LOG && logFn) {
+                    logFn(`[npmPlugin] peer-dependency: the following peer dependencies were specified:`, peerDependenciesImportMap);
+                }
+                for (const [alias, pkg_name] of well_formed_peer_deps) {
+                    const { host: pkg_with_version, version: desired_version } = parsePackageUrl(pkg_name), no_aliasing_is_being_performed = desired_version === undefined
+                        ? (alias === pkg_with_version)
+                        : pkg_with_version.startsWith(alias + "@"), 
+                    // see "https://stackoverflow.com/a/56134858" for how package aliasing works
+                    pkg_aliased_installation_string = `${alias}@npm:${pkg_with_version}`, pkg_installation_string = (no_aliasing_is_being_performed || is_dynamic_installation)
+                        ? pkg_with_version
+                        : pkg_aliased_installation_string;
+                    if (!no_aliasing_is_being_performed && is_dynamic_installation) {
+                        (logFn ?? logLogger)(`[npmPlugin]: WARNING! auto peer dependency package installation under an aliased name is not possible with "autoInstall" set to "dynamic".`, `\n\tthis will very likely lead to a broken import. please set "autoInstall" to one of the cli options, such as "auto-cli".`, `\n\twarning generated for the peer dependency package: "${pkg_name}", with alias: "${alias}".`);
+                    }
+                    await sync_task_queuer(installNpmPackage, pkg_installation_string, autoInstallConfig);
+                }
+            });
+        }
         const npmSpecifierResolverFactory = (specifier) => (async (args) => {
             // skip resolving any `namespace` that we do not accept
             if (!acceptNamespaces.has(args.namespace)) {
                 return;
             }
-            const { path, pluginData = {}, resolveDir = "", namespace: original_ns, ...rest_args } = args, well_formed_npm_package_alias = replacePrefix(path, specifier, "npm:"), { scope, pkg, pathname, version: desired_version } = parsePackageUrl(well_formed_npm_package_alias), resolved_npm_package_alias = `${scope ? "@" + scope + "/" : ""}${pkg}${pathname === "/" ? "" : pathname}`, 
+            const { path, pluginData = {}, resolveDir = "", namespace: original_ns, ...rest_args } = args, well_formed_npm_package_alias = replacePrefix(path, specifier, npm_prefix), { scope, pkg, pathname, version: desired_version } = parsePackageUrl(well_formed_npm_package_alias), npm_package_name = (scope ? "@" + scope + "/" : "") + pkg, resolved_npm_package_alias = `${npm_package_name}${pathname === "/" ? "" : pathname}`, 
             // below, we flush away any previous import-map and runtime-package manager stored in the plugin-data,
             // as we will need to reset them for the current self-contained npm package's scope.
-            { importMap: _0, runtimePackage: _1, resolverConfig: _2, ...restPluginData } = pluginData, 
+            { importMap: _0, runtimePackage: _1, resolverConfig: originalResolverConfig, ...restPluginData } = pluginData, 
             // NOTE:
             //   it is absolutely necessary for the `resolveDir` argument to exist when resolving an npm package, otherwise esbuild will not know where to look for the node module.
             //   this is why when there is no `resolveDir` available, we will use either the absolute-working-directory or the current-working-directory as a fallback.
@@ -72,12 +111,23 @@ export const npmPluginSetup = (config = {}) => {
             //   version presrvation is also an issue, since the version that will actually end up being used is whatever is available in `node_modules`,
             //   instead of the `desired_version`. unless we ask deno to install/import that specific version to our `node_modules`.
             scan_resolve_dir = resolveDir === "" ? node_modules_dirs : [resolveDir, ...node_modules_dirs];
+            // first, we will ensure that we wait for the npm-package if its installation is underway
+            let package_availability_promise = packageAvailability.get(npm_package_name), package_availability_promise_resolver = undefined;
+            if (!package_availability_promise) {
+                // this is the first time we've encountered this package, so we must create a new promise for its availability,
+                // to stop subsequent attempts at resolving this package from succeeding _before_ this request has been resolved first (which may involve auto-installation).
+                const [promise, resolve] = promise_outside();
+                packageAvailability.set(npm_package_name, (package_availability_promise = promise));
+                package_availability_promise_resolver = resolve;
+            }
+            else {
+                // if this package awas encounter previously (via a different resource), then wait for its availability to be confirmed.
+                await package_availability_promise;
+            }
             // we now let esbuild scan and traverse multiple directories in search for our desired npm-package.
             // if we don't initially land on a hit (i.e. none of the directories lead to the desired package),
-            // then if the `autoInstall` option is enabled, we will indirectly invoke deno to install the npm-package.
-            // hopefully that will lead to the package now being available under some `"./node_modules/"` directory,
-            // assuming that `"nodeModulesDir"` is set to `"auto"` in the current deno-runtime's "deno.json" config file.
-            // otherwise the package will not be installed in `node_modules` fashion, and esbuild will not be able to discover it.
+            // then if the `autoInstall` option is enabled, we will invoke deno/bun.npm/pnpm to install the npm-package (either via the cli, or dynamic-import).
+            // hopefully that will lead to the package now being available under some `"./node_modules/"` directory, for esbuild to discover it.
             let valid_resolve_dir = await validResolveDirFinder(resolved_npm_package_alias, scan_resolve_dir);
             if (!valid_resolve_dir && autoInstallConfig) {
                 // below, `sync_task_queuer` ensures that only one instance of a new terminal is running, to avoid parallel `npm install`s from occurring.
@@ -87,6 +137,9 @@ export const npmPluginSetup = (config = {}) => {
             if (!valid_resolve_dir) {
                 (logFn ?? logLogger)(`[npmPlugin]: WARNING! no valid "resolveDir" directory was found to contain the npm package named "${resolved_npm_package_alias}"`, `\n\twe will still continue with the path resolution (in case the global-import-map may alter the situation),`, `\n\tbut it is almost guaranteed not to work if the current-working-directory was already part of the scanned directories.`);
             }
+            // by this point, the auto-installation would have taken place if necessary.
+            // so, if this was the first encounter of this package, then we better signal that it is now available.
+            package_availability_promise_resolver?.();
             const abs_result = await build.resolve(resolved_npm_package_alias, {
                 ...rest_args,
                 resolveDir: valid_resolve_dir,
@@ -105,6 +158,9 @@ export const npmPluginSetup = (config = {}) => {
             // esbuild's native loaders only operate on the default `""` and `"file"` namespaces,
             // which is why we don't restore back the `original_ns` namespace.
             abs_result.namespace = "";
+            // we also go back to using the original configuration of import-maps, in case the user has a few global import-maps specified.
+            // TODO: merge `peerDependenciesImportMap` with import-map.
+            Object.assign(abs_result.pluginData.resolverConfig, { ...originalResolverConfig, useRuntimePackage: false, useNodeModules: true });
             return abs_result;
         });
         specifiers.forEach((specifier) => {
@@ -232,7 +288,9 @@ export const installNpmPackage = async (package_name, config) => {
  * see {@link NpmAutoInstallCliConfig} and {@link NpmPluginSetupConfig.autoInstall} for details on how to customize.
 */
 export const installNpmPackageCli = async (package_name, config) => {
-    const { command, dir, log } = config, logFn = log ? (log === true ? logLogger : log) : undefined, pkg_pseudo_url = parsePackageUrl(package_name.startsWith("npm:") ? package_name : ("npm:" + package_name)), pkg_name_and_version = pkg_pseudo_url.host, cli_command = command(pkg_name_and_version);
+    const { command, dir, log } = config, logFn = log ? (log === true ? logLogger : log) : undefined, pkg_pseudo_url = parsePackageUrl(package_name.startsWith(npm_prefix) ? package_name : (npm_prefix + package_name)), pkg_name_and_version = pkg_pseudo_url.host, 
+    // TODO: I should ideally use a more robust way to detect package name aliasing ("@my/alias@npm:@scope/pkg@version"), but for now, this will do. 
+    is_using_package_aliasing = pkg_name_and_version.includes("@npm:"), cli_command = command(is_using_package_aliasing ? package_name : pkg_name_and_version);
     if (DEBUG.LOG && logFn) {
         logFn(`[npmPlugin]      installing: "${package_name}", in directory "${dir}"\n>>    using the cli-command: \`${cli_command}\``);
     }
@@ -249,8 +307,8 @@ export const installNpmPackageCli = async (package_name, config) => {
  * > making it impossible for esbuild to traverse through it to discover the package natively.
 */
 export const installNpmPackageDynamic = async (package_name) => {
-    const pkg_pseudo_url = parsePackageUrl(package_name.startsWith("npm:") ? package_name : ("npm:" + package_name)), pkg_import_url = pkg_pseudo_url.href
-        .replace(/^npm\:[\/\\]*/, "npm:")
+    const pkg_pseudo_url = parsePackageUrl(package_name.startsWith(npm_prefix) ? package_name : (npm_prefix + package_name)), pkg_import_url = pkg_pseudo_url.href
+        .replace(/^npm\:[\/\\]*/, npm_prefix)
         .slice(0, pkg_pseudo_url.pathname === "/" ? -1 : undefined), 
     // NOTE: we must decode the href uri, because deno will not accept version strings that are uri-encoded.
     dynamic_export_script = `export * as myLib from "${dom_decodeURI(pkg_import_url)}"`, dynamic_export_script_blob = new Blob([dynamic_export_script], { type: "text/javascript" }), dynamic_export_script_url = URL.createObjectURL(dynamic_export_script_blob);

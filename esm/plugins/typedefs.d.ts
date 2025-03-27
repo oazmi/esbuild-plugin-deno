@@ -107,4 +107,11 @@ export type EsbuildPluginBuild = esbuild.PluginBuild;
 export type EsbuildLoaderType = esbuild.Loader;
 /** a logging function that can be used as an alternative to the default `console.log` logger function. */
 export type LoggerFunction = (...data: any[]) => void;
+/** these are the various formats of input and output specification accepted by esbuild for a single entity. */
+export type EsbuildEntryPointType = string | {
+    in: string;
+    out: string;
+} | [input: string, output: string];
+/** these are the various formats of entry points accepted by esbuild. */
+export type EsbuildEntryPointsType = ImportMap | Array<EsbuildEntryPointType>;
 //# sourceMappingURL=typedefs.d.ts.map
