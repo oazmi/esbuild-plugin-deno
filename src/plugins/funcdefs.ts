@@ -1,5 +1,5 @@
-import { bind_array_push, DEBUG, dom_decodeURI, getUriScheme, isString, pathToPosixPath, promise_outside, promise_resolve } from "../deps.ts"
-import type { LoggerFunction } from "./typedefs.ts"
+import { bind_array_push, DEBUG, dom_decodeURI, getUriScheme, isArray, isObject, isString, object_entries, pathToPosixPath, promise_outside, promise_resolve } from "../deps.ts"
+import type { EsbuildEntryPointsType, EsbuildEntryPointType, LoggerFunction } from "./typedefs.ts"
 
 
 /** alias for `console.log`. this is the default logging function. */
@@ -19,6 +19,7 @@ export const arrayLogger: LoggerFunction = /*@__PURE__*/ arrayLoggerFactory(arra
 const windows_local_path_correction_regex = /^[\/\\]([a-z])\:[\/\\]/i
 
 /** a utility function to convert file-uri to your filesystem's local-path.
+ * // TODO: import from `@oazmi/kitchensink`
  * 
  * @example
  * ```ts
@@ -61,6 +62,8 @@ export const fileUriToLocalPath = (file_url?: URL | string): string | undefined 
 
 /** a fault tolerant variant of {@link fileUriToLocalPath} that converts the provided path into a filesystem local-path when possible,
  * otherwise the string representation of the original path will be returned.
+ * 
+ * // TODO: import from `@oazmi/kitchensink`
  * 
  * @example
  * ```ts
@@ -120,7 +123,7 @@ export type SyncTaskQueue = <FN extends ((...args: any) => any) >(task: FN, ...a
  * which ensures that the task-functions it receives are executed sequentially,
  * one after the other, in the order they were enqueued.
  * 
- * TODO: consider adding this utility function to `@oazmi/kitchensink/lambda`.
+ * TODO: consider adding this utility function to `@oazmi/kitchensink/lambda`, or the planned `@oazmi/kitchensink/duty` or `@oazmi/kitchensink/obligate`.
  * 
  * @returns see {@link SyncTaskQueue} for the return type, and check out the example below.
  * 
@@ -181,4 +184,72 @@ export const syncTaskQueueFactory = (): SyncTaskQueue => {
 		return promise_current_task_value
 	}
 	return task_queuer
+}
+
+/** this function accepts various forms of entry-points that are accepted by esbuild, and transforms them into an array of 2-tuples.
+ * 
+ * @example
+ * ```ts
+ * import { assertEquals } from "jsr:@std/assert"
+ * 
+ * // aliasing our functions for brevity
+ * const
+ * 	fn = entryPointsToImportMapEntries,
+ * 	eq = assertEquals
+ * 
+ * eq(fn(["input-a", "input-b", "input-c"]), [
+ * 	["input-a", "input-a"],
+ * 	["input-b", "input-b"],
+ * 	["input-c", "input-c"],
+ * ])
+ * 
+ * eq(fn({
+ * 	"input-a": "output-a",
+ * 	"input-b": "output-b",
+ * 	"input-c": "output-c",
+ * }), [
+ * 	["input-a", "output-a"],
+ * 	["input-b", "output-b"],
+ * 	["input-c", "output-c"],
+ * ])
+ * 
+ * eq(fn([
+ * 	["input-a", "output-a"],
+ * 	["input-b", "output-b"],
+ * 	["input-c", "output-c"],
+ * ]), [
+ * 	["input-a", "output-a"],
+ * 	["input-b", "output-b"],
+ * 	["input-c", "output-c"],
+ * ])
+ * 
+ * eq(fn([
+ * 	{ in: "input-a", out: "output-a" },
+ * 	{ in: "input-b", out: "output-b" },
+ * 	{ in: "input-c", out: "output-c" },
+ * ]), [
+ * 	["input-a", "output-a"],
+ * 	["input-b", "output-b"],
+ * 	["input-c", "output-c"],
+ * ])
+ * 
+ * eq(fn([
+ * 	"input-a",
+ * 	["input-b", "output-b"],
+ * 	{ in: "input-c", out: "output-c" },
+ * ]), [
+ * 	["input-a", "input-a"],
+ * 	["input-b", "output-b"],
+ * 	["input-c", "output-c"],
+ * ])
+ * ```
+*/
+export const entryPointsToImportMapEntries = (entry_points: EsbuildEntryPointsType): Array<[input: string, output: string]> => {
+	type ImportMapEntry = [input: string, output: string]
+	if (!isArray(entry_points)) { entry_points = object_entries(entry_points) as ImportMapEntry[] }
+	return entry_points.map((entry: EsbuildEntryPointType): ImportMapEntry => {
+		return isString(entry) ? ([entry, entry])
+			: !isArray(entry) ? ([entry.in, entry.out])
+				: (entry)
+	})
 }

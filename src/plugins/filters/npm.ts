@@ -4,10 +4,10 @@
  * @module
 */
 
-import { DEBUG, defaultGetCwd, dom_decodeURI, ensureEndSlash, escapeLiteralStringForRegex, execShellCommand, getUriScheme, identifyCurrentRuntime, isObject, isString, joinPaths, normalizePath, parsePackageUrl, pathToPosixPath, replacePrefix, RUNTIME, type DeepPartial } from "../../deps.ts"
-import { ensureLocalPath, logLogger, syncTaskQueueFactory } from "../funcdefs.ts"
+import { array_isEmpty, DEBUG, defaultGetCwd, dom_decodeURI, ensureEndSlash, escapeLiteralStringForRegex, execShellCommand, getUriScheme, identifyCurrentRuntime, isObject, isString, joinPaths, normalizePath, object_entries, object_fromEntries, parsePackageUrl, pathToPosixPath, promise_outside, replacePrefix, RUNTIME, type DeepPartial } from "../../deps.ts"
+import { ensureLocalPath, entryPointsToImportMapEntries, logLogger, syncTaskQueueFactory } from "../funcdefs.ts"
 import { nodeModulesResolverFactory, type resolverPlugin } from "../resolvers.ts"
-import type { CommonPluginData, EsbuildPlugin, EsbuildPluginBuild, EsbuildPluginSetup, LoggerFunction, OnResolveArgs, OnResolveCallback } from "../typedefs.ts"
+import type { CommonPluginData, EsbuildEntryPointsType, EsbuildPlugin, EsbuildPluginBuild, EsbuildPluginSetup, LoggerFunction, OnResolveArgs, OnResolveCallback } from "../typedefs.ts"
 import { defaultEsbuildNamespaces, DIRECTORY, PLUGIN_NAMESPACE } from "../typedefs.ts"
 
 
@@ -58,6 +58,15 @@ const defaultNpmAutoInstallCliConfig: NpmAutoInstallCliConfig = {
  * resulting in corrupted/missing files even after installation.
 */
 const sync_task_queuer = syncTaskQueueFactory()
+
+/** this is a global dictionary that dictates which npm-libraries have been installed through the `autoInstall`er.
+ * this ensures that:
+ * - the same library is not queued for installation twice or more, due to two or more entries requesting for the same package almost simultaneously.
+ * - a partially installed package's resolvable resource (i.e. when installation is in progress) will wait to resolve until the package is fully installed.
+ *   this is because we don't want the resolvable resource to be loaded, which will in turn require the resolution of relative-resources,
+ *   which may not exist at the moment (since installation is in progress), causing the output path provided by resolver-pipeline's relative-path resolver to not load and fail.
+*/
+const packageAvailability = new Map<string, Promise<void>>()
 
 /** configuration options for the {@link npmPluginSetup} and {@link npmPlugin} functions. */
 export interface NpmPluginSetupConfig {
@@ -153,6 +162,26 @@ export interface NpmPluginSetupConfig {
 	*/
 	autoInstall: boolean | "auto-cli" | "auto" | "dynamic" | "npm" | "deno" | "deno-noscript" | "bun" | "pnpm" | Partial<NpmAutoInstallCliConfig>
 
+	/** specify implicit peer-dependencies that your project requires, or it can even serve as a dependency aliasing import-map.
+	 * 
+	 * when {@link autoInstall} is enabled, these peer-dependencies will be the first thing to get installed in bulk (during esbuild's `build.onStart` phase).
+	 * 
+	 * moreover, an `npm:` prefix will always be ensured in your collection of peer-dependencies.
+	 * this means you cannot use this field to route a package to anywhere other than an npm-package.
+	 * for instance `{ "react": "react@18" }` will be converted to `{ "react": "npm:react@18" }`.
+	 * 
+	 * TODO: currently, I'm not inserting `peerDependencies` as an import-map for all resolved npm-packages.
+	 *   this is because, if the user had intended to use an npm-package alias, they could've set an entry in the `globalImportMap`,
+	 *   and it would have sufficed in most cases.
+	 *   but I may implement it in the future, since the user may only wish to expose this alias to npm-packages captured by this plugin,
+	 *   rather the global scope (which includes entities from http, jsr, etc...).
+	 *   moreover, since dynamic-import-based installations cannot be aliased, 
+	 *   injecting the `peerDependencies` as an import-map inside the `pluginData` would be needed for the package to be discoverable.
+	 * 
+	 * @defaultValue `{}` (no peer-dependencies)
+	*/
+	peerDependencies: EsbuildEntryPointsType
+
 	/** specify which `namespace`s should be intercepted by the npm-specifier-plugin.
 	 * all other `namespace`s will not be processed by this plugin.
 	 * 
@@ -197,10 +226,13 @@ export interface NpmPluginSetupConfig {
 	log: boolean | LoggerFunction
 }
 
+const npm_prefix = "npm:" as const
+
 const defaultNpmPluginSetupConfig: NpmPluginSetupConfig = {
-	specifiers: ["npm:"],
+	specifiers: [npm_prefix],
 	sideEffects: "auto",
 	autoInstall: true,
+	peerDependencies: {},
 	acceptNamespaces: defaultEsbuildNamespaces,
 	nodeModulesDirs: [DIRECTORY.ABS_WORKING_DIR],
 	log: false,
@@ -216,11 +248,25 @@ const defaultNpmPluginSetupConfig: NpmPluginSetupConfig = {
 */
 export const npmPluginSetup = (config: DeepPartial<NpmPluginSetupConfig> = {}): EsbuildPluginSetup => {
 	const
-		{ specifiers, sideEffects, autoInstall: _autoInstall, acceptNamespaces: _acceptNamespaces, nodeModulesDirs, log } = { ...defaultNpmPluginSetupConfig, ...config },
+		{ specifiers, sideEffects, autoInstall: _autoInstall, peerDependencies: _peerDependencies, acceptNamespaces: _acceptNamespaces, nodeModulesDirs, log } = { ...defaultNpmPluginSetupConfig, ...config },
 		logFn = log ? (log === true ? logLogger : log) : undefined,
 		acceptNamespaces = new Set([..._acceptNamespaces, PLUGIN_NAMESPACE.LOADER_HTTP]),
 		forcedSideEffectsMode = isString(sideEffects) ? undefined : sideEffects,
-		autoInstall = autoInstallOptionToNpmAutoInstallCliConfig(_autoInstall)
+		autoInstall = autoInstallOptionToNpmAutoInstallCliConfig(_autoInstall),
+		// we have to use `as EsbuildEntryPointsType` below because the `DeepPartial` utility type converts `ImportMap` type to `Partial<ImportMap>`.
+		peerDependenciesImportMap: Record<string, `npm:${string}`> = object_fromEntries(
+			entryPointsToImportMapEntries(_peerDependencies as EsbuildEntryPointsType).map(([alias, pkg_name]): [string, `npm:${string}`] => {
+				// the alias must never contain the "npm:" prefix, and the package name must always be prefixed with "npm:".
+				// TODO: furthermore, we must prepare a set of two aliases: one with a leading slash after the alias name, and one without.
+				const
+					well_formed_alias_with_version_and_path = replacePrefix(alias, npm_prefix, "") ?? alias,
+					{ scope: alias_scope, pkg: alias_pkg } = parsePackageUrl(npm_prefix + well_formed_alias_with_version_and_path),
+					well_formed_alias = (alias_scope ? "@" + alias_scope + "/" : "") + alias_pkg,
+					well_formed_pkg_with_version_and_path = (replacePrefix(pkg_name, npm_prefix, "") ?? pkg_name),
+					{ host: well_formed_pkg_with_version } = parsePackageUrl(npm_prefix + well_formed_pkg_with_version_and_path)
+				return [well_formed_alias, (npm_prefix + well_formed_pkg_with_version) as `npm:${string}`]
+			})
+		)
 
 	// if the npm-package installation directory has been specified for the installation cli-command,
 	// then prepend that path to `nodeModulesDirs`, so that the `validResolveDirFinder` function
@@ -247,17 +293,50 @@ export const npmPluginSetup = (config: DeepPartial<NpmPluginSetupConfig> = {}): 
 				? { dir: dir_path_converter(autoInstall.dir), command: autoInstall.command, log } satisfies NpmAutoInstallCliConfig
 				: autoInstall
 
+		// first of all, we auto install any peer dependencies specified by the user
+		if (autoInstallConfig) {
+			build.onStart(async () => {
+				const
+					is_dynamic_installation = autoInstallConfig === "dynamic",
+					well_formed_peer_deps = object_entries(peerDependenciesImportMap)
+				if (!array_isEmpty(well_formed_peer_deps) && DEBUG.LOG && logFn) {
+					logFn(`[npmPlugin] peer-dependency: the following peer dependencies were specified:`, peerDependenciesImportMap)
+				}
+				for (const [alias, pkg_name] of well_formed_peer_deps) {
+					const
+						{ host: pkg_with_version, version: desired_version } = parsePackageUrl(pkg_name),
+						no_aliasing_is_being_performed = desired_version === undefined
+							? (alias === pkg_with_version)
+							: pkg_with_version.startsWith(alias + "@"),
+						// see "https://stackoverflow.com/a/56134858" for how package aliasing works
+						pkg_aliased_installation_string = `${alias}@npm:${pkg_with_version}`,
+						pkg_installation_string = (no_aliasing_is_being_performed || is_dynamic_installation)
+							? pkg_with_version
+							: pkg_aliased_installation_string
+					if (!no_aliasing_is_being_performed && is_dynamic_installation) {
+						(logFn ?? logLogger)(
+							`[npmPlugin]: WARNING! auto peer dependency package installation under an aliased name is not possible with "autoInstall" set to "dynamic".`,
+							`\n\tthis will very likely lead to a broken import. please set "autoInstall" to one of the cli options, such as "auto-cli".`,
+							`\n\twarning generated for the peer dependency package: "${pkg_name}", with alias: "${alias}".`,
+						)
+					}
+					await sync_task_queuer(installNpmPackage, pkg_installation_string, autoInstallConfig)
+				}
+			})
+		}
+
 		const npmSpecifierResolverFactory = (specifier: string): OnResolveCallback => (async (args: OnResolveArgs) => {
 			// skip resolving any `namespace` that we do not accept
 			if (!acceptNamespaces.has(args.namespace)) { return }
 			const
 				{ path, pluginData = {}, resolveDir = "", namespace: original_ns, ...rest_args } = args,
-				well_formed_npm_package_alias = replacePrefix(path, specifier, "npm:")!,
+				well_formed_npm_package_alias = replacePrefix(path, specifier, npm_prefix)!,
 				{ scope, pkg, pathname, version: desired_version } = parsePackageUrl(well_formed_npm_package_alias),
-				resolved_npm_package_alias = `${scope ? "@" + scope + "/" : ""}${pkg}${pathname === "/" ? "" : pathname}`,
+				npm_package_name = (scope ? "@" + scope + "/" : "") + pkg,
+				resolved_npm_package_alias = `${npm_package_name}${pathname === "/" ? "" : pathname}`,
 				// below, we flush away any previous import-map and runtime-package manager stored in the plugin-data,
 				// as we will need to reset them for the current self-contained npm package's scope.
-				{ importMap: _0, runtimePackage: _1, resolverConfig: _2, ...restPluginData } = pluginData,
+				{ importMap: _0, runtimePackage: _1, resolverConfig: originalResolverConfig, ...restPluginData } = pluginData,
 				// NOTE:
 				//   it is absolutely necessary for the `resolveDir` argument to exist when resolving an npm package, otherwise esbuild will not know where to look for the node module.
 				//   this is why when there is no `resolveDir` available, we will use either the absolute-working-directory or the current-working-directory as a fallback.
@@ -268,12 +347,25 @@ export const npmPluginSetup = (config: DeepPartial<NpmPluginSetupConfig> = {}): 
 				//   instead of the `desired_version`. unless we ask deno to install/import that specific version to our `node_modules`.
 				scan_resolve_dir: string[] = resolveDir === "" ? node_modules_dirs : [resolveDir, ...node_modules_dirs]
 
+			// first, we will ensure that we wait for the npm-package if its installation is underway
+			let
+				package_availability_promise = packageAvailability.get(npm_package_name),
+				package_availability_promise_resolver: (undefined | (() => void)) = undefined
+			if (!package_availability_promise) {
+				// this is the first time we've encountered this package, so we must create a new promise for its availability,
+				// to stop subsequent attempts at resolving this package from succeeding _before_ this request has been resolved first (which may involve auto-installation).
+				const [promise, resolve] = promise_outside<void>()
+				packageAvailability.set(npm_package_name, (package_availability_promise = promise))
+				package_availability_promise_resolver = resolve
+			} else {
+				// if this package awas encounter previously (via a different resource), then wait for its availability to be confirmed.
+				await package_availability_promise
+			}
+
 			// we now let esbuild scan and traverse multiple directories in search for our desired npm-package.
 			// if we don't initially land on a hit (i.e. none of the directories lead to the desired package),
-			// then if the `autoInstall` option is enabled, we will indirectly invoke deno to install the npm-package.
-			// hopefully that will lead to the package now being available under some `"./node_modules/"` directory,
-			// assuming that `"nodeModulesDir"` is set to `"auto"` in the current deno-runtime's "deno.json" config file.
-			// otherwise the package will not be installed in `node_modules` fashion, and esbuild will not be able to discover it.
+			// then if the `autoInstall` option is enabled, we will invoke deno/bun.npm/pnpm to install the npm-package (either via the cli, or dynamic-import).
+			// hopefully that will lead to the package now being available under some `"./node_modules/"` directory, for esbuild to discover it.
 			let valid_resolve_dir = await validResolveDirFinder(resolved_npm_package_alias, scan_resolve_dir)
 			if (!valid_resolve_dir && autoInstallConfig) {
 				// below, `sync_task_queuer` ensures that only one instance of a new terminal is running, to avoid parallel `npm install`s from occurring.
@@ -287,6 +379,9 @@ export const npmPluginSetup = (config: DeepPartial<NpmPluginSetupConfig> = {}): 
 					`\n\tbut it is almost guaranteed not to work if the current-working-directory was already part of the scanned directories.`,
 				)
 			}
+			// by this point, the auto-installation would have taken place if necessary.
+			// so, if this was the first encounter of this package, then we better signal that it is now available.
+			package_availability_promise_resolver?.()
 
 			const abs_result = await build.resolve(resolved_npm_package_alias, {
 				...rest_args,
@@ -306,6 +401,9 @@ export const npmPluginSetup = (config: DeepPartial<NpmPluginSetupConfig> = {}): 
 			// esbuild's native loaders only operate on the default `""` and `"file"` namespaces,
 			// which is why we don't restore back the `original_ns` namespace.
 			abs_result.namespace = ""
+			// we also go back to using the original configuration of import-maps, in case the user has a few global import-maps specified.
+			// TODO: merge `peerDependenciesImportMap` with import-map.
+			Object.assign(abs_result.pluginData.resolverConfig, { ...originalResolverConfig, useRuntimePackage: false, useNodeModules: true })
 			return abs_result
 		})
 
@@ -475,9 +573,11 @@ export const installNpmPackageCli = async (package_name: string, config: Exclude
 	const
 		{ command, dir, log } = config,
 		logFn = log ? (log === true ? logLogger : log) : undefined,
-		pkg_pseudo_url = parsePackageUrl(package_name.startsWith("npm:") ? package_name : ("npm:" + package_name)),
+		pkg_pseudo_url = parsePackageUrl(package_name.startsWith(npm_prefix) ? package_name : (npm_prefix + package_name)),
 		pkg_name_and_version = pkg_pseudo_url.host,
-		cli_command = command(pkg_name_and_version)
+		// TODO: I should ideally use a more robust way to detect package name aliasing ("@my/alias@npm:@scope/pkg@version"), but for now, this will do. 
+		is_using_package_aliasing = pkg_name_and_version.includes("@npm:"),
+		cli_command = command(is_using_package_aliasing ? package_name : pkg_name_and_version)
 	if (DEBUG.LOG && logFn) {
 		logFn(`[npmPlugin]      installing: "${package_name}", in directory "${dir}"\n>>    using the cli-command: \`${cli_command}\``)
 	}
@@ -496,9 +596,9 @@ export const installNpmPackageCli = async (package_name: string, config: Exclude
 */
 export const installNpmPackageDynamic = async (package_name: string): Promise<void> => {
 	const
-		pkg_pseudo_url = parsePackageUrl(package_name.startsWith("npm:") ? package_name : ("npm:" + package_name)),
+		pkg_pseudo_url = parsePackageUrl(package_name.startsWith(npm_prefix) ? package_name : (npm_prefix + package_name)),
 		pkg_import_url = pkg_pseudo_url.href
-			.replace(/^npm\:[\/\\]*/, "npm:")
+			.replace(/^npm\:[\/\\]*/, npm_prefix)
 			.slice(0, pkg_pseudo_url.pathname === "/" ? -1 : undefined),
 		// NOTE: we must decode the href uri, because deno will not accept version strings that are uri-encoded.
 		dynamic_export_script = `export * as myLib from "${dom_decodeURI(pkg_import_url)}"`,
