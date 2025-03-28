@@ -4,7 +4,7 @@
  * @module
 */
 
-import { defaultFetchConfig, defaultResolvePath, jsoncParse, resolveAsUrl, type ConstructorOf } from "../deps.ts"
+import { defaultFetchConfig, defaultResolvePath, json_parse, jsoncRemoveComments, resolveAsUrl, type ConstructorOf } from "../deps.ts"
 import { resolvePathFromImportMapEntries, type ResolvePathFromImportMapEntriesConfig } from "../importmap/mod.ts"
 import type { ImportMapSortedEntries } from "../importmap/typedefs.ts"
 
@@ -88,7 +88,7 @@ export abstract class RuntimePackage<SCHEMA extends Record<string, any>> {
 	/** create an instance of this class by loading a package's json(c) file from a url or local file-system path.
 	 * 
 	 * > [!tip]
-	 * > the constructor uses a "JSONC" parser (from [@std/jsonc](https://jsr.io/@std/jsonc)) for the fetched files.
+	 * > the constructor uses a "JSONC" parser (from [@oazmi/kitchensink/stringman](https://jsr.io/@oazmi/kitchensink/0.9.10/src/stringman.ts)) for the fetched files.
 	 * > therefore, you may provide links to ".jsonc" files, instead of parsing them yourself before calling the super constructor.
 	*/
 	static async fromUrl<
@@ -96,7 +96,7 @@ export abstract class RuntimePackage<SCHEMA extends Record<string, any>> {
 		INSTANCE = RuntimePackage<SCHEMA>,
 	>(this: ConstructorOf<INSTANCE, [SCHEMA, string]>, package_jsonc_path: URL | string): Promise<INSTANCE> {
 		package_jsonc_path = resolveAsUrl(package_jsonc_path, defaultResolvePath())
-		const package_object = jsoncParse(await ((await fetch(package_jsonc_path, defaultFetchConfig)).text())) as SCHEMA
+		const package_object = json_parse(jsoncRemoveComments(await ((await fetch(package_jsonc_path, defaultFetchConfig)).text()))) as SCHEMA
 		return new this(package_object, package_jsonc_path.href)
 	}
 }

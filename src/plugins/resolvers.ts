@@ -38,11 +38,11 @@
  * @module
 */
 
-import { DEBUG, defaultResolvePath, ensureEndSlash, ensureStartDotSlash, getUriScheme, isAbsolutePath, joinPaths, noop, pathToPosixPath, promise_outside, resolveAsUrl, type DeepPartial } from "../deps.ts"
+import { DEBUG, defaultResolvePath, ensureEndSlash, ensureFileUrlIsLocalPath, ensureStartDotSlash, getUriScheme, isAbsolutePath, joinPaths, noop, pathToPosixPath, promise_outside, resolveAsUrl, type DeepPartial } from "../deps.ts"
 import { resolvePathFromImportMap } from "../importmap/mod.ts"
 import type { ImportMap } from "../importmap/typedefs.ts"
 import type { RuntimePackage } from "../packageman/base.ts"
-import { ensureLocalPath, logLogger } from "./funcdefs.ts"
+import { logLogger } from "./funcdefs.ts"
 import type { CommonPluginData, EsbuildPlugin, EsbuildPluginBuild, EsbuildPluginSetup, LoggerFunction, OnResolveCallback, OnResolveResult } from "./typedefs.ts"
 import { PLUGIN_NAMESPACE, type OnResolveArgs } from "./typedefs.ts"
 
@@ -427,9 +427,9 @@ export const nodeModulesResolverFactory = (
 			build.onResolve({ filter: /.*/ }, async (args) => {
 				if (args.pluginData?.[ALREADY_CAPTURED] === true) { return }
 				const { path, external, namespace, sideEffects, suffix } = await build.resolve(
-					ensureLocalPath(args.path), {
+					ensureFileUrlIsLocalPath(args.path), {
 					kind: "entry-point",
-					resolveDir: ensureLocalPath(resolve_dir !== "" ? resolve_dir : args.resolveDir),
+					resolveDir: ensureFileUrlIsLocalPath(resolve_dir !== "" ? resolve_dir : args.resolveDir),
 					pluginData: { [ALREADY_CAPTURED]: true },
 				})
 				resolve({ path: pathToPosixPath(path), external, namespace, sideEffects, suffix })
