@@ -101,12 +101,12 @@
 
 ## pre-version `0.3.3` todo list
 
-- [ ] implement your own jsonc parser (or jsonc comment-remover) in `@oazmi/kitchensink/stringman`.
+- [x] implement your own jsonc parser (or jsonc comment-remover) in `@oazmi/kitchensink/stringman`.
   > ADDED in [`@oazmi/kitchensink@0.9.9`](https://github.com/omar-azmi/kitchensink_ts/commit/655666bb4acd8989ce8e4c39e0e0002f31256089).
   > simply update the dependency to resolve this.
 - [ ] use an alternative smaller library for semver resolution, preferebly from `npm`.
       I really dislike how `jsr:@std/jsonc` and `jsr:@std/semver` collectively add about 450 files to the npm-release (via `dnt`).
-- [ ] import `fileUriToLocalPath` and `ensureLocalPath` from [`@oazmi/kitchensink@0.9.10`](https://github.com/omar-azmi/kitchensink_ts/commit/1b768d45d9dfd6152cb0facbacb14c07f54fd4aa),
+- [x] import `fileUrlToLocalPath` and `ensureFileUrlIsLocalPath` from [`@oazmi/kitchensink@0.9.10`](https://github.com/omar-azmi/kitchensink_ts/commit/1b768d45d9dfd6152cb0facbacb14c07f54fd4aa),
       and replace the ones inside `/src/plugins/funcdefs.ts`.
 
 ## (2025-03-26) pre-version `0.3.2` todo list

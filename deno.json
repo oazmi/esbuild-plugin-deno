@@ -32,8 +32,7 @@
 		"./plugins/typedefs": "./src/plugins/typedefs.ts"
 	},
 	"imports": {
-		"@oazmi/kitchensink": "jsr:@oazmi/kitchensink@0.9.8",
-		"@std/jsonc": "jsr:@std/jsonc@^1.0.1",
+		"@oazmi/kitchensink": "jsr:@oazmi/kitchensink@0.9.10",
 		"@std/semver": "jsr:@std/semver@^1.0.3"
 	},
 	"nodeModulesDir": "none",
@@ -62,8 +61,7 @@
 	},
 	"packageJson": {
 		"dependencies": {
-			"@oazmi/kitchensink": "0.9.8",
-			"@std/jsonc": "npm:@jsr/std__jsonc@^1.0.1",
+			"@oazmi/kitchensink": "0.9.10",
 			"@std/semver": "npm:@jsr/std__semver@^1.0.3"
 		},
 		"devDependencies": {
@@ -72,7 +70,6 @@
 			"typedoc": "^0.27.7"
 		},
 		"bundledDependencies": [
-			"@std/jsonc",
 			"@std/semver"
 		],
 		"scripts": {
