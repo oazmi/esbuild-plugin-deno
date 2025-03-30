@@ -8,11 +8,19 @@
 */
 // TODO: move the imports from "semver-ts" to "deps.ts" and re-export them.
 import { compare as semverCompare, inc as semverInc, parse as semverParse } from "semver-ts"
-import { escapeLiteralStringForRegex, number_isFinite, number_parseInt } from "../deps.ts"
+import { escapeLiteralStringForRegex, isString, number_isFinite, number_parseInt } from "../deps.ts"
 
 
 const
+	comparators = ["=", ">=", "<=", ">", "<", "~", "^"],
 	clean = (ver: string) => (ver.trim().replace(/^[=v]+/, "")),
+	cleanRange = (range: string): string => {
+		// cleans up a range string
+		for (const comp of comparators) {
+			range = range.replaceAll(new RegExp(`${escapeLiteralStringForRegex(comp)}\\s*`, "g"), comp)
+		}
+		return range
+	},
 	compare = (v1: string, v2: string): (-1 | 0 | 1) => {
 		return (v1 === v2) ? 0
 			: (v1 === ZERO || v2 === INFINITY) ? -1
@@ -20,7 +28,8 @@ const
 					: semverCompare(v1, v2)
 	},
 	strictParse = (ver: string) => (semverParse(ver, undefined, true)!),
-	fully_wildcard_regex = /^[xX\*]$/,
+	fully_wildcard_regex = /^[xX\*]/,
+	has_standard_wildcard_regex = /^x|\d\.x/,
 	INFINITY = "infinity",
 	ZERO = "0.0.0"
 
@@ -81,7 +90,7 @@ const _3_AndLexer: MiniLexer = {
  * 
  * // aliasing our functions and constants for brevity
  * const
- * 	fn = parseRange,
+ * 	fn = semverParseRange,
  * 	eq = assertEquals
  * 
  * eq(fn("0.2.1 -  2.1.3 >2.0.1 || 5.4.2 || 3.2.1 || >=4.5 <6 x.x"), {
@@ -109,10 +118,10 @@ const _3_AndLexer: MiniLexer = {
  * })
  * ```
 */
-export const parseRange = (range: string): SemverRange => {
+export const semverParseRange = (range: string): SemverRange => {
 	const intervals: Array<SemverInterval> = []
 	// first and foremost, we parse the range expression and insert token strings in place of AND (" "), OR ("||"), and HYPHEN ("-") operators.
-	const tokenized_range = range
+	const tokenized_range = cleanRange(range)
 		.replaceAll(_1_OrLexer.parseExp, _1_OrLexer.tokenExp)
 		.replaceAll(_2_HyphenLexer.parseExp, _2_HyphenLexer.tokenExp)
 		.replaceAll(_3_AndLexer.parseExp, _3_AndLexer.tokenExp)
@@ -133,9 +142,9 @@ export const parseRange = (range: string): SemverRange => {
 				hyphen_match = _2_HyphenLexer.lexer(comp),
 				{ lower, upper } = hyphen_match
 					// hyphen ranges are equivalent to `>=lower` and `<=upper`.
-					? { lower: hyphen_match[0], upper: hyphen_match[1] }
+					? { lower: normalizeXRange(hyphen_match[0], false), upper: normalizeXRange(hyphen_match[1], true) }
 					// otherwise, parse a single comparator into its lower/upper bound.
-					: parseComparator(comp)
+					: semverParseComparator(comp)
 			if (lower && (compare(lower, lowerBound) > 0)) { lowerBound = lower }
 			if (upper && (compare(upper, upperBound) < 0)) { upperBound = upper }
 		}
@@ -152,13 +161,15 @@ export const parseRange = (range: string): SemverRange => {
 /** parses a single comparator string (">=1.x.*", etc...),
  * and returns an interval with lower and upper bounds.
  * 
+ * TODO: this function does not currently parse dual comparators like `~>=x.y.z` or `^>=x.y.z`.
+ * 
  * @example
  * ```ts
  * import { assertEquals } from "jsr:@std/assert"
  * 
  * // aliasing our functions and constants for brevity
  * const
- * 	fn = parseComparator,
+ * 	fn = semverParseComparator,
  * 	eq = assertEquals,
  * 	inf = "infinity"
  * 
@@ -168,51 +179,56 @@ export const parseRange = (range: string): SemverRange => {
  * eq(fn("=1.x"),   { lower: "1.0.0", upper: "1.9999.9999" })
  * eq(fn("1.x.*"),  { lower: "1.0.0", upper: "1.9999.9999" })
  * eq(fn("1"),      { lower: "1.0.0", upper: "1.9999.9999" })
- * eq(fn(">1.2"),   { lower: "1.2.1", upper: inf })
+ * eq(fn(">1.2"),   { lower: "1.2.0", upper: inf })
+ * eq(fn(">1.2.0"), { lower: "1.2.1", upper: inf })
  * eq(fn(">=1.2"),  { lower: "1.2.0", upper: inf })
- * eq(fn("<1.2"),   { lower: "0.0.0", upper: "1.1.9999" })
- * eq(fn("<=1.2"),  { lower: "0.0.0", upper: "1.2.0" })
- * eq(fn("<1.x"),   { lower: "0.0.0", upper: "0.9999.9999" })
- * eq(fn("<=1.x"),  { lower: "0.0.0", upper: "1.0.0" })
+ * eq(fn("<1.2"),   { lower: "0.0.0", upper: "1.2.9999" })
+ * eq(fn("<=1.2"),  { lower: "0.0.0", upper: "1.2.9999" })
+ * eq(fn("<1.0.0"), { lower: "0.0.0", upper: "0.9999.9999" })
+ * eq(fn("<1.x"),   { lower: "0.0.0", upper: "1.9999.9999" })
+ * eq(fn("<=1.x"),  { lower: "0.0.0", upper: "1.9999.9999" })
  * eq(fn("~1"),     { lower: "1.0.0", upper: "1.9999.9999" })
  * eq(fn("~1.2"),   { lower: "1.2.0", upper: "1.2.9999" })
  * eq(fn("~1.2.3"), { lower: "1.2.3", upper: "1.2.9999" })
  * eq(fn("~0.2.3"), { lower: "0.2.3", upper: "0.2.9999" })
- * eq(fn("~0.x.3"), { lower: "0.0.3", upper: "0.9999.9999" })
- * eq(fn("~x.2.3"), { lower: "0.2.3", upper: "0.2.9999" })
- * eq(fn("~x"),     { lower: "0.0.0", upper: "0.9999.9999" })
+ * eq(fn("~0.x.3"), { lower: "0.0.0", upper: "0.9999.9999" })
+ * eq(fn("~x.2.3"), { lower: "0.0.0", upper: inf })
+ * eq(fn("~x"),     { lower: "0.0.0", upper: inf })
  * eq(fn("^1"),     { lower: "1.0.0", upper: "1.9999.9999" })
  * eq(fn("^1.2.3"), { lower: "1.2.3", upper: "1.9999.9999" })
  * eq(fn("^0.2.3"), { lower: "0.2.3", upper: "0.2.9999" })
  * eq(fn("^0.2.x"), { lower: "0.2.0", upper: "0.2.9999" })
- * eq(fn("^0.x.3"), { lower: "0.0.3", upper: "0.0.3" })
+ * eq(fn("^0.x.3"), { lower: "0.0.0", upper: "0.9999.9999" })
  * eq(fn("^x.2.3"), { lower: "0.2.3", upper: "0.2.9999" })
  * ```
 */
-export const parseComparator = (comp: string): SemverInterval => {
-	// handle full wildcard cases (e.g. "*", "x", "X").
-	if (fully_wildcard_regex.test(comp)) { return { lower: ZERO, upper: INFINITY } }
+export const semverParseComparator = (comp: string): SemverInterval => {
+	// handle full wildcard cases (e.g. "*", "x", "X", and "").
+	if (fully_wildcard_regex.test(comp || "x")) { return { lower: ZERO, upper: INFINITY } }
 
-	// regex to extract operator and version.
-	// allowed operators are: ">", ">=", "<", "<=", "=", "~", and "^"
+	// now, we apply a regex to extract the comparator operator, and the version string.
+	// allowed operators are: ">", ">=", "<", "<=", "=", "~", and "^".
 	const op_match = comp.match(/^(>=|>|<=|<|=|~|\^)?\s*(.+)$/)
 	if (!op_match) { throw new Error(`[semver]: invalid comparator: ${comp}`) }
 	const
 		// when no operator matches, then an exact version match is being performed, which is equivalent to the "=" operator.
 		op = op_match[1] || "=",
-		// for x-ranges like "1.x", "1.2.x", treat missing parts as wildcards.
-		ver = clean(op_match[2]),
+		// now we normalize all wildcard notations into a single format: `5.x.x`.
+		ver = normalizeX(clean(op_match[2]))
+	if (fully_wildcard_regex.test(ver)) { return { lower: ZERO, upper: INFINITY } }
+	const
+		has_wildcard = has_standard_wildcard_regex.test(ver),
 		ver_min = normalizeXRange(ver, false),
 		ver_max = normalizeXRange(ver, true)
 
 	switch (op) {
 		case "=": return { lower: ver_min, upper: ver_max }
 		case ">=": return { lower: ver_min, upper: INFINITY }
-		case "<=": return { lower: ZERO, upper: ver_min }
+		case "<=": return { lower: ZERO, upper: ver_max }
 		// for exclusive lower: use next patch of the given version.
-		case ">": return { lower: semverInc(ver_min, "patch")!, upper: INFINITY }
+		case ">": return { lower: has_wildcard ? ver_min : semverInc(ver_min, "patch")!, upper: INFINITY }
 		// for exclusive upper, get the "immediately previous" version.
-		case "<": return { lower: ZERO, upper: dec(ver_min) }
+		case "<": return { lower: ZERO, upper: has_wildcard ? ver_max : dec(ver_max) }
 		// tilde range: "~v" is equivalent to ">=v" and "< tildeUpperBound(v)"
 		case "~": {
 			const tildeUpper = getTildeUpperBound(ver)
@@ -227,6 +243,29 @@ export const parseComparator = (comp: string): SemverInterval => {
 	}
 }
 
+/** this function converts versions with various forms of wildcards ("x", "X", "*"), or missing segments,
+ * into a normalized `"1.x.x"` representation.
+ * 
+ * for example:
+ * - "1.x" becomes "1.x.x".
+ * - "*" becomes "x.x.x".
+ * - "" becomes "x.x.x".
+ * - "2.3" becomes "2.3.x".
+ * - "X.2.1" becomes "x.x.x".
+*/
+const normalizeX = (ver: string): string => {
+	// split version by dots. if any part is missing or is a wildcard, set it to "x".
+	const
+		wildcard_char = "x",
+		[major_part, minor_part, patch_part] = ver.split(".") as (string | undefined)[],
+		major = (major_part && !fully_wildcard_regex.test(major_part)) ? major_part : wildcard_char,
+		minor = (major !== wildcard_char)
+			&& (minor_part && !fully_wildcard_regex.test(minor_part)) ? minor_part : wildcard_char,
+		patch = (minor !== wildcard_char)
+			&& (patch_part && !fully_wildcard_regex.test(patch_part)) ? patch_part : wildcard_char
+	return `${major}.${minor}.${patch}`
+}
+
 /** this function converts versions with wildcards ("x", "X", "*"), or missing segments, into a full base versions.
  * for example:
  * - "1.x" becomes "1.0.0" for `is_upper = false`.
@@ -234,14 +273,16 @@ export const parseComparator = (comp: string): SemverInterval => {
  * - "1.x" becomes "1.9999.9999" for `is_upper = true`.
  * - "1" becomes "1.9999.9999" for `is_upper = true`.
 */
-function normalizeXRange(ver: string, is_upper: boolean = false): string {
+const normalizeXRange = (ver: string, is_upper: boolean = false): string => {
 	// split version by dots. if any part is missing or is a wildcard, set it to 0.
+	ver = normalizeX(ver)
 	const
+		wildcard_char = "x",
 		wildcard_value = is_upper ? 9999 : 0,
-		[major_part, minor_part, patch_part] = ver.split(".") as (string | undefined)[],
-		major = major_part && !fully_wildcard_regex.test(major_part) ? number_parseInt(major_part) : wildcard_value,
-		minor = minor_part && !fully_wildcard_regex.test(minor_part) ? number_parseInt(minor_part) : wildcard_value,
-		patch = patch_part && !fully_wildcard_regex.test(patch_part) ? number_parseInt(patch_part) : wildcard_value
+		[major_part, minor_part, patch_part] = ver.split(".") as string[],
+		major = major_part !== wildcard_char ? number_parseInt(major_part) : wildcard_value,
+		minor = minor_part !== wildcard_char ? number_parseInt(minor_part) : wildcard_value,
+		patch = patch_part !== wildcard_char ? number_parseInt(patch_part) : wildcard_value
 	return `${major}.${minor}.${patch}`
 }
 
@@ -253,15 +294,16 @@ function normalizeXRange(ver: string, is_upper: boolean = false): string {
  * 
  * for example:
  * - "~1.2.3" is equivalent to "<1.3.0".
- * - "~1.2" is equivalent to "<1.3.0".
- * - "~1" is equivalent to "<2.0.0".
+ * - "~1.2.x" is equivalent to "<1.3.0".
+ * - "~1.x.x" is equivalent to "<2.0.0".
 */
 const getTildeUpperBound = (ver: string): string => {
 	const
-		[major_part, minor_part, patch_part] = ver.split(".") as (string | undefined)[],
-		major = major_part ? number_parseInt(major_part) : undefined,
-		minor = minor_part ? number_parseInt(minor_part) : undefined,
-		patch = patch_part ? number_parseInt(patch_part) : undefined
+		wildcard_char = "x",
+		[major_part, minor_part, patch_part] = ver.split(".") as string[],
+		major = major_part !== wildcard_char ? number_parseInt(major_part) : undefined,
+		minor = minor_part !== wildcard_char ? number_parseInt(minor_part) : undefined,
+		patch = patch_part !== wildcard_char ? number_parseInt(patch_part) : undefined
 	// if only major is provided, then assume `minor = 0`, `patch = 0`.
 	return number_isFinite(major) ? (number_isFinite(minor)
 		? `${major!}.${minor! + 1}.0`
@@ -283,13 +325,16 @@ const getTildeUpperBound = (ver: string): string => {
  * - "^1.2.3" is equivalent to "<2.0.0".
  * - "^0.2.3" is equivalent to "<0.3.0".
  * - "^0.0.3" is equivalent to "<0.0.4" (i.e. "=0.0.3").
+ * - "^0.x.x" is equivalent to "<0.9999.9999".
 */
 const getCaretUpperBound = (ver: string): string => {
 	const
-		[major_part, minor_part, patch_part] = ver.split(".") as (string | undefined)[],
-		major = major_part ? number_parseInt(major_part) : 0,
-		minor = minor_part ? number_parseInt(minor_part) : 0,
-		patch = patch_part ? number_parseInt(patch_part) : 0
+		wildcard_char = "x",
+		wildcard_value = 9999,
+		[major_part, minor_part, patch_part] = ver.split(".") as string[],
+		major = major_part !== wildcard_char ? number_parseInt(major_part) : wildcard_value,
+		minor = minor_part !== wildcard_char ? number_parseInt(minor_part) : wildcard_value,
+		patch = patch_part !== wildcard_char ? number_parseInt(patch_part) : wildcard_value
 	if (major > 0) { return `${major + 1}.0.0` }
 	if (minor > 0) { return `0.${minor + 1}.0` }
 	return `0.0.${patch + 1}`
@@ -308,4 +353,63 @@ const dec = (ver: string): string => {
 	// use a very high minor number as a stand–in for the maximal minor.
 	if (major > 0) { return `${major - 1}.9999.9999` }
 	return ZERO
+}
+
+/** check if provided version satisfied the given `range` description.
+ * 
+ * @param ver version string to validate.
+ * @param range range of versions that are accepted.
+ * @returns `true` is returned if the provided `ver` is within the provided `range` description, otherwise `false` is returned.
+ * 
+ * @example
+ * ```ts
+ * import { assertEquals } from "jsr:@std/assert"
+ * 
+ * // aliasing our functions and constants for brevity
+ * const
+ * 	fn = semverSatisfies,
+ * 	eq = assertEquals
+ * 
+ * eq(fn("1.2.3", "1.x || >=2.5.0 || 5.0.0 - 7.2.3"), true)
+ * ```
+*/
+export const semverSatisfies = (ver: string, range: string | SemverRange): boolean => {
+	ver = normalizeXRange(ver)
+	range = isString(range) ? semverParseRange(range) : range
+	for (const { lower, upper } of range.intervals) {
+		if (compare(ver, lower) >= 0 && compare(upper, ver) >= 0) { return true }
+	}
+	return false
+}
+
+/** find the highest version in your list of `versions` that satisfies the provided `range` description.
+ * 
+ * @param versions a list of unordered versions to pick the highest satisfiying version from.
+ * @param range range of versions that are accepted.
+ * @returns the highest version that satisfies your `range`.
+*/
+export const semverMaxSatisfying = (versions: string[], range: string | SemverRange): string | undefined => {
+	range = isString(range) ? semverParseRange(range) : range
+	// sorting the versions from highest to lowest
+	versions = versions.toSorted(compare).toReversed()
+	for (const ver of versions) {
+		if (semverSatisfies(ver, range)) { return ver }
+	}
+	return undefined
+}
+
+/** find the lowest version in your list of `versions` that satisfies the provided `range` description.
+ * 
+ * @param versions a list of unordered versions to pick the lowest satisfiying version from.
+ * @param range range of versions that are accepted.
+ * @returns the lowest version that satisfies your `range`.
+*/
+export const semverMinSatisfying = (versions: string[], range: string | SemverRange): string | undefined => {
+	range = isString(range) ? semverParseRange(range) : range
+	// sorting the versions from highest to lowest
+	versions = versions.toSorted(compare)
+	for (const ver of versions) {
+		if (semverSatisfies(ver, range)) { return ver }
+	}
+	return undefined
 }
