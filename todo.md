@@ -99,13 +99,17 @@
     export * from "/typedoc-plugin-mermaid@1.12.0/es2022/typedoc-plugin-mermaid.mjs"
     ```
 
-## pre-version `0.3.3` todo list
+## (2025-04-02) pre-version `0.3.3` todo list
 
 - [x] implement your own jsonc parser (or jsonc comment-remover) in `@oazmi/kitchensink/stringman`.
   > ADDED in [`@oazmi/kitchensink@0.9.9`](https://github.com/omar-azmi/kitchensink_ts/commit/655666bb4acd8989ce8e4c39e0e0002f31256089).
   > simply update the dependency to resolve this.
-- [ ] use an alternative smaller library for semver resolution, preferebly from `npm`.
+- [x] use an alternative smaller library for semver resolution, preferebly from `npm`.
       I really dislike how `jsr:@std/jsonc` and `jsr:@std/semver` collectively add about 450 files to the npm-release (via `dnt`).
+  > due to the lack of library options (only `npm:node-semver` and `jsr:@std/semver` implement the `satisfies` function),
+  > I ended up implementing my own semver parser and satisfactory-version resolver in kitchensink.
+  >
+  >> ADDED in [`@oazmi/kitchensink@0.9.11`](https://github.com/omar-azmi/kitchensink_ts/commit/e92525dcb9f9a1a10066f695893e6988e63c9d30).
 - [x] import `fileUrlToLocalPath` and `ensureFileUrlIsLocalPath` from [`@oazmi/kitchensink@0.9.10`](https://github.com/omar-azmi/kitchensink_ts/commit/1b768d45d9dfd6152cb0facbacb14c07f54fd4aa),
       and replace the ones inside `/src/plugins/funcdefs.ts`.
 
