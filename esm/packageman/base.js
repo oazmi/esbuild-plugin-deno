@@ -3,7 +3,7 @@
  *
  * @module
 */
-import { defaultFetchConfig, defaultResolvePath, jsoncParse, resolveAsUrl } from "../deps.js";
+import { defaultFetchConfig, defaultResolvePath, json_parse, jsoncRemoveComments, resolveAsUrl } from "../deps.js";
 import { resolvePathFromImportMapEntries } from "../importmap/mod.js";
 /** an abstraction for import-map utilities of a general javascript runtime's package object with the schema `SCHEMA`.
  * - in the case of node, `SCHEMA` would represent `package.json`'s schema.
@@ -58,12 +58,12 @@ export class RuntimePackage {
     /** create an instance of this class by loading a package's json(c) file from a url or local file-system path.
      *
      * > [!tip]
-     * > the constructor uses a "JSONC" parser (from [@std/jsonc](https://jsr.io/@std/jsonc)) for the fetched files.
+     * > the constructor uses a "JSONC" parser (from [@oazmi/kitchensink/stringman](https://jsr.io/@oazmi/kitchensink/0.9.10/src/stringman.ts)) for the fetched files.
      * > therefore, you may provide links to ".jsonc" files, instead of parsing them yourself before calling the super constructor.
     */
     static async fromUrl(package_jsonc_path) {
         package_jsonc_path = resolveAsUrl(package_jsonc_path, defaultResolvePath());
-        const package_object = jsoncParse(await ((await fetch(package_jsonc_path, defaultFetchConfig)).text()));
+        const package_object = json_parse(jsoncRemoveComments(await ((await fetch(package_jsonc_path, defaultFetchConfig)).text())));
         return new this(package_object, package_jsonc_path.href);
     }
 }

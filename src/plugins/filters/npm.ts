@@ -4,8 +4,8 @@
  * @module
 */
 
-import { array_isEmpty, DEBUG, defaultGetCwd, dom_decodeURI, ensureEndSlash, escapeLiteralStringForRegex, execShellCommand, getUriScheme, identifyCurrentRuntime, isObject, isString, joinPaths, normalizePath, object_entries, object_fromEntries, parsePackageUrl, pathToPosixPath, promise_outside, replacePrefix, RUNTIME, type DeepPartial } from "../../deps.js"
-import { ensureLocalPath, entryPointsToImportMapEntries, logLogger, syncTaskQueueFactory } from "../funcdefs.js"
+import { array_isEmpty, DEBUG, defaultGetCwd, dom_decodeURI, ensureEndSlash, ensureFileUrlIsLocalPath, escapeLiteralStringForRegex, execShellCommand, getUriScheme, identifyCurrentRuntime, isObject, isString, joinPaths, normalizePath, object_entries, object_fromEntries, parsePackageUrl, pathToPosixPath, promise_outside, replacePrefix, RUNTIME, type DeepPartial } from "../../deps.js"
+import { entryPointsToImportMapEntries, logLogger, syncTaskQueueFactory } from "../funcdefs.js"
 import { nodeModulesResolverFactory, type resolverPlugin } from "../resolvers.js"
 import type { CommonPluginData, EsbuildEntryPointsType, EsbuildPlugin, EsbuildPluginBuild, EsbuildPluginSetup, LoggerFunction, OnResolveArgs, OnResolveCallback } from "../typedefs.js"
 import { defaultEsbuildNamespaces, DIRECTORY, PLUGIN_NAMESPACE } from "../typedefs.js"
@@ -434,7 +434,7 @@ const pathOrUrlToLocalPathConverter = (dir_path_or_url: Exclude<NodeModuleDirFor
 		case "local":
 		case "relative":
 		case "file":
-			return ensureLocalPath(dir_path)
+			return ensureFileUrlIsLocalPath(dir_path)
 		default: throw new Error(`expected a filesystem path, or a "file://" url, but received the incompatible uri scheme "${path_schema}".`)
 	}
 }

@@ -85,7 +85,7 @@
  * eq(resEx("jsr:@scope/lib@0.1.0/utils/cli/file.js"), "https://jsr.io/@scope/lib/0.1.0/src/cli/file.js")
  * ```
 */
-import { defaultFetchConfig, ensureEndSlash, isString, json_stringify, memorize, normalizePath, object_entries, parsePackageUrl, pathToPosixPath, replacePrefix, resolveAsUrl, semverMaxSatisfying, semverParse, semverParseRange, semverToString } from "../deps.js";
+import { defaultFetchConfig, ensureEndSlash, isString, json_stringify, memorize, normalizePath, object_entries, parsePackageUrl, pathToPosixPath, replacePrefix, resolveAsUrl, semverMaxSatisfying } from "../deps.js";
 import { compareImportMapEntriesByLength } from "../importmap/mod.js";
 import { RuntimePackage } from "./base.js";
 const get_dir_path_of_file_path = (file_path) => normalizePath(file_path.endsWith("/") ? file_path : file_path + "/../");
@@ -197,13 +197,13 @@ export const jsrPackageToMetadataUrl = async (jsr_package) => {
     }
     const meta_json_url = resolveAsUrl(`@${scope}/${pkg}/meta.json`, jsr_base_url), meta_json = await (await fetch(meta_json_url, defaultFetchConfig)).json(), unyanked_versions = object_entries(meta_json.versions)
         .filter(([version_str, { yanked }]) => (!yanked))
-        .map(([version_str]) => semverParse(version_str));
+        .map(([version_str]) => version_str);
     // semantic version resolution
-    const resolved_semver = semverMaxSatisfying(unyanked_versions, semverParseRange(desired_semver ?? meta_json.latest));
+    const resolved_semver = semverMaxSatisfying(unyanked_versions, desired_semver ?? meta_json.latest);
     if (!resolved_semver) {
         throw new Error(`failed to find the desired version "${desired_semver}" of the jsr package "${jsr_package}", with available versions "${json_stringify(meta_json.versions)}"`);
     }
-    const resolved_version = semverToString(resolved_semver), base_host = resolveAsUrl(`@${scope}/${pkg}/${resolved_version}/`, jsr_base_url), deno_json_url = resolveAsUrl("./deno.json", base_host), deno_jsonc_url = resolveAsUrl("./deno.jsonc", base_host), jsr_json_url = resolveAsUrl("./jsr.json", base_host), jsr_jsonc_url = resolveAsUrl("./jsr.jsonc", base_host), package_json_url = resolveAsUrl("./package.json", base_host), package_jsonc_url = resolveAsUrl("./package.jsonc", base_host); // as if such a thing will ever exist, lol
+    const base_host = resolveAsUrl(`@${scope}/${pkg}/${resolved_semver}/`, jsr_base_url), deno_json_url = resolveAsUrl("./deno.json", base_host), deno_jsonc_url = resolveAsUrl("./deno.jsonc", base_host), jsr_json_url = resolveAsUrl("./jsr.json", base_host), jsr_jsonc_url = resolveAsUrl("./jsr.jsonc", base_host), package_json_url = resolveAsUrl("./package.json", base_host), package_jsonc_url = resolveAsUrl("./package.jsonc", base_host); // as if such a thing will ever exist, lol
     // TODO: the `package_json_url` (i.e. `package.json`) is unused for now, since it will complicate the parsing of the import/export-maps (due to having a different structure).
     //   in the future, I might write a `npmPackageToDenoJson` function to transform the imports (dependencies) and exports
     // trying to fetch the package's `deno.json` file (via HEAD method), and if it fails (does not exist),

@@ -37,9 +37,9 @@
  *
  * @module
 */
-import { DEBUG, defaultResolvePath, ensureEndSlash, ensureStartDotSlash, getUriScheme, isAbsolutePath, joinPaths, noop, pathToPosixPath, promise_outside, resolveAsUrl } from "../deps.js";
+import { DEBUG, defaultResolvePath, ensureEndSlash, ensureFileUrlIsLocalPath, ensureStartDotSlash, getUriScheme, isAbsolutePath, joinPaths, noop, pathToPosixPath, promise_outside, resolveAsUrl } from "../deps.js";
 import { resolvePathFromImportMap } from "../importmap/mod.js";
-import { ensureLocalPath, logLogger } from "./funcdefs.js";
+import { logLogger } from "./funcdefs.js";
 import { PLUGIN_NAMESPACE } from "./typedefs.js";
 const defaultRuntimePackageResolverConfig = {
     enabled: true,
@@ -259,9 +259,9 @@ export const nodeModulesResolverFactory = (config, build) => {
                 if (args.pluginData?.[ALREADY_CAPTURED] === true) {
                     return;
                 }
-                const { path, external, namespace, sideEffects, suffix } = await build.resolve(ensureLocalPath(args.path), {
+                const { path, external, namespace, sideEffects, suffix } = await build.resolve(ensureFileUrlIsLocalPath(args.path), {
                     kind: "entry-point",
-                    resolveDir: ensureLocalPath(resolve_dir !== "" ? resolve_dir : args.resolveDir),
+                    resolveDir: ensureFileUrlIsLocalPath(resolve_dir !== "" ? resolve_dir : args.resolveDir),
                     pluginData: { [ALREADY_CAPTURED]: true },
                 });
                 resolve({ path: pathToPosixPath(path), external, namespace, sideEffects, suffix });

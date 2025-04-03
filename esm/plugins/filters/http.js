@@ -2,9 +2,9 @@
  *
  * @module
 */
-import { DEBUG, defaultFetchConfig, getUriScheme, json_stringify, resolveAsUrl } from "../../deps.js";
+import { DEBUG, defaultFetchConfig, fileUrlToLocalPath, getUriScheme, json_stringify, resolveAsUrl } from "../../deps.js";
 import { guessHttpResponseLoaders } from "../../loadermap/mod.js";
-import { fileUriToLocalPath, logLogger } from "../funcdefs.js";
+import { logLogger } from "../funcdefs.js";
 import { allEsbuildLoaders, defaultEsbuildNamespaces, PLUGIN_NAMESPACE } from "../typedefs.js";
 /** a factory function that returns a general purpose url content loading function for your esbuild plugin, tuned to your specific `config`.
  *
@@ -117,8 +117,8 @@ export const httpPluginSetup = (config = {}) => {
             // plus we would like to give other plugins the chance to process it.
             return convertFileUriToLocalPath.enabled && getUriScheme(path) === "file"
                 ? (convertFileUriToLocalPath.resolveAgain
-                    ? build.resolve(fileUriToLocalPath(path), { ...rest_args, pluginData, namespace: original_ns })
-                    : { path: fileUriToLocalPath(path), pluginData, namespace: original_ns }) : { path, pluginData, namespace: plugin_ns };
+                    ? build.resolve(fileUrlToLocalPath(path), { ...rest_args, pluginData, namespace: original_ns })
+                    : { path: fileUrlToLocalPath(path), pluginData, namespace: original_ns }) : { path, pluginData, namespace: plugin_ns };
         };
         filters.forEach((filter) => {
             build.onResolve({ filter }, httpResolver);

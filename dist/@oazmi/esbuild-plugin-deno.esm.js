@@ -96,12 +96,16 @@ function createMergeProxy(baseObj, extObj) {
 // node_modules/@oazmi/kitchensink/esm/alias.js
 var array_constructor = Array;
 var json_constructor = JSON;
+var number_constructor = Number;
 var object_constructor = Object;
 var promise_constructor = Promise;
 var symbol_constructor = Symbol;
 var array_isEmpty = (array) => array.length === 0;
 var array_isArray = /* @__PURE__ */ (() => array_constructor.isArray)();
+var json_parse = /* @__PURE__ */ (() => json_constructor.parse)();
 var json_stringify = /* @__PURE__ */ (() => json_constructor.stringify)();
+var number_isFinite = /* @__PURE__ */ (() => number_constructor.isFinite)();
+var number_parseInt = /* @__PURE__ */ (() => number_constructor.parseInt)();
 var object_assign = /* @__PURE__ */ (() => object_constructor.assign)();
 var object_entries = /* @__PURE__ */ (() => object_constructor.entries)();
 var object_fromEntries = /* @__PURE__ */ (() => object_constructor.fromEntries)();
@@ -143,6 +147,7 @@ var prototypeOfClass = (cls) => {
 var array_proto = /* @__PURE__ */ prototypeOfClass(Array);
 var map_proto = /* @__PURE__ */ prototypeOfClass(Map);
 var set_proto = /* @__PURE__ */ prototypeOfClass(Set);
+var bind_array_pop = /* @__PURE__ */ bindMethodFactoryByName(array_proto, "pop");
 var bind_array_push = /* @__PURE__ */ bindMethodFactoryByName(array_proto, "push");
 var bind_set_add = /* @__PURE__ */ bindMethodFactoryByName(set_proto, "add");
 var bind_set_delete = /* @__PURE__ */ bindMethodFactoryByName(set_proto, "delete");
@@ -178,6 +183,76 @@ var replacePrefix = (input, prefix, value = "") => {
 var replaceSuffix = (input, suffix, value = "") => {
   return input.endsWith(suffix) ? (suffix === "" ? input : input.slice(0, -suffix.length)) + value : void 0;
 };
+var windows_new_line = "\r\n";
+var JSONC_INSIDE;
+(function(JSONC_INSIDE2) {
+  JSONC_INSIDE2[JSONC_INSIDE2["NONE"] = 0] = "NONE";
+  JSONC_INSIDE2[JSONC_INSIDE2["STRING"] = 1] = "STRING";
+  JSONC_INSIDE2[JSONC_INSIDE2["INLINE_COMMENT"] = 2] = "INLINE_COMMENT";
+  JSONC_INSIDE2[JSONC_INSIDE2["MULTILINE_COMMENT"] = 3] = "MULTILINE_COMMENT";
+})(JSONC_INSIDE || (JSONC_INSIDE = {}));
+var jsoncRemoveComments = (jsonc_string) => {
+  jsonc_string = " " + jsonc_string.replaceAll(windows_new_line, "\n") + " ";
+  const jsonc_string_length = jsonc_string.length - 1, json_chars = [], json_chars_push = bind_array_push(json_chars), json_chars_pop = bind_array_pop(json_chars);
+  let state = JSONC_INSIDE.NONE;
+  for (let i = 1; i < jsonc_string_length; i++) {
+    const char = jsonc_string[i];
+    switch (char) {
+      case "/": {
+        if (state === JSONC_INSIDE.NONE) {
+          const next_char = jsonc_string[i + 1];
+          state = next_char === "/" ? JSONC_INSIDE.INLINE_COMMENT : next_char === "*" ? JSONC_INSIDE.MULTILINE_COMMENT : JSONC_INSIDE.NONE;
+          if (state !== JSONC_INSIDE.NONE) {
+            i++;
+            continue;
+          }
+        }
+        break;
+      }
+      case "*": {
+        if (state === JSONC_INSIDE.MULTILINE_COMMENT) {
+          const next_char = jsonc_string[i + 1];
+          state = next_char === "/" ? JSONC_INSIDE.NONE : state;
+          if (state === JSONC_INSIDE.NONE) {
+            i++;
+            continue;
+          }
+        }
+        break;
+      }
+      case "\n": {
+        state = state === JSONC_INSIDE.INLINE_COMMENT ? JSONC_INSIDE.NONE : state;
+      }
+      /* falls through */
+      case "	":
+      case "\v":
+      case " ": {
+        if (state === JSONC_INSIDE.NONE) {
+          continue;
+        }
+        break;
+      }
+      case '"': {
+        state = state === JSONC_INSIDE.NONE ? JSONC_INSIDE.STRING : state === JSONC_INSIDE.STRING ? JSONC_INSIDE.NONE : state;
+        break;
+      }
+      case "}":
+      case "]": {
+        if (state === JSONC_INSIDE.NONE) {
+          const prev_char = json_chars_pop();
+          if (prev_char !== ",") {
+            json_chars_push(prev_char);
+          }
+        }
+        break;
+      }
+    }
+    if (state === JSONC_INSIDE.NONE || state === JSONC_INSIDE.STRING) {
+      json_chars_push(char === "\\" ? char + jsonc_string[++i] : char);
+    }
+  }
+  return json_chars.join("");
+};
 
 // node_modules/@oazmi/kitchensink/esm/pathman.js
 var uriProtocolSchemeMap = /* @__PURE__ */ object_entries({
@@ -200,6 +275,7 @@ var dotslash = "./";
 var dotdotslash = "../";
 var windows_directory_slash_regex = /\\/g;
 var windows_absolute_path_regex = /^[a-z]\:[\/\\]/i;
+var windows_leading_slash_correction_regex = /^[\/\\]([a-z])\:[\/\\]/i;
 var leading_slashes_regex = /^\/+/;
 var filename_regex = /\/?[^\/]+$/;
 var basename_and_extname_regex = /^(?<basename>.+?)(?<ext>\.[^\.]+)?$/;
@@ -243,25 +319,32 @@ var resolveAsUrl = (path, base) => {
   }
   path = pathToPosixPath(path);
   let base_url = base;
-  if (isString(base)) {
+  if (isString(base) && base !== "") {
     const base_scheme = getUriScheme(base);
     if (forbiddenBaseUriSchemes.includes(base_scheme)) {
       throw new Error(DEBUG.ERROR ? "the following base scheme (url-protocol) is not supported: " + base_scheme : "");
     }
     base_url = resolveAsUrl(base);
   }
-  const path_scheme = getUriScheme(path), path_is_package = packageUriSchemes.includes(path_scheme);
-  if (path_scheme === "local") {
-    return new URL("file://" + dom_encodeURI(path));
-  } else if (path_is_package) {
+  const path_scheme = getUriScheme(path), base_protocol = base_url ? base_url.protocol : void 0, path_is_package = packageUriSchemes.includes(path_scheme), base_is_package = packageUriProtocols.includes(base_protocol), path_is_root = string_starts_with(path, "/"), path_is_local = path_scheme === "local", path_is_relative = path_scheme === "relative";
+  if (path_is_package) {
     return new URL(parsePackageUrl(path).href);
-  } else if (path_scheme === "relative") {
-    const base_protocol = base_url ? base_url.protocol : void 0, base_is_package = packageUriProtocols.includes(base_protocol);
-    if (!base_is_package) {
-      return new URL(dom_encodeURI(path), base_url);
+  }
+  if (base_url && base_is_package && (path_is_root || path_is_relative)) {
+    const { host, protocol, pathname } = parsePackageUrl(base_url);
+    if (path_is_root) {
+      return new URL(`${protocol}/${dom_encodeURI(host)}${dom_encodeURI(path)}`);
     }
-    const { protocol, host, pathname } = parsePackageUrl(base_url), full_pathname = new URL(path, "x:" + pathname).pathname, href = `${protocol}/${host}${full_pathname}`;
-    path = href;
+    if (path_is_relative) {
+      const full_pathname = new URL(path, "x:" + pathname).pathname;
+      return new URL(`${protocol}/${dom_encodeURI(host)}${full_pathname}`);
+    }
+  }
+  if (base_url && (path_is_root || path_is_relative)) {
+    return new URL(path, base_url);
+  }
+  if (path_is_local) {
+    return new URL("file://" + dom_encodeURI(path));
   }
   return new URL(path);
 };
@@ -310,6 +393,23 @@ var parseBasenameAndExtname_FromFilename = (filename) => {
 var parseFilepathInfo = (file_path) => {
   const path = normalizePath(file_path), filename = parseNormalizedPosixFilename(path), filename_length = filename.length, dirpath = filename_length > 0 ? path.slice(0, -filename_length) : path, dirname = parseNormalizedPosixFilename(dirpath.slice(0, -1)), [basename, extname] = parseBasenameAndExtname_FromFilename(filename);
   return { path, dirpath, dirname, filename, basename, extname };
+};
+var fileUrlToLocalPath = (file_url) => {
+  if (isString(file_url)) {
+    if (getUriScheme(file_url) !== "file") {
+      return;
+    }
+    file_url = new URL(file_url);
+  }
+  if (!string_starts_with(file_url.protocol, "file:")) {
+    return;
+  }
+  const local_path_with_leading_slash = pathToPosixPath(dom_decodeURI(file_url.pathname)), corrected_local_path = local_path_with_leading_slash.replace(windows_leading_slash_correction_regex, "$1:/");
+  return corrected_local_path;
+};
+var ensureFileUrlIsLocalPath = (path) => {
+  const path_is_string = isString(path), file_uri_to_local_path_conversion = fileUrlToLocalPath(path);
+  return file_uri_to_local_path_conversion ?? (path_is_string ? pathToPosixPath(path) : path.href);
 };
 var joinPosixPaths = (...segments) => {
   segments = segments.map((segment) => {
@@ -645,1044 +745,251 @@ var memorize = (fn) => {
   return memorizeCore(fn).fn;
 };
 
-// node_modules/@std/jsonc/parse.js
-function parse(text) {
-  if (new.target) {
-    throw new TypeError("Cannot create an instance: parse is not a constructor");
-  }
-  return new JSONCParser(text).parse();
-}
-var JSONCParser = class {
-  #whitespace = new Set(" 	\r\n");
-  #numberEndToken = /* @__PURE__ */ new Set([
-    ..."[]{}:,/",
-    ...this.#whitespace
-  ]);
-  #text;
-  #length;
-  #tokenized;
-  constructor(text) {
-    this.#text = `${text}`;
-    this.#length = this.#text.length;
-    this.#tokenized = this.#tokenize();
-  }
-  parse() {
-    const token = this.#getNext();
-    const res = this.#parseJsonValue(token);
-    const { done, value } = this.#tokenized.next();
-    if (!done) {
-      throw new SyntaxError(buildErrorMessage(value));
-    }
-    return res;
-  }
-  /** Read the next token. If the token is read to the end, it throws a SyntaxError. */
-  #getNext() {
-    const { done, value } = this.#tokenized.next();
-    if (done) {
-      throw new SyntaxError("Cannot parse JSONC: unexpected end of JSONC input");
-    }
-    return value;
-  }
-  /** Split the JSONC string into token units. Whitespace and comments are skipped. */
-  *#tokenize() {
-    for (let i = 0; i < this.#length; i++) {
-      if (this.#whitespace.has(this.#text[i])) {
-        continue;
-      }
-      if (this.#text[i] === "/" && this.#text[i + 1] === "*") {
-        i += 2;
-        let hasEndOfComment = false;
-        for (; i < this.#length; i++) {
-          if (this.#text[i] === "*" && this.#text[i + 1] === "/") {
-            hasEndOfComment = true;
-            break;
-          }
-        }
-        if (!hasEndOfComment) {
-          throw new SyntaxError("Cannot parse JSONC: unexpected end of JSONC input");
-        }
-        i++;
-        continue;
-      }
-      if (this.#text[i] === "/" && this.#text[i + 1] === "/") {
-        i += 2;
-        for (; i < this.#length; i++) {
-          if (this.#text[i] === "\n" || this.#text[i] === "\r") {
-            break;
-          }
-        }
-        continue;
-      }
-      switch (this.#text[i]) {
-        case "{":
-          yield {
-            type: "BeginObject",
-            position: i
-          };
-          break;
-        case "}":
-          yield {
-            type: "EndObject",
-            position: i
-          };
-          break;
-        case "[":
-          yield {
-            type: "BeginArray",
-            position: i
-          };
-          break;
-        case "]":
-          yield {
-            type: "EndArray",
-            position: i
-          };
-          break;
-        case ":":
-          yield {
-            type: "NameSeparator",
-            position: i
-          };
-          break;
-        case ",":
-          yield {
-            type: "ValueSeparator",
-            position: i
-          };
-          break;
-        case '"': {
-          const startIndex = i;
-          let shouldEscapeNext = false;
-          i++;
-          for (; i < this.#length; i++) {
-            if (this.#text[i] === '"' && !shouldEscapeNext) {
-              break;
-            }
-            shouldEscapeNext = this.#text[i] === "\\" && !shouldEscapeNext;
-          }
-          yield {
-            type: "String",
-            sourceText: this.#text.substring(startIndex, i + 1),
-            position: startIndex
-          };
-          break;
-        }
-        default: {
-          const startIndex = i;
-          for (; i < this.#length; i++) {
-            if (this.#numberEndToken.has(this.#text[i])) {
-              break;
-            }
-          }
-          i--;
-          yield {
-            type: "NullOrTrueOrFalseOrNumber",
-            sourceText: this.#text.substring(startIndex, i + 1),
-            position: startIndex
-          };
-        }
-      }
-    }
-  }
-  #parseJsonValue(value) {
-    switch (value.type) {
-      case "BeginObject":
-        return this.#parseObject();
-      case "BeginArray":
-        return this.#parseArray();
-      case "NullOrTrueOrFalseOrNumber":
-        return this.#parseNullOrTrueOrFalseOrNumber(value);
-      case "String":
-        return this.#parseString(value);
-      default:
-        throw new SyntaxError(buildErrorMessage(value));
-    }
-  }
-  #parseObject() {
-    const target = {};
-    while (true) {
-      const token1 = this.#getNext();
-      if (token1.type === "EndObject") {
-        return target;
-      }
-      if (token1.type !== "String") {
-        throw new SyntaxError(buildErrorMessage(token1));
-      }
-      const key = this.#parseString(token1);
-      const token2 = this.#getNext();
-      if (token2.type !== "NameSeparator") {
-        throw new SyntaxError(buildErrorMessage(token2));
-      }
-      const token3 = this.#getNext();
-      Object.defineProperty(target, key, {
-        value: this.#parseJsonValue(token3),
-        writable: true,
-        enumerable: true,
-        configurable: true
-      });
-      const token4 = this.#getNext();
-      if (token4.type === "EndObject") {
-        return target;
-      }
-      if (token4.type !== "ValueSeparator") {
-        throw new SyntaxError(buildErrorMessage(token4));
-      }
-    }
-  }
-  #parseArray() {
-    const target = [];
-    while (true) {
-      const token1 = this.#getNext();
-      if (token1.type === "EndArray") {
-        return target;
-      }
-      target.push(this.#parseJsonValue(token1));
-      const token2 = this.#getNext();
-      if (token2.type === "EndArray") {
-        return target;
-      }
-      if (token2.type !== "ValueSeparator") {
-        throw new SyntaxError(buildErrorMessage(token2));
-      }
-    }
-  }
-  #parseString(value) {
-    let parsed;
-    try {
-      parsed = JSON.parse(value.sourceText);
-    } catch {
-      throw new SyntaxError(buildErrorMessage(value));
-    }
-    if (typeof parsed !== "string") {
-      throw new TypeError(`Parsed value is not a string: ${parsed}`);
-    }
-    return parsed;
-  }
-  #parseNullOrTrueOrFalseOrNumber(value) {
-    if (value.sourceText === "null") {
-      return null;
-    }
-    if (value.sourceText === "true") {
-      return true;
-    }
-    if (value.sourceText === "false") {
-      return false;
-    }
-    let parsed;
-    try {
-      parsed = JSON.parse(value.sourceText);
-    } catch {
-      throw new SyntaxError(buildErrorMessage(value));
-    }
-    if (typeof parsed !== "number") {
-      throw new TypeError(`Parsed value is not a number: ${parsed}`);
-    }
-    return parsed;
-  }
+// node_modules/@oazmi/kitchensink/esm/semver.js
+var digits_regex_str = "x|0|[1-9]\\d*";
+var semver_core_regex_str = `(?<major>${digits_regex_str})\\.(?<minor>${digits_regex_str})\\.(?<patch>${digits_regex_str})`;
+var semver_prerelease_str = `(?<prerelease>[^\\+\\s]*)`;
+var semver_build_str = `(?<build>[^\\s]*)`;
+var semver_regex = new RegExp(`${semver_core_regex_str}(?:\\-${semver_prerelease_str})?(?:\\+${semver_build_str})?`);
+var semver_unclean_prefix = /^\=*v*\s*/i;
+var semver_wildcard_regex = /^[xX\\*]$/;
+var semver_prerelease_or_build_sep = /\-|\+/;
+var digits_regex = new RegExp(`^${digits_regex_str}$`);
+var semver_operator_regex_str = "<=|>=|!=|<|>|=|\\^|\\~";
+var semver_operator_regex = new RegExp(`^(?<operator>${semver_operator_regex_str})?\\s*(?<semver>.*)$`);
+var number_compare = (n1, n2) => {
+  return n1 > n2 ? 1 : n1 === n2 ? 0 : -1;
 };
-function buildErrorMessage({ type, sourceText, position }) {
-  let token = "";
-  switch (type) {
-    case "BeginObject":
-      token = "{";
-      break;
-    case "EndObject":
-      token = "}";
-      break;
-    case "BeginArray":
-      token = "[";
-      break;
-    case "EndArray":
-      token = "]";
-      break;
-    case "NameSeparator":
-      token = ":";
-      break;
-    case "ValueSeparator":
-      token = ",";
-      break;
-    case "NullOrTrueOrFalseOrNumber":
-    case "String":
-      token = 30 < sourceText.length ? `${sourceText.slice(0, 30)}...` : sourceText;
-      break;
+var clean_parse = (version) => {
+  const match = semver_regex.exec(version);
+  if (!match) {
+    return void 0;
   }
-  return `Cannot parse JSONC: unexpected token "${token}" in JSONC at position ${position}`;
-}
-
-// node_modules/@std/semver/_shared.js
-function compareNumber(a, b) {
-  if (isNaN(a) || isNaN(b)) {
-    throw new Error("Cannot compare against non-numbers");
-  }
-  return a === b ? 0 : a < b ? -1 : 1;
-}
-function checkIdentifier(v1 = [], v2 = []) {
-  if (v1.length && !v2.length) return -1;
-  if (!v1.length && v2.length) return 1;
-  return 0;
-}
-function compareIdentifier(v1 = [], v2 = []) {
-  const length = Math.max(v1.length, v2.length);
-  for (let i = 0; i < length; i++) {
-    const a = v1[i];
-    const b = v2[i];
-    if (a === void 0 && b === void 0) return 0;
-    if (b === void 0) return 1;
-    if (a === void 0) return -1;
-    if (typeof a === "string" && typeof b === "number") return 1;
-    if (typeof a === "number" && typeof b === "string") return -1;
-    if (a < b) return -1;
-    if (a > b) return 1;
-  }
-  return 0;
-}
-var NUMERIC_IDENTIFIER = "0|[1-9]\\d*";
-var NON_NUMERIC_IDENTIFIER = "\\d*[a-zA-Z-][a-zA-Z0-9-]*";
-var VERSION_CORE = `(?<major>${NUMERIC_IDENTIFIER})\\.(?<minor>${NUMERIC_IDENTIFIER})\\.(?<patch>${NUMERIC_IDENTIFIER})`;
-var PRERELEASE_IDENTIFIER = `(?:${NUMERIC_IDENTIFIER}|${NON_NUMERIC_IDENTIFIER})`;
-var PRERELEASE = `(?:-(?<prerelease>${PRERELEASE_IDENTIFIER}(?:\\.${PRERELEASE_IDENTIFIER})*))`;
-var BUILD_IDENTIFIER = "[0-9A-Za-z-]+";
-var BUILD = `(?:\\+(?<buildmetadata>${BUILD_IDENTIFIER}(?:\\.${BUILD_IDENTIFIER})*))`;
-var FULL_VERSION = `v?${VERSION_CORE}${PRERELEASE}?${BUILD}?`;
-var FULL_REGEXP = new RegExp(`^${FULL_VERSION}$`);
-var COMPARATOR = "(?:<|>)?=?";
-var WILDCARD_IDENTIFIER = `x|X|\\*`;
-var XRANGE_IDENTIFIER = `${NUMERIC_IDENTIFIER}|${WILDCARD_IDENTIFIER}`;
-var XRANGE = `[v=\\s]*(?<major>${XRANGE_IDENTIFIER})(?:\\.(?<minor>${XRANGE_IDENTIFIER})(?:\\.(?<patch>${XRANGE_IDENTIFIER})${PRERELEASE}?${BUILD}?)?)?`;
-var OPERATOR_XRANGE_REGEXP = new RegExp(`^(?<operator>~>?|\\^|${COMPARATOR})\\s*${XRANGE}$`);
-var COMPARATOR_REGEXP = new RegExp(`^(?<operator>${COMPARATOR})\\s*(${FULL_VERSION})$|^$`);
-function isValidNumber(value) {
-  return typeof value === "number" && !Number.isNaN(value) && (!Number.isFinite(value) || 0 <= value && value <= Number.MAX_SAFE_INTEGER);
-}
-var MAX_LENGTH = 256;
-var NUMERIC_IDENTIFIER_REGEXP = new RegExp(`^${NUMERIC_IDENTIFIER}$`);
-function parsePrerelease(prerelease) {
-  return prerelease.split(".").filter(Boolean).map((id) => {
-    if (NUMERIC_IDENTIFIER_REGEXP.test(id)) {
-      const number = Number(id);
-      if (isValidNumber(number)) return number;
-    }
-    return id;
-  });
-}
-function parseBuild(buildmetadata) {
-  return buildmetadata.split(".").filter(Boolean);
-}
-function parseNumber(input, errorMessage) {
-  const number = Number(input);
-  if (!isValidNumber(number)) throw new TypeError(errorMessage);
-  return number;
-}
-function isWildcardComparator(c) {
-  return Number.isNaN(c.major) && Number.isNaN(c.minor) && Number.isNaN(c.patch) && (c.prerelease === void 0 || c.prerelease.length === 0) && (c.build === void 0 || c.build.length === 0);
-}
-
-// node_modules/@std/semver/compare.js
-function compare(version1, version2) {
-  if (version1 === version2) return 0;
-  return compareNumber(version1.major, version2.major) || compareNumber(version1.minor, version2.minor) || compareNumber(version1.patch, version2.patch) || checkIdentifier(version1.prerelease, version2.prerelease) || compareIdentifier(version1.prerelease, version2.prerelease);
-}
-
-// node_modules/@std/semver/format.js
-function formatNumber(value) {
-  return value.toFixed(0);
-}
-function format(version) {
-  const major = formatNumber(version.major);
-  const minor = formatNumber(version.minor);
-  const patch = formatNumber(version.patch);
-  const pre = version.prerelease?.join(".") ?? "";
-  const build = version.build?.join(".") ?? "";
-  const primary = `${major}.${minor}.${patch}`;
-  const release = [
-    primary,
-    pre
-  ].filter((v) => v).join("-");
-  return [
-    release,
+  const { major = "0", minor = "0", patch = "0", prerelease = "", build = "" } = match.groups, major_num = number_parseInt(major), minor_num = number_parseInt(minor), patch_num = number_parseInt(patch);
+  return number_isFinite(major_num) && number_isFinite(minor_num) && number_isFinite(patch_num) ? {
+    major: major_num,
+    minor: minor_num,
+    patch: patch_num,
+    prerelease,
     build
-  ].filter((v) => v).join("+");
-}
-
-// node_modules/@std/semver/_test_comparator_set.js
-function testComparator(version, comparator) {
-  if (isWildcardComparator(comparator)) {
-    return true;
-  }
-  const cmp = compare(version, comparator);
-  switch (comparator.operator) {
-    case "=":
-    case void 0: {
-      return cmp === 0;
-    }
-    case "!=": {
-      return cmp !== 0;
-    }
-    case ">": {
-      return cmp > 0;
-    }
-    case "<": {
-      return cmp < 0;
-    }
-    case ">=": {
-      return cmp >= 0;
-    }
-    case "<=": {
-      return cmp <= 0;
-    }
-  }
-}
-function testComparatorSet(version, set) {
-  for (const comparator of set) {
-    if (!testComparator(version, comparator)) {
-      return false;
-    }
-  }
-  if (version.prerelease && version.prerelease.length > 0) {
-    for (const comparator of set) {
-      if (isWildcardComparator(comparator)) {
-        continue;
-      }
-      const { major, minor, patch, prerelease } = comparator;
-      if (prerelease && prerelease.length > 0) {
-        if (version.major === major && version.minor === minor && version.patch === patch) {
-          return true;
-        }
-      }
-    }
-    return false;
-  }
-  return true;
-}
-
-// node_modules/@std/semver/satisfies.js
-function satisfies(version, range) {
-  return range.some((set) => testComparatorSet(version, set));
-}
-
-// node_modules/@std/semver/_constants.js
-var ANY = {
-  major: Number.NaN,
-  minor: Number.NaN,
-  patch: Number.NaN,
-  prerelease: [],
-  build: []
+  } : void 0;
 };
-var ALL = {
-  operator: void 0,
-  ...ANY
+var clean = (version) => version.trim().replace(semver_unclean_prefix, "");
+var parse = (version) => {
+  return clean_parse(clean(version));
 };
-
-// node_modules/@std/semver/greater_than.js
-function greaterThan(version1, version2) {
-  return compare(version1, version2) > 0;
-}
-
-// node_modules/@std/semver/max_satisfying.js
-function maxSatisfying(versions, range) {
-  let max2;
-  for (const version of versions) {
-    if (!satisfies(version, range)) continue;
-    max2 = max2 && greaterThan(max2, version) ? max2 : version;
+var stringify = (version) => {
+  const { major = "x", minor = "x", patch = "x", build = "", prerelease = "" } = version;
+  return `${major}.${minor}.${patch}` + (prerelease ? "-" + prerelease : "") + (build ? "+" + build : "");
+};
+var compare = (v1, v2) => {
+  v1 = isString(v1) ? parse(v1) : v1;
+  v2 = isString(v2) ? parse(v2) : v2;
+  const { major: v1_major, minor: v1_minor, patch: v1_patch } = v1, { major: v2_major, minor: v2_minor, patch: v2_patch } = v2;
+  if (v1_major !== v2_major) {
+    return number_compare(v1_major, v2_major);
   }
-  return max2;
-}
-
-// node_modules/@std/semver/parse_range.js
-function parseComparator(comparator) {
-  const match = comparator.match(COMPARATOR_REGEXP);
-  const groups = match?.groups;
-  if (!groups) return null;
-  const { operator, prerelease, buildmetadata } = groups;
-  const semver = groups.major ? {
-    major: parseNumber(groups.major, `Cannot parse comparator ${comparator}: invalid major version`),
-    minor: parseNumber(groups.minor, `Cannot parse comparator ${comparator}: invalid minor version`),
-    patch: parseNumber(groups.patch, `Cannot parse comparator ${comparator}: invalid patch version`),
-    prerelease: prerelease ? parsePrerelease(prerelease) : [],
-    build: buildmetadata ? parseBuild(buildmetadata) : []
-  } : ANY;
+  if (v1_minor !== v2_minor) {
+    return number_compare(v1_minor, v2_minor);
+  }
+  return number_compare(v1_patch, v2_patch);
+};
+var sort = (versions) => {
+  const semvers = versions.map((v) => isString(v) ? parse(v) : v);
+  return semvers.toSorted(compare);
+};
+var normalize = (version) => {
+  const wildcard_char = "x", release_and_build_info_idx = version.search(semver_prerelease_or_build_sep), release_and_build_info_sep = release_and_build_info_idx >= 0 ? version[release_and_build_info_idx] : "-", [core_version = "", release_and_build_info = ""] = version.split(release_and_build_info_sep, 2), segments = core_version.split(".").toReversed(), normalized_segments = [];
+  let segment_is_illegible = array_isEmpty(segments);
+  for (let i = 0; i < 3; i++) {
+    const segment = segments.pop() || wildcard_char, segment_normalized = semver_wildcard_regex.test(segment) ? wildcard_char : segment;
+    segment_is_illegible ||= !digits_regex.test(segment_normalized);
+    normalized_segments.push(segment_is_illegible ? wildcard_char : segment_normalized);
+  }
+  return normalized_segments.join(".") + (release_and_build_info ? release_and_build_info_sep + release_and_build_info : "");
+};
+var parseOperator = (comp) => {
+  const match = semver_operator_regex.exec(comp), wildcard_char = "x";
+  if (!match) {
+    throw new Error(`[semver]: invalid comparator: "${comp}"`);
+  }
+  const { operator: _operator = "", semver: _semver = "" } = match.groups, operator = _operator || "=", semver_match = semver_regex.exec(normalize(clean(_semver)));
+  if (!semver_match) {
+    throw new Error(`[semver]: error parsing semver: "${_semver}"`);
+  }
+  const { major = wildcard_char, minor = wildcard_char, patch = wildcard_char, prerelease = "", build = "" } = semver_match.groups, major_num = major === wildcard_char ? void 0 : number_parseInt(major), minor_num = minor === wildcard_char ? void 0 : number_parseInt(minor), patch_num = patch === wildcard_char ? void 0 : number_parseInt(patch);
   return {
-    operator: operator || void 0,
-    ...semver
-  };
-}
-function isWildcard(id) {
-  return !id || id.toLowerCase() === "x" || id === "*";
-}
-function handleLeftHyphenRangeGroups(leftGroup) {
-  if (isWildcard(leftGroup.major)) return;
-  if (isWildcard(leftGroup.minor)) {
-    return {
-      operator: ">=",
-      major: +leftGroup.major,
-      minor: 0,
-      patch: 0,
-      prerelease: [],
-      build: []
-    };
-  }
-  if (isWildcard(leftGroup.patch)) {
-    return {
-      operator: ">=",
-      major: +leftGroup.major,
-      minor: +leftGroup.minor,
-      patch: 0,
-      prerelease: [],
-      build: []
-    };
-  }
-  return {
-    operator: ">=",
-    major: +leftGroup.major,
-    minor: +leftGroup.minor,
-    patch: +leftGroup.patch,
-    prerelease: leftGroup.prerelease ? parsePrerelease(leftGroup.prerelease) : [],
-    build: []
-  };
-}
-function handleRightHyphenRangeGroups(rightGroups) {
-  if (isWildcard(rightGroups.major)) {
-    return;
-  }
-  if (isWildcard(rightGroups.minor)) {
-    return {
-      operator: "<",
-      major: +rightGroups.major + 1,
-      minor: 0,
-      patch: 0,
-      prerelease: [],
-      build: []
-    };
-  }
-  if (isWildcard(rightGroups.patch)) {
-    return {
-      operator: "<",
-      major: +rightGroups.major,
-      minor: +rightGroups.minor + 1,
-      patch: 0,
-      prerelease: [],
-      build: []
-    };
-  }
-  if (rightGroups.prerelease) {
-    return {
-      operator: "<=",
-      major: +rightGroups.major,
-      minor: +rightGroups.minor,
-      patch: +rightGroups.patch,
-      prerelease: parsePrerelease(rightGroups.prerelease),
-      build: []
-    };
-  }
-  return {
-    operator: "<=",
-    major: +rightGroups.major,
-    minor: +rightGroups.minor,
-    patch: +rightGroups.patch,
-    prerelease: [],
-    build: []
-  };
-}
-function parseHyphenRange(range) {
-  const leftMatch = range.match(new RegExp(`^${XRANGE}`));
-  const leftGroup = leftMatch?.groups;
-  if (!leftGroup) return null;
-  const leftLength = leftMatch[0].length;
-  const hyphenMatch = range.slice(leftLength).match(/^\s+-\s+/);
-  if (!hyphenMatch) return null;
-  const hyphenLength = hyphenMatch[0].length;
-  const rightMatch = range.slice(leftLength + hyphenLength).match(new RegExp(`^${XRANGE}\\s*$`));
-  const rightGroups = rightMatch?.groups;
-  if (!rightGroups) return null;
-  const from = handleLeftHyphenRangeGroups(leftGroup);
-  const to = handleRightHyphenRangeGroups(rightGroups);
-  return [
-    from,
-    to
-  ].filter(Boolean);
-}
-function handleCaretOperator(groups) {
-  const majorIsWildcard = isWildcard(groups.major);
-  const minorIsWildcard = isWildcard(groups.minor);
-  const patchIsWildcard = isWildcard(groups.patch);
-  const major = +groups.major;
-  const minor = +groups.minor;
-  const patch = +groups.patch;
-  if (majorIsWildcard) return [
-    ALL
-  ];
-  if (minorIsWildcard) {
-    return [
-      {
-        operator: ">=",
-        major,
-        minor: 0,
-        patch: 0
-      },
-      {
-        operator: "<",
-        major: major + 1,
-        minor: 0,
-        patch: 0
-      }
-    ];
-  }
-  if (patchIsWildcard) {
-    if (major === 0) {
-      return [
-        {
-          operator: ">=",
-          major,
-          minor,
-          patch: 0
-        },
-        {
-          operator: "<",
-          major,
-          minor: minor + 1,
-          patch: 0
-        }
-      ];
-    }
-    return [
-      {
-        operator: ">=",
-        major,
-        minor,
-        patch: 0
-      },
-      {
-        operator: "<",
-        major: major + 1,
-        minor: 0,
-        patch: 0
-      }
-    ];
-  }
-  const prerelease = parsePrerelease(groups.prerelease ?? "");
-  if (major === 0) {
-    if (minor === 0) {
-      return [
-        {
-          operator: ">=",
-          major,
-          minor,
-          patch,
-          prerelease
-        },
-        {
-          operator: "<",
-          major,
-          minor,
-          patch: patch + 1
-        }
-      ];
-    }
-    return [
-      {
-        operator: ">=",
-        major,
-        minor,
-        patch,
-        prerelease
-      },
-      {
-        operator: "<",
-        major,
-        minor: minor + 1,
-        patch: 0
-      }
-    ];
-  }
-  return [
-    {
-      operator: ">=",
-      major,
-      minor,
-      patch,
-      prerelease
-    },
-    {
-      operator: "<",
-      major: major + 1,
-      minor: 0,
-      patch: 0
-    }
-  ];
-}
-function handleTildeOperator(groups) {
-  const majorIsWildcard = isWildcard(groups.major);
-  const minorIsWildcard = isWildcard(groups.minor);
-  const patchIsWildcard = isWildcard(groups.patch);
-  const major = +groups.major;
-  const minor = +groups.minor;
-  const patch = +groups.patch;
-  if (majorIsWildcard) return [
-    ALL
-  ];
-  if (minorIsWildcard) {
-    return [
-      {
-        operator: ">=",
-        major,
-        minor: 0,
-        patch: 0
-      },
-      {
-        operator: "<",
-        major: major + 1,
-        minor: 0,
-        patch: 0
-      }
-    ];
-  }
-  if (patchIsWildcard) {
-    return [
-      {
-        operator: ">=",
-        major,
-        minor,
-        patch: 0
-      },
-      {
-        operator: "<",
-        major,
-        minor: minor + 1,
-        patch: 0
-      }
-    ];
-  }
-  const prerelease = parsePrerelease(groups.prerelease ?? "");
-  return [
-    {
-      operator: ">=",
-      major,
-      minor,
-      patch,
-      prerelease
-    },
-    {
-      operator: "<",
-      major,
-      minor: minor + 1,
-      patch: 0
-    }
-  ];
-}
-function handleLessThanOperator(groups) {
-  const majorIsWildcard = isWildcard(groups.major);
-  const minorIsWildcard = isWildcard(groups.minor);
-  const patchIsWildcard = isWildcard(groups.patch);
-  const major = +groups.major;
-  const minor = +groups.minor;
-  const patch = +groups.patch;
-  if (majorIsWildcard) return [
-    {
-      operator: "<",
-      major: 0,
-      minor: 0,
-      patch: 0
-    }
-  ];
-  if (minorIsWildcard) {
-    if (patchIsWildcard) return [
-      {
-        operator: "<",
-        major,
-        minor: 0,
-        patch: 0
-      }
-    ];
-    return [
-      {
-        operator: "<",
-        major,
-        minor: 0,
-        patch: 0
-      }
-    ];
-  }
-  if (patchIsWildcard) return [
-    {
-      operator: "<",
-      major,
-      minor,
-      patch: 0
-    }
-  ];
-  const prerelease = parsePrerelease(groups.prerelease ?? "");
-  const build = parseBuild(groups.build ?? "");
-  return [
-    {
-      operator: "<",
-      major,
-      minor,
-      patch,
-      prerelease,
-      build
-    }
-  ];
-}
-function handleLessThanOrEqualOperator(groups) {
-  const minorIsWildcard = isWildcard(groups.minor);
-  const patchIsWildcard = isWildcard(groups.patch);
-  const major = +groups.major;
-  const minor = +groups.minor;
-  const patch = +groups.patch;
-  if (minorIsWildcard) {
-    if (patchIsWildcard) {
-      return [
-        {
-          operator: "<",
-          major: major + 1,
-          minor: 0,
-          patch: 0
-        }
-      ];
-    }
-    return [
-      {
-        operator: "<",
-        major,
-        minor: minor + 1,
-        patch: 0
-      }
-    ];
-  }
-  if (patchIsWildcard) {
-    return [
-      {
-        operator: "<",
-        major,
-        minor: minor + 1,
-        patch: 0
-      }
-    ];
-  }
-  const prerelease = parsePrerelease(groups.prerelease ?? "");
-  const build = parseBuild(groups.build ?? "");
-  return [
-    {
-      operator: "<=",
-      major,
-      minor,
-      patch,
-      prerelease,
-      build
-    }
-  ];
-}
-function handleGreaterThanOperator(groups) {
-  const majorIsWildcard = isWildcard(groups.major);
-  const minorIsWildcard = isWildcard(groups.minor);
-  const patchIsWildcard = isWildcard(groups.patch);
-  const major = +groups.major;
-  const minor = +groups.minor;
-  const patch = +groups.patch;
-  if (majorIsWildcard) return [
-    {
-      operator: "<",
-      major: 0,
-      minor: 0,
-      patch: 0
-    }
-  ];
-  if (minorIsWildcard) {
-    return [
-      {
-        operator: ">=",
-        major: major + 1,
-        minor: 0,
-        patch: 0
-      }
-    ];
-  }
-  if (patchIsWildcard) {
-    return [
-      {
-        operator: ">=",
-        major,
-        minor: minor + 1,
-        patch: 0
-      }
-    ];
-  }
-  const prerelease = parsePrerelease(groups.prerelease ?? "");
-  const build = parseBuild(groups.build ?? "");
-  return [
-    {
-      operator: ">",
-      major,
-      minor,
-      patch,
-      prerelease,
-      build
-    }
-  ];
-}
-function handleGreaterOrEqualOperator(groups) {
-  const majorIsWildcard = isWildcard(groups.major);
-  const minorIsWildcard = isWildcard(groups.minor);
-  const patchIsWildcard = isWildcard(groups.patch);
-  const major = +groups.major;
-  const minor = +groups.minor;
-  const patch = +groups.patch;
-  if (majorIsWildcard) return [
-    ALL
-  ];
-  if (minorIsWildcard) {
-    if (patchIsWildcard) return [
-      {
-        operator: ">=",
-        major,
-        minor: 0,
-        patch: 0
-      }
-    ];
-    return [
-      {
-        operator: ">=",
-        major,
-        minor: 0,
-        patch: 0
-      }
-    ];
-  }
-  if (patchIsWildcard) return [
-    {
-      operator: ">=",
-      major,
-      minor,
-      patch: 0
-    }
-  ];
-  const prerelease = parsePrerelease(groups.prerelease ?? "");
-  const build = parseBuild(groups.build ?? "");
-  return [
-    {
-      operator: ">=",
-      major,
-      minor,
-      patch,
-      prerelease,
-      build
-    }
-  ];
-}
-function handleEqualOperator(groups) {
-  const majorIsWildcard = isWildcard(groups.major);
-  const minorIsWildcard = isWildcard(groups.minor);
-  const patchIsWildcard = isWildcard(groups.patch);
-  const major = +groups.major;
-  const minor = +groups.minor;
-  const patch = +groups.patch;
-  if (majorIsWildcard) return [
-    ALL
-  ];
-  if (minorIsWildcard) {
-    return [
-      {
-        operator: ">=",
-        major,
-        minor: 0,
-        patch: 0
-      },
-      {
-        operator: "<",
-        major: major + 1,
-        minor: 0,
-        patch: 0
-      }
-    ];
-  }
-  if (patchIsWildcard) {
-    return [
-      {
-        operator: ">=",
-        major,
-        minor,
-        patch: 0
-      },
-      {
-        operator: "<",
-        major,
-        minor: minor + 1,
-        patch: 0
-      }
-    ];
-  }
-  const prerelease = parsePrerelease(groups.prerelease ?? "");
-  const build = parseBuild(groups.build ?? "");
-  return [
-    {
-      operator: void 0,
-      major,
-      minor,
-      patch,
-      prerelease,
-      build
-    }
-  ];
-}
-function parseOperatorRange(string) {
-  const groups = string.match(OPERATOR_XRANGE_REGEXP)?.groups;
-  if (!groups) return parseComparator(string);
-  switch (groups.operator) {
-    case "^":
-      return handleCaretOperator(groups);
-    case "~":
-    case "~>":
-      return handleTildeOperator(groups);
-    case "<":
-      return handleLessThanOperator(groups);
-    case "<=":
-      return handleLessThanOrEqualOperator(groups);
-    case ">":
-      return handleGreaterThanOperator(groups);
-    case ">=":
-      return handleGreaterOrEqualOperator(groups);
-    case "=":
-    case "":
-      return handleEqualOperator(groups);
-    default:
-      throw new Error(`Cannot parse version range: '${groups.operator}' is not a valid operator`);
-  }
-}
-function parseOperatorRanges(string) {
-  return string.split(/\s+/).flatMap(parseOperatorRange);
-}
-function parseRange(value) {
-  const result = value.replaceAll(/(?<=<|>|=|~|\^)(\s+)/g, "").split(/\s*\|\|\s*/).map((string) => parseHyphenRange(string) || parseOperatorRanges(string));
-  if (result.some((r) => r.includes(null))) {
-    throw new TypeError(`Cannot parse version range: range "${value}" is invalid`);
-  }
-  return result;
-}
-
-// node_modules/@std/semver/parse.js
-function parse2(value) {
-  if (typeof value !== "string") {
-    throw new TypeError(`Cannot parse version as version must be a string: received ${typeof value}`);
-  }
-  if (value.length > MAX_LENGTH) {
-    throw new TypeError(`Cannot parse version as version length is too long: length is ${value.length}, max length is ${MAX_LENGTH}`);
-  }
-  value = value.trim();
-  const groups = value.match(FULL_REGEXP)?.groups;
-  if (!groups) throw new TypeError(`Cannot parse version: ${value}`);
-  const major = parseNumber(groups.major, `Cannot parse version ${value}: invalid major version`);
-  const minor = parseNumber(groups.minor, `Cannot parse version ${value}: invalid minor version`);
-  const patch = parseNumber(groups.patch, `Cannot parse version ${value}: invalid patch version`);
-  const prerelease = groups.prerelease ? parsePrerelease(groups.prerelease) : [];
-  const build = groups.buildmetadata ? parseBuild(groups.buildmetadata) : [];
-  return {
-    major,
-    minor,
-    patch,
+    operator,
+    major: major_num,
+    minor: minor_num,
+    patch: patch_num,
     prerelease,
     build
   };
-}
+};
+var _1_OrLexer = {
+  tokenExp: "[OR]",
+  parseExp: /\s*\|\|\s*/g,
+  lexer(substr) {
+    return substr.split(this.tokenExp);
+  }
+};
+var _2_HyphenLexer = {
+  tokenExp: "[HYPHEN]",
+  parseExp: /\s+\-\s+/g,
+  lexer(substr) {
+    const hyphen_match = substr.match(hyphen_range_regex);
+    if (!hyphen_match) {
+      return void 0;
+    }
+    const low_ver = clean(hyphen_match[1]), high_ver = clean(hyphen_match[2]);
+    return [low_ver, high_ver];
+  }
+};
+var hyphen_range_regex = new RegExp(`^(.+?)${escapeLiteralStringForRegex(_2_HyphenLexer.tokenExp)}(.+?)$`);
+var _3_AndLexer = {
+  tokenExp: "[AND]",
+  parseExp: /\s+/g,
+  lexer(substr) {
+    return substr.split(this.tokenExp);
+  }
+};
+var all_operators = ["=", "!=", ">=", "<=", ">", "<", "~", "^"];
+var all_impossible_major_xrange_operators = [">", "<", "!="];
+var clean_range = (range) => {
+  for (const op of all_operators) {
+    range = range.replaceAll(new RegExp(`${escapeLiteralStringForRegex(op)}\\s*`, "g"), op);
+  }
+  return range;
+};
+var desugar_operator = (operator_expression) => {
+  if (isString(operator_expression)) {
+    const hyphen_match = _2_HyphenLexer.lexer(operator_expression);
+    if (hyphen_match) {
+      const [lower, upper] = hyphen_match;
+      return [...desugar_operator(`>=${lower}`), ...desugar_operator(`<=${upper}`)];
+    }
+    operator_expression = parseOperator(operator_expression);
+  }
+  const { operator = "=", major, minor, patch, prerelease, build } = operator_expression;
+  if (major === void 0) {
+    return all_impossible_major_xrange_operators.includes(operator) ? [{ operator: "=", major: -1, minor: -1, patch: -1 }] : [{ operator: ">=", major: 0, minor: 0, patch: 0 }];
+  }
+  if (minor === void 0) {
+    switch (operator) {
+      case "!=":
+        return [
+          { operator: "<", major, minor: 0, patch: 0 },
+          { operator: ">=", major: major + 1, minor: 0, patch: 0 }
+        ];
+      case "<":
+        return [{ operator: "<", major, minor: 0, patch: 0 }];
+      case "<=":
+        return [{ operator: "<", major: major + 1, minor: 0, patch: 0 }];
+      case ">":
+        return [{ operator: ">=", major: major + 1, minor: 0, patch: 0 }];
+      case ">=":
+        return [{ operator: ">=", major, minor: 0, patch: 0 }];
+      default:
+        return desugar_operator({ operator: "^", major, minor: 0, patch: 0 });
+    }
+  }
+  if (patch === void 0) {
+    switch (operator) {
+      case "!=":
+        return [
+          { operator: "<", major, minor, patch: 0 },
+          { operator: ">=", major, minor: minor + 1, patch: 0 }
+        ];
+      case "<":
+        return [{ operator: "<", major, minor, patch: 0 }];
+      case "<=":
+        return [{ operator: "<", major, minor: minor + 1, patch: 0 }];
+      case ">":
+        return [{ operator: ">=", major, minor: minor + 1, patch: 0 }];
+      case ">=":
+        return [{ operator: ">=", major, minor, patch: 0 }];
+      case "^":
+        if (major > 0 || minor > 0) {
+          return desugar_operator({ operator: "^", major, minor, patch: 0 });
+        }
+      /* falls through */
+      default:
+        return desugar_operator({ operator: "~", major, minor, patch: 0 });
+    }
+  }
+  switch (operator) {
+    // a caret allows increments that do not change the first non-zero core-version number.
+    case "^": {
+      let lower, upper;
+      if (major > 0) {
+        lower = { operator: ">=", major, minor, patch, prerelease, build };
+        upper = { operator: "<", major: major + 1, minor: 0, patch: 0 };
+      } else if (minor > 0) {
+        lower = { operator: ">=", major: 0, minor, patch, prerelease, build };
+        upper = { operator: "<", major: 0, minor: minor + 1, patch: 0 };
+      } else {
+        lower = { operator: "=", major: 0, minor: 0, patch, prerelease, build };
+        upper = lower;
+      }
+      return [lower, upper];
+    }
+    case "~": {
+      const lower = { operator: ">=", major, minor, patch, prerelease, build }, upper = { operator: "<", major, minor: minor + 1, patch: 0 };
+      return [lower, upper];
+    }
+    default: {
+      return [{ operator, major, minor, patch, prerelease, build }];
+    }
+  }
+};
+var parseRange = (range) => {
+  const tokenized_range = clean_range(range).replaceAll(_1_OrLexer.parseExp, _1_OrLexer.tokenExp).replaceAll(_2_HyphenLexer.parseExp, _2_HyphenLexer.tokenExp).replaceAll(_3_AndLexer.parseExp, _3_AndLexer.tokenExp);
+  const or_comparisons = [];
+  for (const part of _1_OrLexer.lexer(tokenized_range)) {
+    const and_comparators = [];
+    or_comparisons.push(and_comparators);
+    const and_parts = _3_AndLexer.lexer(part).map(desugar_operator).flat(1);
+    and_comparators.push(...and_parts);
+  }
+  return or_comparisons;
+};
+var comparison_result_satisfies_operator = [
+  ["=", "<=", ">="],
+  // accepted operators when `compare(version, range_segment) === 0`
+  ["!=", ">", ">="],
+  // accepted operators when `compare(version, range_segment) === 1`
+  ["!=", "<", "<="]
+  // accepted operators when `compare(version, range_segment) === -1`
+];
+var isSatisfying = (version, range) => {
+  version = isString(version) ? parse(version) : version;
+  range = isString(range) ? parseRange(range) : range;
+  for (const and_parts of range) {
+    let does_satisfy_OR_segment = true;
+    for (const comp of and_parts) {
+      const operator = comp.operator, comparison_result = compare(version, comp), does_satisfy_AND_segment = comparison_result_satisfies_operator.at(comparison_result).includes(operator);
+      if (does_satisfy_AND_segment === false || comp.major < 0) {
+        does_satisfy_OR_segment = false;
+        break;
+      }
+    }
+    if (does_satisfy_OR_segment) {
+      return true;
+    }
+  }
+  return false;
+};
+var maxSatisfying = (versions, range) => {
+  range = isString(range) ? parseRange(range) : range;
+  const sorted_versions = sort(versions).toReversed();
+  for (const version of sorted_versions) {
+    if (isSatisfying(version, range)) {
+      return stringify(version);
+    }
+  }
+  return;
+};
 
 // src/deps.ts
 var isAbsolutePath2 = (segment) => {
@@ -1723,14 +1030,14 @@ var defaultResolvePathFromImportMapEntriesConfig = {
   errorCheck: true
 };
 var resolvePathFromImportMapEntries = (path_alias, import_map_entries, config) => {
-  let { baseAliasDir, basePathDir, errorCheck, sort } = { ...defaultResolvePathFromImportMapEntriesConfig, ...config };
+  let { baseAliasDir, basePathDir, errorCheck, sort: sort2 } = { ...defaultResolvePathFromImportMapEntriesConfig, ...config };
   baseAliasDir = replaceSuffix(baseAliasDir, "/") ?? baseAliasDir;
   basePathDir = replaceSuffix(basePathDir, "/") ?? basePathDir;
   const unprefixed_path_alias = replacePrefix(normalizePath(path_alias), baseAliasDir), relative_path_alias = unprefixed_path_alias === "" || baseAliasDir !== "" && unprefixed_path_alias?.startsWith("/") ? "." + unprefixed_path_alias : unprefixed_path_alias;
   if (relative_path_alias === void 0) {
-    return resolvePathFromImportMapEntries(path_alias, import_map_entries, { baseAliasDir: "", basePathDir, errorCheck, sort });
+    return resolvePathFromImportMapEntries(path_alias, import_map_entries, { baseAliasDir: "", basePathDir, errorCheck, sort: sort2 });
   }
-  if (sort) {
+  if (sort2) {
     import_map_entries = import_map_entries.toSorted(compareImportMapEntriesByLength);
   }
   for (const [alias, path] of import_map_entries) {
@@ -1800,12 +1107,12 @@ var RuntimePackage = class {
   /** create an instance of this class by loading a package's json(c) file from a url or local file-system path.
    * 
    * > [!tip]
-   * > the constructor uses a "JSONC" parser (from [@std/jsonc](https://jsr.io/@std/jsonc)) for the fetched files.
+   * > the constructor uses a "JSONC" parser (from [@oazmi/kitchensink/stringman](https://jsr.io/@oazmi/kitchensink/0.9.10/src/stringman.ts)) for the fetched files.
    * > therefore, you may provide links to ".jsonc" files, instead of parsing them yourself before calling the super constructor.
   */
   static async fromUrl(package_jsonc_path) {
     package_jsonc_path = resolveAsUrl(package_jsonc_path, defaultResolvePath());
-    const package_object = parse(await (await fetch(package_jsonc_path, defaultFetchConfig)).text());
+    const package_object = json_parse(jsoncRemoveComments(await (await fetch(package_jsonc_path, defaultFetchConfig)).text()));
     return new this(package_object, package_jsonc_path.href);
   }
 };
@@ -1877,12 +1184,12 @@ var jsrPackageToMetadataUrl = async (jsr_package) => {
   if (!scope) {
     throw new Error(`expected jsr package to contain a scope, but found "${scope}" instead, for package: "${jsr_package}"`);
   }
-  const meta_json_url = resolveAsUrl(`@${scope}/${pkg}/meta.json`, jsr_base_url), meta_json = await (await fetch(meta_json_url, defaultFetchConfig)).json(), unyanked_versions = object_entries(meta_json.versions).filter(([version_str, { yanked }]) => !yanked).map(([version_str]) => parse2(version_str));
-  const resolved_semver = maxSatisfying(unyanked_versions, parseRange(desired_semver ?? meta_json.latest));
+  const meta_json_url = resolveAsUrl(`@${scope}/${pkg}/meta.json`, jsr_base_url), meta_json = await (await fetch(meta_json_url, defaultFetchConfig)).json(), unyanked_versions = object_entries(meta_json.versions).filter(([version_str, { yanked }]) => !yanked).map(([version_str]) => version_str);
+  const resolved_semver = maxSatisfying(unyanked_versions, desired_semver ?? meta_json.latest);
   if (!resolved_semver) {
     throw new Error(`failed to find the desired version "${desired_semver}" of the jsr package "${jsr_package}", with available versions "${json_stringify(meta_json.versions)}"`);
   }
-  const resolved_version = format(resolved_semver), base_host = resolveAsUrl(`@${scope}/${pkg}/${resolved_version}/`, jsr_base_url), deno_json_url = resolveAsUrl("./deno.json", base_host), deno_jsonc_url = resolveAsUrl("./deno.jsonc", base_host), jsr_json_url = resolveAsUrl("./jsr.json", base_host), jsr_jsonc_url = resolveAsUrl("./jsr.jsonc", base_host), package_json_url = resolveAsUrl("./package.json", base_host), package_jsonc_url = resolveAsUrl("./package.jsonc", base_host);
+  const base_host = resolveAsUrl(`@${scope}/${pkg}/${resolved_semver}/`, jsr_base_url), deno_json_url = resolveAsUrl("./deno.json", base_host), deno_jsonc_url = resolveAsUrl("./deno.jsonc", base_host), jsr_json_url = resolveAsUrl("./jsr.json", base_host), jsr_jsonc_url = resolveAsUrl("./jsr.jsonc", base_host), package_json_url = resolveAsUrl("./package.json", base_host), package_jsonc_url = resolveAsUrl("./package.jsonc", base_host);
   const urls = [deno_json_url, deno_jsonc_url, jsr_json_url, jsr_jsonc_url];
   for (const url of urls) {
     if ((await fetch(url, { ...defaultFetchConfig, method: "HEAD" })).ok) {
@@ -2153,30 +1460,6 @@ var arrayLoggerFactory = (history) => {
 };
 var arrayLoggerHistory = [];
 var arrayLogger = /* @__PURE__ */ arrayLoggerFactory(arrayLoggerHistory);
-var windows_local_path_correction_regex = /^[\/\\]([a-z])\:[\/\\]/i;
-var fileUriToLocalPath = (file_url) => {
-  if (isString(file_url)) {
-    if (getUriScheme(file_url) !== "file") {
-      return;
-    }
-    file_url = new URL(file_url);
-  }
-  if (!file_url?.protocol.startsWith("file:")) {
-    return;
-  }
-  const local_path_with_leading_slash = pathToPosixPath(dom_decodeURI(file_url.pathname)), corrected_local_path = local_path_with_leading_slash.replace(windows_local_path_correction_regex, "$1:/");
-  return corrected_local_path;
-};
-var ensureLocalPath = (path) => {
-  const path_is_string = isString(path), file_uri_to_local_path_conversion = fileUriToLocalPath(path);
-  if (1 /* ASSERT */ && !file_uri_to_local_path_conversion) {
-    const scheme = path_is_string ? getUriScheme(path) : "http";
-    if (scheme !== "local" && scheme !== "relative") {
-      logLogger(`[ensureLocalPath] WARNING! received non-convertible remote path: "${path_is_string ? path : path.href}"`);
-    }
-  }
-  return file_uri_to_local_path_conversion ?? (path_is_string ? pathToPosixPath(path) : path.href);
-};
 var syncTaskQueueFactory = () => {
   let latest_promise = promise_resolve();
   const task_queuer = (task_fn, ...args) => {
@@ -2243,7 +1526,7 @@ var httpPluginSetup = (config = {}) => {
       if (!acceptNamespaces.has(namespace)) {
         return;
       }
-      return convertFileUriToLocalPath.enabled && getUriScheme(path) === "file" ? convertFileUriToLocalPath.resolveAgain ? build.resolve(fileUriToLocalPath(path), { ...rest_args, pluginData, namespace: original_ns }) : { path: fileUriToLocalPath(path), pluginData, namespace: original_ns } : { path, pluginData, namespace: plugin_ns };
+      return convertFileUriToLocalPath.enabled && getUriScheme(path) === "file" ? convertFileUriToLocalPath.resolveAgain ? build.resolve(fileUrlToLocalPath(path), { ...rest_args, pluginData, namespace: original_ns }) : { path: fileUrlToLocalPath(path), pluginData, namespace: original_ns } : { path, pluginData, namespace: plugin_ns };
     };
     filters.forEach((filter) => {
       build.onResolve({ filter }, httpResolver);
@@ -2443,10 +1726,10 @@ var nodeModulesResolverFactory = (config, build) => {
           return;
         }
         const { path, external, namespace, sideEffects, suffix } = await build2.resolve(
-          ensureLocalPath(args.path),
+          ensureFileUrlIsLocalPath(args.path),
           {
             kind: "entry-point",
-            resolveDir: ensureLocalPath(resolve_dir !== "" ? resolve_dir : args.resolveDir),
+            resolveDir: ensureFileUrlIsLocalPath(resolve_dir !== "" ? resolve_dir : args.resolveDir),
             pluginData: { [ALREADY_CAPTURED]: true }
           }
         );
@@ -2601,7 +1884,7 @@ var pathOrUrlToLocalPathConverter = (dir_path_or_url) => {
     case "local":
     case "relative":
     case "file":
-      return ensureLocalPath(dir_path);
+      return ensureFileUrlIsLocalPath(dir_path);
     default:
       throw new Error(`expected a filesystem path, or a "file://" url, but received the incompatible uri scheme "${path_schema}".`);
   }

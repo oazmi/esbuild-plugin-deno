@@ -56,6 +56,12 @@ export type EntriesOf<T> = Array<{
 }[keyof T]>;
 /** turn all fields of an object `T` to optional, deeply.
  *
+ * > [!note]
+ * > we exclude many built-in types and classes so that they are not turned into partial types.
+ * > here is the full list of built-in types and classes (aside from primitives) that are not turned into partial objects:
+ * >
+ * > `Function | Array<any> | Set<any> | Map<any, any> | WeakSet<any> | WeakMap<any, any> | TypedArray | URL | String | BigInt | Number | Boolean | Symbol`
+ *
  * @example
  * ```ts
  * const my_obj = {
@@ -63,6 +69,9 @@ export type EntriesOf<T> = Array<{
  * 	b: { c: 2 },
  * 	d: { e: { f: 3 }, g: 4 },
  * 	h: { i: [{ j: 5 }, { k: 6 }] },
+ * 	l: { m: ((arg: string) => "hello") },
+ * 	n: new URL("https://example.com"),
+ * 	o: new Map<string, number>([["a", 1], ["b", 2]]),
  * } as const
  *
  * type DeeplyPartial_my_obj = DeepPartial<typeof my_obj>
@@ -71,6 +80,9 @@ export type EntriesOf<T> = Array<{
  * 	b?: { c?: 2 },
  * 	d?: { e?: { f?: 3 }, g?: 4 },
  * 	h?: { i?: readonly [_0?: { j?: 5 } | undefined, _1?: { k?: 6 } | undefined] },
+ * 	l?: { m?: ((arg: string) => string) },
+ * 	n?: URL,
+ * 	o?: Map<string, number>,
  * }
  *
  * type BothTypesAreEqual_1 = DeeplyPartial_my_obj extends ManuallyConstructed_DeeplyPartial_my_obj ? true : false
@@ -81,8 +93,47 @@ export type EntriesOf<T> = Array<{
  * temp satisfies BothTypesAreEqual_2
  * ```
 */
-export type DeepPartial<T> = T extends any[] ? T : T extends Record<string, any> ? {
+export type DeepPartial<T> = T extends (Function | Array<any> | Set<any> | Map<any, any> | WeakSet<any> | WeakMap<any, any> | TypedArray | URL | String | BigInt | Number | Boolean | Symbol) ? T : T extends Record<string, any> ? {
     [P in keyof T]?: DeepPartial<T[P]>;
+} : T;
+/** turn all fields of an object `T` to required, deeply.
+ *
+ * > [!note]
+ * > we exclude many built-in types and classes so that they are not turned into required types.
+ * > here is the full list of built-in types and classes (aside from primitives) that are not turned into required objects:
+ * >
+ * > `Function | Array<any> | Set<any> | Map<any, any> | WeakSet<any> | WeakMap<any, any> | TypedArray | URL | String | BigInt | Number | Boolean | Symbol`
+ *
+ * @example
+ * ```ts
+ * type MyType = {
+ * 	a?: 1,
+ * 	b: { c?: 2 },
+ * 	d: { e?: { f: 3 }, g?: 4 },
+ * 	h: { i?: [_0?: { j?: 5 } | undefined, _1?: { k?: 6 } | undefined] },
+ * 	l?: { m?: ((arg: string) => string), n: 7 | undefined, o?: 8 | undefined },
+ * }
+ *
+ * type MyType_DeeplyRequired = DeepRequired<MyType>
+ *
+ * type ManuallyConstructed_MyType_DeeplyRequired = DeepRequired<{
+ * 	a: 1,
+ * 	b: { c: 2 },
+ * 	d: { e: { f: 3 }, g: 4 },
+ * 	h: { i: [_0?: { j?: 5 } | undefined, _1?: { k?: 6 } | undefined] },
+ * 	l: { m: ((arg: string) => string), n: 7 | undefined, o: 8 },
+ * }>
+ *
+ * type BothTypesAreEqual_1 = MyType_DeeplyRequired extends ManuallyConstructed_MyType_DeeplyRequired ? true : false
+ * type BothTypesAreEqual_2 = ManuallyConstructed_MyType_DeeplyRequired extends MyType_DeeplyRequired ? true : false
+ *
+ * const temp: true = true
+ * temp satisfies BothTypesAreEqual_1
+ * temp satisfies BothTypesAreEqual_2
+ * ```
+*/
+export type DeepRequired<T> = T extends (Function | Array<any> | Set<any> | Map<any, any> | WeakSet<any> | WeakMap<any, any> | TypedArray | URL | String | BigInt | Number | Boolean | Symbol) ? T : T extends Record<string, any> ? {
+    [P in keyof T]-?: DeepRequired<T[P]>;
 } : T;
 /** get the stringified type name of a type-parameter. */
 export type TypeName<T> = T extends string ? "string" : T extends BigInt ? "bigint" : T extends number ? "number" : T extends boolean ? "boolean" : T extends undefined ? "undefined" : T extends symbol ? "symbol" : T extends Function ? "function" : T extends Array<any> ? "array" : T extends null ? "null" : "object";

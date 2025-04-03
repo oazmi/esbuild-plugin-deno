@@ -10,6 +10,8 @@
  *   but when you bundle your code for production/web-deployment, it will fail catastrophically.
  * - {@link "devdebug"}:
  *   this submodule pollutes the `globalThis` object whenever imported, so it is not exported here.
+ * - {@link "semver"}:
+ *   I don't want it polluting the namespace, especially since it's a barely used submodule.
  *
  * anyone desiring to import one of these submodules should import them directly using `import {...} from "@oazmi/kitchensink/submodule_name"`.
 */

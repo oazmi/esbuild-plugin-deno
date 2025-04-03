@@ -2,3 +2,11 @@
 /test_runner.js
 yarn.lock
 pnpm-lock.yaml
+
+code_of_conduct.md
+dist/
+docs/
+docs_config/
+test/
+tsconfig.json
+typedoc.json

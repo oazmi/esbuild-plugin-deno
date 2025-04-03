@@ -3,9 +3,9 @@
  * @module
 */
 
-import { DEBUG, type DeepPartial, defaultFetchConfig, getUriScheme, json_stringify, resolveAsUrl } from "../../deps.js"
+import { DEBUG, type DeepPartial, defaultFetchConfig, fileUrlToLocalPath, getUriScheme, json_stringify, resolveAsUrl } from "../../deps.js"
 import { guessHttpResponseLoaders } from "../../loadermap/mod.js"
-import { fileUriToLocalPath, logLogger } from "../funcdefs.js"
+import { logLogger } from "../funcdefs.js"
 import type { EsbuildLoaderType, EsbuildPlugin, EsbuildPluginBuild, EsbuildPluginSetup, LoggerFunction, OnLoadArgs, OnLoadCallback, OnResolveArgs, OnResolveCallback, OnResolveResult } from "../typedefs.js"
 import { allEsbuildLoaders, defaultEsbuildNamespaces, PLUGIN_NAMESPACE } from "../typedefs.js"
 import type { entryPlugin } from "./entry.js"
@@ -238,8 +238,8 @@ export const httpPluginSetup = (config: DeepPartial<HttpPluginSetupConfig> = {})
 			// plus we would like to give other plugins the chance to process it.
 			return convertFileUriToLocalPath.enabled && getUriScheme(path) === "file"
 				? (convertFileUriToLocalPath.resolveAgain
-					? build.resolve(fileUriToLocalPath(path)!, { ...rest_args, pluginData, namespace: original_ns })
-					: { path: fileUriToLocalPath(path), pluginData, namespace: original_ns }
+					? build.resolve(fileUrlToLocalPath(path)!, { ...rest_args, pluginData, namespace: original_ns })
+					: { path: fileUrlToLocalPath(path), pluginData, namespace: original_ns }
 				) : { path, pluginData, namespace: plugin_ns }
 		}
 

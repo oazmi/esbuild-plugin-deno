@@ -68,7 +68,7 @@ export declare abstract class RuntimePackage<SCHEMA extends Record<string, any>>
     /** create an instance of this class by loading a package's json(c) file from a url or local file-system path.
      *
      * > [!tip]
-     * > the constructor uses a "JSONC" parser (from [@std/jsonc](https://jsr.io/@std/jsonc)) for the fetched files.
+     * > the constructor uses a "JSONC" parser (from [@oazmi/kitchensink/stringman](https://jsr.io/@oazmi/kitchensink/0.9.10/src/stringman.ts)) for the fetched files.
      * > therefore, you may provide links to ".jsonc" files, instead of parsing them yourself before calling the super constructor.
     */
     static fromUrl<SCHEMA extends Record<string, any>, INSTANCE = RuntimePackage<SCHEMA>>(this: ConstructorOf<INSTANCE, [SCHEMA, string]>, package_jsonc_path: URL | string): Promise<INSTANCE>;

@@ -220,7 +220,9 @@ export const encode_number_array = (value, type) => {
  * otherwise the decoder will unpack till the end of the buffer.
 */
 export const decode_number_array = (buf, offset = 0, type, array_length) => {
-    const [t, s, e] = type, bytesize = number_parseInt(s), is_native_endian = (e === "l" && env_is_little_endian) || (e === "b" && !env_is_little_endian) || bytesize === 1 ? true : false, bytelength = array_length ? bytesize * array_length : undefined, array_buf = buf.slice(offset, bytelength ? offset + bytelength : undefined), array_bytesize = array_buf.length, typed_arr_constructor = typed_array_constructor_of(type), typed_arr = new typed_arr_constructor(is_native_endian ? array_buf.buffer : swapEndiannessFast(array_buf, bytesize).buffer);
+    const [t, s, e] = type, bytesize = number_parseInt(s), is_native_endian = (e === "l" && env_is_little_endian) || (e === "b" && !env_is_little_endian) || bytesize === 1 ? true : false, bytelength = array_length ? bytesize * array_length : undefined, array_buf = buf.slice(offset, bytelength ? offset + bytelength : undefined), array_bytesize = array_buf.length, typed_arr_constructor = typed_array_constructor_of(type), array_buf_endian_corrected = is_native_endian ? array_buf : swapEndiannessFast(array_buf, bytesize), 
+    // ANNOYANCE: below, we have to do `as ArrayBuffer` due to the introduction of `SharedArrayBuffer`.
+    typed_arr = new typed_arr_constructor(array_buf_endian_corrected.buffer);
     return [array_from(typed_arr), array_bytesize];
 };
 /** pack a `number` in the provided {@link NumericType} byte representation. */

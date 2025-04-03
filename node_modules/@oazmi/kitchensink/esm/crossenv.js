@@ -288,7 +288,7 @@ export const execShellCommand = async (runtime_enum, command, config = {}) => {
         case RUNTIME.BUN:
         case RUNTIME.NODE: {
             const { exec } = await get_node_child_process(), full_command = args_are_empty ? command : `${command} ${args.join(" ")}`, [promise, resolve, reject] = promise_outside();
-            exec(full_command, { cwd, signal }, (error, stdout, stderr) => {
+            exec(full_command, { cwd: cwd, signal }, (error, stdout, stderr) => {
                 if (error) {
                     reject(error.message);
                 }
@@ -424,7 +424,7 @@ export const readFile = async (runtime_enum, file_path, config = {}) => {
             return runtime.readFile(file_path, node_and_deno_config);
         case RUNTIME.BUN:
         case RUNTIME.NODE:
-            return (await get_node_fs()).readFile(file_path, node_and_deno_config);
+            return new Uint8Array((await (await get_node_fs()).readFile(file_path, node_and_deno_config)).buffer);
         default:
             throw new Error(DEBUG.ERROR ? `your non-system runtime environment enum ("${runtime_enum}") does not support filesystem reading operations` : "");
     }
