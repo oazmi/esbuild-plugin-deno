@@ -59,6 +59,11 @@
 
 ## pre-version `0.4.x` todo list
 
+- [ ] allow the customization of the http-header, cache policy, and redirect policy for the http plugin.
+      some CDNs, such as [esm.sh](https://esm.sh/), utilize the `"Accept"` content-type header to identify typescript-native js-runtimes, and delived a different variant of the package based on that information.
+      this might result in your bundle containing a different code from your expectation, and that could result in inaccuracies
+      (for instance, it may serve a deno-compatible ts file, but your bundle is intended to run in the browser).
+      so, allowing the user to modify the http-header would let them overcome this issue.
 - [ ] add support for parsing `package.json` in the `DenoPackage` class for achieving full jsr-compatibility in the jsr-plugin.
 - [ ] add a function to detect the current runtime, so that it can be later used for predicting the base-project-level scope's `runtimePackage: RuntimePackage` (i.e. is it a `package.json(c)` or `deno.json(c)` or `jsr.json(c)`).
   - consider creating a function `fetchScan: (urls: (URL | string)[]) => URL`,
@@ -71,13 +76,18 @@
       doing so might undo the 60% slowdown introduced in version `0.3.0` (where inherit-plugin-data was added).~~
   > the reduction in speed was a government propaganda, the cake was a lie, and carbon killed oxide (carbon "die" oxide, get it? haha humor +100, and everyone clapped while congratulating for eternity - [quack quack](https://www.youtube.com/watch?v=oyFQVZ2h0V8&t=11s))
 
-## pre-version `0.3.4` todo list
+## (2025-04-04) pre-version `0.4.0` todo list
 
-- [ ] some websites (like [esm.sh](https://esm.sh/)) that use absolute referencing within their domains via `"/some/abs/path.ts"` fail with the current resolver-pipeline.
+- [x] some websites (like [esm.sh](https://esm.sh/)) that use absolute referencing within their domains via `"/some/abs/path.ts"` fail with the current resolver-pipeline.
   - to solve this, I might have to do one of the following (or both):
-    - [ ] introduce a new `pluginData` field that stores the current context's base path (such as base domain url, or base filesystem path),
-          and then whenever a path beginning with "/" is encountered, we join it with the base domain path.
-    - [ ] modify your `resolveAsUrl` in `@oazmi/kitchensink/pathman` so that it does not return a `file:///` uri whenever an absolute path is encountered with a base-url.
+    - [ ] ~~introduce a new `pluginData` field that stores the current context's base path (such as base domain url, or base filesystem path),
+          and then whenever a path beginning with "/" is encountered, we join it with the base domain path.~~
+      > this is simply impractical.
+      > instead, I've modified the resolver-pipeline's `RelativePathResolverConfig.resolvePath` to use the url-constructor-like signature `(path?: string, importer?: string) => string`,
+      > so that it would inspect if `path` begins with a leading "/" (root-path), and handle it appropriately based on what the `importer` is.
+      >
+      > this is a breaking change in the signature, so anyone who has written a custom `pathResolve` function will now need to redefine it.
+    - [x] modify your `resolveAsUrl` in `@oazmi/kitchensink/pathman` so that it does not return a `file:///` uri whenever an absolute path is encountered with a base-url.
           instead, it should carefully explore which is the more viable possibility.
       > FIXED in [`@oazmi/kitchensink@0.9.10`](https://github.com/omar-azmi/kitchensink_ts/commit/0ab8afefaf998f7d47c288990b63f21183712d70).
       > so simply update to that version.

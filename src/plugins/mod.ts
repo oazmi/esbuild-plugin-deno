@@ -3,7 +3,7 @@
  * @module
 */
 
-import { defaultGetCwd, isAbsolutePath, resolvePathFactory } from "../deps.ts"
+import { defaultGetCwd, isAbsolutePath, resolveResourcePathFactory } from "../deps.ts"
 import { entryPlugin, type EntryPluginSetupConfig } from "./filters/entry.ts"
 import { httpPlugin } from "./filters/http.ts"
 import { jsrPlugin } from "./filters/jsr.ts"
@@ -85,7 +85,7 @@ export const denoPlugins = (config?: Partial<DenoPluginsConfig>): [
 ] => {
 	const
 		{ acceptNamespaces, autoInstall, getCwd, globalImportMap, log, logFor, peerDependencies, nodeModulesDirs, initialPluginData } = { ...defaultDenoPluginsConfig, ...config },
-		resolvePath = resolvePathFactory(getCwd, isAbsolutePath)
+		resolvePath = resolveResourcePathFactory(getCwd, isAbsolutePath)
 
 	return [
 		entryPlugin({ initialPluginData, acceptNamespaces }),
