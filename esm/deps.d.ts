@@ -18,9 +18,11 @@ export declare const enum DEBUG {
     MINIFY = 0
 }
 export declare const isAbsolutePath: (segment: string) => boolean;
+/** see {@link RelativePathResolverConfig.resolvePath} for details. */
+export declare const resolveResourcePathFactory: (absolute_current_dir: string | (() => string), absolute_segment_test_fn?: (segment: string) => boolean) => ((path?: string | undefined, importer?: string | undefined) => string);
 /** global configuration for all `fetch` calls. */
 export declare const defaultFetchConfig: RequestInit;
-export declare const defaultGetCwd: string, defaultResolvePath: (...segments: string[]) => string;
+export declare const defaultGetCwd: string, defaultResolvePath: (path?: string | undefined, importer?: string | undefined) => string;
 export declare const noop: () => undefined;
 export type DeepPartial<T> = T extends (Function | Array<any> | String | BigInt | Number | Boolean | Symbol | URL | Map<any, any> | Set<any>) ? T : T extends Record<string, any> ? {
     [P in keyof T]?: DeepPartial<T[P]>;

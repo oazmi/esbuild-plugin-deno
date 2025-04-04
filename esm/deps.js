@@ -1,5 +1,5 @@
 import { getRuntimeCwd, identifyCurrentRuntime } from "@oazmi/kitchensink/crossenv";
-import { ensureEndSlash, getUriScheme, pathToPosixPath, resolvePathFactory } from "@oazmi/kitchensink/pathman";
+import { ensureEndSlash, ensureFileUrlIsLocalPath, ensureStartDotSlash, getUriScheme, pathToPosixPath, resolveAsUrl, resolvePathFactory } from "@oazmi/kitchensink/pathman";
 export { array_isEmpty, dom_decodeURI, json_parse, json_stringify, number_isFinite, number_parseInt, object_assign, object_entries, object_fromEntries, object_keys, object_values, promise_outside, promise_resolve } from "@oazmi/kitchensink/alias";
 export { bind_array_push, bind_map_get, bind_map_has, bind_map_set } from "@oazmi/kitchensink/binder";
 export { InvertibleMap, invertMap } from "@oazmi/kitchensink/collections";
@@ -23,7 +23,32 @@ export const isAbsolutePath = (segment) => {
     const scheme = getUriScheme(segment) ?? "relative";
     return scheme !== "relative";
 };
+/** see {@link RelativePathResolverConfig.resolvePath} for details. */
+export const resolveResourcePathFactory = (absolute_current_dir, absolute_segment_test_fn = isAbsolutePath) => {
+    const path_resolver = resolvePathFactory(absolute_current_dir, absolute_segment_test_fn);
+    return (path, importer) => {
+        // to obtain a resolved path, we perform four checks:
+        // 1. if no path was provided, then we shall return the current working directory.
+        if (!path) {
+            return path_resolver();
+        }
+        // 2. if the path begins with a leading slash, then we treat it as a root path, and join it with the importer's domain.
+        if (path.startsWith("/") && importer) {
+            return ensureFileUrlIsLocalPath(resolveAsUrl(path, importer));
+        }
+        // 3. otherwise, if it is an absolute path of some other kind, we simply return it as is (after ensuring posix separators are being used).
+        if (isAbsolutePath(path)) {
+            return pathToPosixPath(path);
+        }
+        // 4. finally, for all relative paths, we join them with their importer.
+        const relative_path = ensureStartDotSlash(path);
+        if (importer) {
+            return path_resolver(importer, relative_path);
+        }
+        return path_resolver(relative_path);
+    };
+};
 /** global configuration for all `fetch` calls. */
 export const defaultFetchConfig = { redirect: "follow", cache: "force-cache" };
-export const defaultGetCwd = /*@__PURE__*/ ensureEndSlash(pathToPosixPath(getRuntimeCwd(identifyCurrentRuntime(), true))), defaultResolvePath = /*@__PURE__*/ resolvePathFactory(defaultGetCwd, isAbsolutePath);
+export const defaultGetCwd = /*@__PURE__*/ ensureEndSlash(pathToPosixPath(getRuntimeCwd(identifyCurrentRuntime(), true))), defaultResolvePath = /*@__PURE__*/ resolveResourcePathFactory(defaultGetCwd, isAbsolutePath);
 export const noop = (() => undefined);

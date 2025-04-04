@@ -37,7 +37,7 @@
  *
  * @module
 */
-import { DEBUG, defaultResolvePath, ensureEndSlash, ensureFileUrlIsLocalPath, ensureStartDotSlash, getUriScheme, isAbsolutePath, joinPaths, noop, pathToPosixPath, promise_outside, resolveAsUrl } from "../deps.js";
+import { DEBUG, defaultResolvePath, ensureEndSlash, ensureFileUrlIsLocalPath, getUriScheme, isAbsolutePath, joinPaths, noop, pathToPosixPath, promise_outside, resolveAsUrl } from "../deps.js";
 import { resolvePathFromImportMap } from "../importmap/mod.js";
 import { logLogger } from "./funcdefs.js";
 import { PLUGIN_NAMESPACE } from "./typedefs.js";
@@ -201,9 +201,7 @@ export const resolverPluginSetup = (config) => {
             }
             const { path, importer, resolveDir, pluginData = {} } = args, resolve_dir = resolvePath(ensureEndSlash(resolveDir ? resolveDir : absWorkingDir)), dir = isAbsolutePath(importer)
                 ? importer
-                : joinPaths(resolve_dir, importer), resolved_path = isAbsolutePath(path)
-                ? pathToPosixPath(path) // I don't want to see ugly windows back-slashes in the esbuild resolved-path comments and metafile
-                : resolvePath(dir, ensureStartDotSlash(path));
+                : joinPaths(resolve_dir, importer), resolved_path = resolvePath(path, dir ? dir : undefined);
             if (DEBUG.LOG && logFn) {
                 logFn(`[absolute-path]   resolving: ${path}` + (!resolved_path ? "" :
                     `\n>> successfully resolved to: ${resolved_path}`));

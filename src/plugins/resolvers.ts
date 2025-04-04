@@ -38,7 +38,7 @@
  * @module
 */
 
-import { DEBUG, defaultResolvePath, ensureEndSlash, ensureFileUrlIsLocalPath, ensureStartDotSlash, getUriScheme, isAbsolutePath, joinPaths, noop, pathToPosixPath, promise_outside, resolveAsUrl, type DeepPartial } from "../deps.js"
+import { DEBUG, defaultResolvePath, ensureEndSlash, ensureFileUrlIsLocalPath, getUriScheme, isAbsolutePath, joinPaths, noop, pathToPosixPath, promise_outside, resolveAsUrl, type DeepPartial } from "../deps.js"
 import { resolvePathFromImportMap } from "../importmap/mod.js"
 import type { ImportMap } from "../importmap/typedefs.js"
 import type { RuntimePackage } from "../packageman/base.js"
@@ -101,11 +101,32 @@ export interface RelativePathResolverConfig {
 	*/
 	enabled: boolean
 
-	/** a function that joins/resolves path segments to an absolute path (i.e. a path that the plugin itself can recognize as an absolute path).
+	/** a function that resolves a path segment to an absolute path (i.e. a path that the plugin itself can recognize as an absolute path).
 	 * 
-	 * typically, only two or one segments are provided at a time, but it's better if your function accepts variable number of segments.
+	 * this function is utilized by the `relativePathResolver` function inside the plugin's body,
+	 * and it will operate independent of what your {@link isAbsolutePath} function is.
+	 * this means that you will have to check for absolute paths yourself,
+	 * because every resource that will make its way to the `relativePathResolver` will be processed by this `resolvePath` function.
+	 * 
+	 * in general, there are four checks that your path resolver function should perform in the provided order:
+	 * 1. if `path` is `undefined` or an empty string, then the current working directory should be returned.
+	 * 2. if the path begins with a leading slash ("/"), you should treat it as a root-path and join it with the `importer`'s domain
+	 *    (for instance, the domain of `https://esm.sh/hello/world` would be `https://esm.sh/`).
+	 *    but if no `importer` argument is present, then go to the next case (where you'll effectively resolve it as an absolute local unix file path).
+	 * 3. if the `path` is an absolute path of some kind, you should simply return it as is, after ensuring posix separators (`"/"`) are being used.
+	 * 4. finally, for all remaining cases (i.e. relative paths, which begin with either "./", "../", or a bare file subpath),
+	 *    you should join them with their `importer` if it is present, otherwise join them with your current working directory (or `absWorkingDir`).
+	 * 
+	 * @param path the path of the resource that is being resolved.
+	 *   it could be a relative path (i.e. starts with `"./"` or `"../"`),
+	 *   or a root-path (i.e. starts with `"/"`), or a pre-existing absolute path (such as `jsr:@std/jsonc/parses`).
+	 *   and it may use windows backslashes instead of posix forward slashes, so make sure to handle all of these cases.
+	 * @param importer when an importer file is present, this parameter will be provided,
+	 *   and you will be expected to join the `importer` with the `path` if the `path` is either relative or a root-path.
+	 *   do note that the importer is never an empty string.
+	 * @returns the absolute path to the provided resource.
 	*/
-	resolvePath: (...segments: string[]) => string
+	resolvePath: (path?: string | undefined, importer?: string | undefined) => string
 
 	/** a function that declares whether or not a given path segment is an absolute path (i.e. the plugin itself recognizes it as an absolute path). */
 	isAbsolutePath: (segment: string) => boolean
@@ -335,9 +356,7 @@ export const resolverPluginSetup = (config?: DeepPartial<ResolverPluginSetupConf
 				dir = isAbsolutePath(importer)
 					? importer
 					: joinPaths(resolve_dir, importer),
-				resolved_path = isAbsolutePath(path)
-					? pathToPosixPath(path) // I don't want to see ugly windows back-slashes in the esbuild resolved-path comments and metafile
-					: resolvePath(dir, ensureStartDotSlash(path))
+				resolved_path = resolvePath(path, dir ? dir : undefined)
 			if (DEBUG.LOG && logFn) {
 				logFn(`[absolute-path]   resolving: ${path}` + (!resolved_path ? "" :
 					`\n>> successfully resolved to: ${resolved_path}`

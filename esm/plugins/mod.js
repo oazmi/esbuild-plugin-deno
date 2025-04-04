@@ -2,7 +2,7 @@
  *
  * @module
 */
-import { defaultGetCwd, isAbsolutePath, resolvePathFactory } from "../deps.js";
+import { defaultGetCwd, isAbsolutePath, resolveResourcePathFactory } from "../deps.js";
 import { entryPlugin } from "./filters/entry.js";
 import { httpPlugin } from "./filters/http.js";
 import { jsrPlugin } from "./filters/jsr.js";
@@ -33,7 +33,7 @@ const defaultDenoPluginsConfig = {
  * - {@link resolverPlugin}: a namespaced plugin that provides the backbone pipeline for resolving the paths of all of the plugins above.
 */
 export const denoPlugins = (config) => {
-    const { acceptNamespaces, autoInstall, getCwd, globalImportMap, log, logFor, peerDependencies, nodeModulesDirs, initialPluginData } = { ...defaultDenoPluginsConfig, ...config }, resolvePath = resolvePathFactory(getCwd, isAbsolutePath);
+    const { acceptNamespaces, autoInstall, getCwd, globalImportMap, log, logFor, peerDependencies, nodeModulesDirs, initialPluginData } = { ...defaultDenoPluginsConfig, ...config }, resolvePath = resolveResourcePathFactory(getCwd, isAbsolutePath);
     return [
         entryPlugin({ initialPluginData, acceptNamespaces }),
         httpPlugin({ acceptNamespaces, log: logFor.includes("http") ? log : false }),

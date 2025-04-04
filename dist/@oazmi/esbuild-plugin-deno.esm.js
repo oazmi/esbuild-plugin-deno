@@ -996,9 +996,28 @@ var isAbsolutePath2 = (segment) => {
   const scheme = getUriScheme(segment) ?? "relative";
   return scheme !== "relative";
 };
+var resolveResourcePathFactory = (absolute_current_dir, absolute_segment_test_fn = isAbsolutePath2) => {
+  const path_resolver = resolvePathFactory(absolute_current_dir, absolute_segment_test_fn);
+  return (path, importer) => {
+    if (!path) {
+      return path_resolver();
+    }
+    if (path.startsWith("/") && importer) {
+      return ensureFileUrlIsLocalPath(resolveAsUrl(path, importer));
+    }
+    if (isAbsolutePath2(path)) {
+      return pathToPosixPath(path);
+    }
+    const relative_path = ensureStartDotSlash(path);
+    if (importer) {
+      return path_resolver(importer, relative_path);
+    }
+    return path_resolver(relative_path);
+  };
+};
 var defaultFetchConfig = { redirect: "follow", cache: "force-cache" };
 var defaultGetCwd = /* @__PURE__ */ ensureEndSlash(pathToPosixPath(getRuntimeCwd(identifyCurrentRuntime(), true)));
-var defaultResolvePath = /* @__PURE__ */ resolvePathFactory(defaultGetCwd, isAbsolutePath2);
+var defaultResolvePath = /* @__PURE__ */ resolveResourcePathFactory(defaultGetCwd, isAbsolutePath2);
 var noop = () => void 0;
 
 // src/importmap/mod.ts
@@ -1682,7 +1701,7 @@ var resolverPluginSetup = (config) => {
       if (args.pluginData?.resolverConfig?.useRelativePath === false) {
         return;
       }
-      const { path, importer, resolveDir, pluginData = {} } = args, resolve_dir = resolvePath(ensureEndSlash(resolveDir ? resolveDir : absWorkingDir)), dir = isAbsolutePath3(importer) ? importer : joinPaths(resolve_dir, importer), resolved_path = isAbsolutePath3(path) ? pathToPosixPath(path) : resolvePath(dir, ensureStartDotSlash(path));
+      const { path, importer, resolveDir, pluginData = {} } = args, resolve_dir = resolvePath(ensureEndSlash(resolveDir ? resolveDir : absWorkingDir)), dir = isAbsolutePath3(importer) ? importer : joinPaths(resolve_dir, importer), resolved_path = resolvePath(path, dir ? dir : void 0);
       if (1 /* LOG */ && logFn) {
         logFn(`[absolute-path]   resolving: ${path}` + (!resolved_path ? "" : `
 >> successfully resolved to: ${resolved_path}`));
@@ -1991,7 +2010,7 @@ var defaultDenoPluginsConfig = {
   acceptNamespaces: defaultEsbuildNamespaces
 };
 var denoPlugins = (config) => {
-  const { acceptNamespaces, autoInstall, getCwd, globalImportMap, log, logFor, peerDependencies, nodeModulesDirs, initialPluginData } = { ...defaultDenoPluginsConfig, ...config }, resolvePath = resolvePathFactory(getCwd, isAbsolutePath2);
+  const { acceptNamespaces, autoInstall, getCwd, globalImportMap, log, logFor, peerDependencies, nodeModulesDirs, initialPluginData } = { ...defaultDenoPluginsConfig, ...config }, resolvePath = resolveResourcePathFactory(getCwd, isAbsolutePath2);
   return [
     entryPlugin({ initialPluginData, acceptNamespaces }),
     httpPlugin({ acceptNamespaces, log: logFor.includes("http") ? log : false }),
