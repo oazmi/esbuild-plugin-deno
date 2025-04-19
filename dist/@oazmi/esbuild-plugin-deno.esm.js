@@ -547,7 +547,7 @@ var execShellCommand = async (runtime_enum, command, config = {}) => {
     case RUNTIME.BUN:
     case RUNTIME.NODE: {
       const { exec } = await get_node_child_process(), full_command = args_are_empty ? command : `${command} ${args.join(" ")}`, [promise, resolve, reject] = promise_outside();
-      exec(full_command, { cwd, signal }, (error, stdout, stderr) => {
+      exec(full_command, { cwd: cwd ? ensureFileUrlIsLocalPath(cwd) : void 0, signal }, (error, stdout, stderr) => {
         if (error) {
           reject(error.message);
         }
@@ -566,6 +566,8 @@ var import_node_child_process = async () => {
 var get_node_child_process = async () => {
   return node_child_process ??= await import_node_child_process();
 };
+var fs_entry_info_fields = ["size", "mtime", "atime", "birthtime", "ctime", "dev", "mode"];
+var fs_entry_info_all_fields = ["isFile", "isDirectory", "isSymlink", ...fs_entry_info_fields];
 
 // node_modules/@oazmi/kitchensink/esm/collections.js
 var invertMap = (forward_map) => {
@@ -1018,7 +1020,7 @@ var resolveResourcePathFactory = (absolute_current_dir, absolute_segment_test_fn
 var defaultFetchConfig = { redirect: "follow", cache: "force-cache" };
 var defaultGetCwd = /* @__PURE__ */ ensureEndSlash(pathToPosixPath(getRuntimeCwd(identifyCurrentRuntime(), true)));
 var defaultResolvePath = /* @__PURE__ */ resolveResourcePathFactory(defaultGetCwd, isAbsolutePath2);
-var noop = () => void 0;
+var noop2 = () => void 0;
 
 // src/importmap/mod.ts
 var resolvePathFromImportMap = (path_alias, import_map) => {
@@ -1253,12 +1255,18 @@ var defaultEntryPluginSetup = {
   enableInheritPluginData: true,
   acceptNamespaces: defaultEsbuildNamespaces
 };
+var defaultStdinPath = "<stdin>";
 var entryPluginSetup = (config) => {
   const { filters, initialPluginData: _initialPluginData, forceInitialPluginData, enableInheritPluginData, acceptNamespaces: _acceptNamespaces } = { ...defaultEntryPluginSetup, ...config }, acceptNamespaces = /* @__PURE__ */ new Set([..._acceptNamespaces, "oazmi-loader-http" /* LOADER_HTTP */]), importerPluginDataRecord = /* @__PURE__ */ new Map(), importerPluginDataRecord_get = bind_map_get(importerPluginDataRecord), importerPluginDataRecord_set = bind_map_set(importerPluginDataRecord), importerPluginDataRecord_has = bind_map_has(importerPluginDataRecord), ALREADY_CAPTURED_BY_INITIAL = Symbol(0 /* MINIFY */ ? "" : "[oazmi-entry]: already captured by initial-data-injector"), ALREADY_CAPTURED_BY_INHERITOR = Symbol(0 /* MINIFY */ ? "" : "[oazmi-entry]: already captured by inherit-data-injector"), ALREADY_CAPTURED_BY_RESOLVER = Symbol(0 /* MINIFY */ ? "" : "[oazmi-entry]: already captured by absolute-path-resolver");
   return async (build) => {
     const { runtimePackage: initialRuntimePackage, ...rest_initialPluginData } = _initialPluginData ?? {}, initialPluginData = rest_initialPluginData, initialPluginDataExists = _initialPluginData !== void 0;
     build.onStart(async () => {
       initialPluginData.runtimePackage = await resolveRuntimePackage(build, initialRuntimePackage);
+      const stdin = build.initialOptions.stdin;
+      if (stdin) {
+        const { sourcefile = defaultStdinPath, resolveDir = "" } = stdin, path = sourcefile === defaultStdinPath ? sourcefile : resolveDir ? joinPaths(resolveDir, sourcefile) : pathToPosixPath(sourcefile);
+        importerPluginDataRecord_set(path, initialPluginData);
+      }
     });
     const initialPluginDataInjector = async (args) => {
       const { path, pluginData, ...rest_args } = args, { kind, namespace } = rest_args;
@@ -1637,7 +1645,7 @@ var resolverPluginSetup = (config) => {
   const runtimePackageResolverConfig = { ...defaultRuntimePackageResolverConfig, ..._runtimePackageResolverConfig }, importMapResolverConfig = { ...defaultImportMapResolverConfig, ..._importMapResolverConfig }, nodeModulesResolverConfig = { ...defaultNodeModulesResolverConfig, ..._nodeModulesResolverConfig }, relativePathResolverConfig = { ...defaultRelativePathResolverConfig, ..._relativePathResolverConfig }, logFn = log ? log === true ? logLogger : log : void 0, output_ns = "discard-this-namespace", plugin_filter = /.*/;
   return async (build) => {
     const absWorkingDir = pathToPosixPath(build.initialOptions.absWorkingDir ?? "./");
-    const runtimePackageResolver = runtimePackageResolverConfig.enabled === false ? noop : async (args) => {
+    const runtimePackageResolver = runtimePackageResolverConfig.enabled === false ? noop2 : async (args) => {
       if (args.pluginData?.resolverConfig?.useRuntimePackage === false) {
         return;
       }
@@ -1653,7 +1661,7 @@ var resolverPluginSetup = (config) => {
       } : void 0;
     };
     const { globalImportMap } = importMapResolverConfig;
-    const importMapResolver = importMapResolverConfig.enabled === false ? noop : async (args) => {
+    const importMapResolver = importMapResolverConfig.enabled === false ? noop2 : async (args) => {
       if (args.pluginData?.resolverConfig?.useImportMap === false) {
         return;
       }
@@ -1670,7 +1678,7 @@ var resolverPluginSetup = (config) => {
     };
     const { resolvePath, isAbsolutePath: isAbsolutePath3 } = relativePathResolverConfig;
     const node_modules_resolver = nodeModulesResolverFactory({ absWorkingDir: resolvePath(ensureEndSlash(absWorkingDir)) }, build);
-    const nodeModulesResolver = nodeModulesResolverConfig.enabled === false ? noop : async (args) => {
+    const nodeModulesResolver = nodeModulesResolverConfig.enabled === false ? noop2 : async (args) => {
       const { path, resolveDir, importer, pluginData = {} } = args;
       if (pluginData.resolverConfig?.useNodeModules === false) {
         return;
@@ -1697,7 +1705,7 @@ var resolverPluginSetup = (config) => {
         pluginData: { ...pluginData }
       } : void 0;
     };
-    const relativePathResolver = relativePathResolverConfig.enabled === false ? noop : async (args) => {
+    const relativePathResolver = relativePathResolverConfig.enabled === false ? noop2 : async (args) => {
       if (args.pluginData?.resolverConfig?.useRelativePath === false) {
         return;
       }

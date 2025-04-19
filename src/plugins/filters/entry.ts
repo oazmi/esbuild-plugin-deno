@@ -65,7 +65,7 @@
  * @module
 */
 
-import { bind_map_get, bind_map_has, bind_map_set, DEBUG, isString, pathToPosixPath, resolveAsUrl } from "../../deps.js"
+import { bind_map_get, bind_map_has, bind_map_set, DEBUG, isString, joinPaths, pathToPosixPath, resolveAsUrl } from "../../deps.js"
 import { RuntimePackage } from "../../packageman/base.js"
 import { DenoPackage } from "../../packageman/deno.js"
 import type { nodeModulesResolverFactory, resolverPlugin } from "../resolvers.js"
@@ -145,6 +145,8 @@ const defaultEntryPluginSetup: EntryPluginSetupConfig = {
 	acceptNamespaces: defaultEsbuildNamespaces,
 }
 
+const defaultStdinPath = "<stdin>"
+
 /** this filter plugin intercepts all entities, injects and propagates plugin-data (if the entity is an entry-point, or a dependency with no plugin-data),
  * and then makes them go through the {@link resolverPlugin} set of resolvers, in order to obtain the absolute path to the resource.
  * 
@@ -176,6 +178,25 @@ export const entryPluginSetup = (config?: Partial<EntryPluginSetupConfig>): Esbu
 			// to resolve non-url-based file paths, we'll use the namespace of {@link resolverPlugin}
 			// to carry out the path resolution inside of the {@link resolveRuntimePackage} function.
 			initialPluginData.runtimePackage = await resolveRuntimePackage(build, initialRuntimePackage)
+
+			// moreover, if an stdin is present, we will have to manually add it to `importerPluginDataRecord`,
+			// because stdin's path does not go through path resolving, and thereby not intercepted by the entry plugin.
+			// instead, stdin's contents are loaded (via `build.onLoad`) directly.
+			const stdin = build.initialOptions.stdin
+			if (stdin) { // && initialPluginDataExists) {
+				const
+					{ sourcefile = defaultStdinPath, resolveDir = "" } = stdin,
+					// when `sourcefile` is not defined by the user, esbuild sets it to `"<stdin>"`,
+					// and it does not prepend the user specified `resolveDir` to it.
+					// our `path` below is a mere anticipation of what esbuild must have set stdin's path string to,
+					// so that we can match it with the subsequent resources' `importer`s.
+					path = (sourcefile === defaultStdinPath) ? sourcefile : (resolveDir
+						? joinPaths(resolveDir, sourcefile)
+						: pathToPosixPath(sourcefile)
+					)
+				// we have to do `initialPluginData as any` because `initialPluginData` lacks symbols entries, whereas the `CommonPluginData` requires them.
+				importerPluginDataRecord_set(path, initialPluginData as any)
+			}
 		})
 
 		/** this resolver simply inserts the user's {@link initialPluginData} to **all** entry-points which lack an `args.pluginData`.

@@ -12,6 +12,12 @@
  *
  * to identify your script's current {@link RUNTIME} environment, you'd want to use the {@link identifyCurrentRuntime} function.
  *
+ * > [!important]
+ * > when using a bundler like `esbuild`, if you place a dependency on this submodule,
+ * > you **will** have to declare `"node:child_process"` and `"node:fs/promises"` in your array of `external` dependencies.
+ * > because otherwise, your bundler will complain about not being able to find these imports.
+ * > alternatively, you can also set the `platform` to `"node"`, so that the bundler will treat imports with the `"node:"` prefix as external.
+ *
  * TODO: additional features to add in the future:
  * - [x] filesystem read/writing on system runtimes (deno, bun, and node).
  * - [ ] filesystem read/writing on web/extension runtimes will use the browser's FileAccess API (and prompt the user to select the folder)
@@ -20,12 +26,13 @@
  * - [ ] persistent key-value storage: such as `localStorage` or `sessionStorage` or `chrome.storage.sync` or kv-storage of `window.navigator.storage.persist()`.
  *       copy these from your github-aid browser extension project.
  * - [x] system environment variables.
- * - [ ] shell/commandline/terminal command execution.
+ * - [x] shell/commandline/terminal command execution.
  * - [ ] (breaking change) consider using a class based approach to calling these functions as methods,
  *       where the currently selected runtime will be known by the class instance,
  *       so that the user will not have to pass down which runtime they are querying for all the time.
  * - [ ] (RISKY) add a `setEnvVariable` function.
  *       but it may corrupt the user's variables if they're not careful, so I don't want to implement it unless I find myself needing it.
+ * - [ ] (EASY) add `copyEntry` and `moveEntry` for copying and moving filesystem entries on system-bound runtimes.
  *
  * @module
 */
@@ -330,4 +337,180 @@ export declare const readTextFile: (runtime_enum: RUNTIME, file_path: string | U
  * ```
 */
 export declare const readFile: (runtime_enum: RUNTIME, file_path: string | URL, config?: Partial<ReadFileConfig>) => Promise<Uint8Array>;
+/** provides metadata information about a filesystem entry (file, folder, or a symbolic link).
+ * this interface is returned by the {@link statEntry} and {@link lstatEntry} functions.
+ *
+ * > [!note]
+ * > only the fields that are common to windows, linux, and mac systems have been kept,
+ * > while the stat fields specific to only a subset of the common platforms have been omitted.
+*/
+export interface FsEntryInfo {
+    /** this field is `true` if this info corresponds to a regular file.
+     *
+     * mutually exclusive with respect to {@link isDirectory} and {@link isSymlink}.
+    */
+    isFile: boolean;
+    /** this field is `true` if this info corresponds to a regular folder.
+     *
+     * mutually exclusive with respect to {@link isFile} and {@link isSymlink}.
+    */
+    isDirectory: boolean;
+    /** this field is `true` if this info corresponds to a symbolic-link (symlink).
+     *
+     * mutually exclusive with respect to {@link isFile} and {@link isDirectory}.
+    */
+    isSymlink: boolean;
+    /** the size of the file in bytes. (comes up as `0` for directories) */
+    size: number;
+    /** the last modification time of the file.
+     *
+     * this corresponds to the `mtime` field from `stat` on linux and mac, and `ftLastWriteTime` on windows.
+     * this may not be available on all platforms.
+    */
+    mtime: Date;
+    /** the last access time of the file.
+     *
+     * this corresponds to the `atime` field from `stat` on unix, and `ftLastAccessTime` on windows.
+     * this may not be available on all platforms.
+    */
+    atime: Date;
+    /** the creation time of the file.
+     *
+     * this corresponds to the `birthtime` field from `stat` on mac/bsd, and `ftCreationTime` on windows.
+     * this may not be available on all platforms.
+    */
+    birthtime: Date;
+    /** the last change time of the file.
+     *
+     * this corresponds to the `ctime` field from `stat` on mac/bsd, and `ChangeTime` on windows.
+     * this may not be available on all platforms.
+    */
+    ctime: Date;
+    /** id of the device containing the file. */
+    dev: number;
+    /** the underlying raw `st_mode` bits that contain the standard unix permissions for this file/directory. */
+    mode: number;
+}
+/** provides metadata information about a filesystem entry (file, folder) on supported runtimes (i.e. {@link RUNTIME.DENO}, {@link RUNTIME.BUN}, or {@link RUNTIME.NODE}).
+ * any symbolic links encountered at the provided `path` will be followed, and the referenced path will instead be examined.
+ *
+ * if the provided `path` does not exist on the filesystem, then `undefined` will be returned.
+ *
+ * > [!note]
+ * > only the fields that are common to windows, linux, and mac systems have been kept,
+ * > while the stat fields specific to only a subset of the common platforms have been omitted.
+ *
+ * @example
+ * ```ts
+ * import { assertEquals, assertInstanceOf, assertObjectMatch } from "jsr:@std/assert"
+ *
+ * const
+ * 	time_fields: (keyof FsEntryInfo)[] = ["mtime", "atime", "birthtime", "ctime"],
+ * 	numeric_fields: (keyof FsEntryInfo)[] = ["size", "dev", "mode"]
+ *
+ * const my_deno_json_stats = (await statEntry(identifyCurrentRuntime(), new URL(import.meta.resolve("../deno.json"))))!
+ *
+ * assertObjectMatch(my_deno_json_stats, {
+ * 	isFile: true,
+ * 	isDirectory: false,
+ * 	isSymlink: false,
+ * })
+ *
+ * time_fields.forEach((prop) => {
+ * 	assertInstanceOf(my_deno_json_stats[prop], Date)
+ * })
+ *
+ * numeric_fields.forEach((prop: keyof FsEntryInfo) => {
+ * 	assertEquals(typeof my_deno_json_stats[prop], "number")
+ * })
+ *
+ * // unlike node and deno, non-existing paths do not error, and instead `undefined` is returned.
+ * const non_existing_path_stat = await statEntry(identifyCurrentRuntime(), new URL(import.meta.resolve("../hello/world/file.txt")))
+ * assertEquals(non_existing_path_stat, undefined)
+ * ```
+*/
+export declare const statEntry: (runtime_enum: RUNTIME, path: string | URL) => Promise<FsEntryInfo | undefined>;
+/** similar to {@link statEntry}, but any symbolic links encountered at the provided `path` will not be followed,
+ * and instead you will receive the stats of the symbolic link itself.
+ *
+ * read the documentation comments of {@link statEntry} for usage details.
+ * ```
+*/
+export declare const lstatEntry: (runtime_enum: RUNTIME, path: string | URL) => Promise<FsEntryInfo | undefined>;
+/** creates a nested directory if it does not already exist.
+ * only supported on system runtime (i.e. {@link RUNTIME.DENO}, {@link RUNTIME.BUN}, or {@link RUNTIME.NODE}).
+ *
+ * @throws an error is thrown if something other than a folder already existed at the provided path.
+ *
+ * @example
+ * ```ts
+ * import { assertEquals, assertObjectMatch } from "jsr:@std/assert"
+ *
+ * const
+ * 	runtime_id = identifyCurrentRuntime(),
+ * 	my_dir  = new URL(import.meta.resolve("../temp/a/b/c/")),
+ * 	my_dir2 = new URL(import.meta.resolve("../temp/a/"))
+ *
+ * await ensureDir(runtime_id, my_dir)
+ *
+ * // the directory now exists
+ * assertObjectMatch((await statEntry(runtime_id, my_dir))!, {
+ * 	isFile: false,
+ * 	isDirectory: true,
+ * 	isSymlink: false,
+ * })
+ *
+ * // deleting the base directory (recursively)
+ * assertEquals(await removeEntry(runtime_id, my_dir2, { recursive: true }), true)
+ *
+ * // the directory no longer exists
+ * assertEquals(await statEntry(runtime_id, my_dir),  undefined)
+ * assertEquals(await statEntry(runtime_id, my_dir2), undefined)
+ * ```
+*/
+export declare const ensureDir: (runtime_enum: RUNTIME, dir_path: string | URL) => Promise<void>;
+/** ensures that the file exists on system-bound runtimes (i.e. {@link RUNTIME.DENO}, {@link RUNTIME.BUN}, or {@link RUNTIME.NODE}).
+ *
+ * if the file already exists, this function does nothing.
+ * if the parent directories for the file do not exist yet, they are created recursively.
+ *
+ * @throws an error is thrown if something other than a file already existed at the provided path,
+ *   or if creating the parent directory had failed.
+*/
+export declare const ensureFile: (runtime_enum: RUNTIME, file_path: string | URL) => Promise<void>;
+/** optional configuration options for deleting a filesystem entry (file, folder or symlink), used by the {@link removeEntry} function.
+ *
+ * by explicitly specifying one of `isFile`, `isDirectory`, or `isSymlink` fields to be either `true` or `false`,
+ * you can control which _type_s of filesystem-entries to delete, and which _type_s to ignore.
+ * the type of the entry is first identified via {@link statEntry} (which also tells us if it already exists or not).
+ *
+ * so, for instance:
+ * - if `config.isFile` is set to `true`, but the `path` corresponds to either a symlink or a folder, then they will **not** be deleted.
+ * - if `config.isFile` is set to `false`, but the `path` corresponds to a file, then the file will **not** be deleted.
+ * - if `config.isFile` is set to `true`, and the `path` corresponds to a file, then the file will **be** deleted.
+ * - if `config.isFile` is set to `false`, and the `path` corresponds to either a symlink or a folder, then that entry will **be** deleted.
+*/
+export interface RemoveEntryConfig extends Pick<FsEntryInfo, "isDirectory" | "isFile" | "isSymlink"> {
+    /** specify if a non-empty directory can be deleted recursively.
+     * without this option enabled, removing a non-empty folder will throw an error.
+     *
+     * @defaultValue `false` (removing non-empty directories will not work and throw an error)
+    */
+    recursive: boolean;
+}
+/** deletes a filesystem-entry (file, folder, symlink) at the provided `path`,
+ * on system-bound runtimes (i.e. {@link RUNTIME.DENO}, {@link RUNTIME.BUN}, or {@link RUNTIME.NODE}).
+ * the return value dictates if anything was deleted.
+ *
+ * > [!note]
+ * > trying to remove a non-existing entry will not throw an error.
+ *
+ * @param runtime_enum the runtime enum indicating which runtime should be used for reading the filesystem.
+ * @param path the path to the filesystem entity that is to be deleted.
+ * @param config provide optional configuration on what _type_s of filesystem-entries should be deleted,
+ *   and if folder type entries should be deleted `recursive`ly (i.e. delete child entries as well).
+ *   see the {@link RemoveEntryConfig} interface for more details.
+ * @returns `true` if an entry (or a folder tree's entries) was deleted, otherwise `false` is returned when nothing is deleted.
+*/
+export declare const removeEntry: (runtime_enum: RUNTIME, path: string | URL, config?: Partial<RemoveEntryConfig>) => Promise<boolean>;
 //# sourceMappingURL=crossenv.d.ts.map
