@@ -59,6 +59,9 @@
 
 ## pre-version `0.4.x` todo list
 
+- [ ] (breaking) instead of the declaring your own `nodeModuleDirs` in the config options of the npm-plugin,
+      you should acquire them from `build.initialOptions.nodePaths` (read more about it [here](https://esbuild.github.io/api/#node-paths)).
+      furthermore, you can improve the `nodeModulesResolverFactory` function to allow scanning in multiple directories by utilizing the `nodePaths` build options.
 - [ ] allow the customization of the http-header, cache policy, and redirect policy for the http plugin.
       some CDNs, such as [esm.sh](https://esm.sh/), utilize the `"Accept"` content-type header to identify typescript-native js-runtimes, and delived a different variant of the package based on that information.
       this might result in your bundle containing a different code from your expectation, and that could result in inaccuracies
@@ -75,6 +78,15 @@
       if it provides significant speed boost.
       doing so might undo the 60% slowdown introduced in version `0.3.0` (where inherit-plugin-data was added).~~
   > the reduction in speed was a government propaganda, the cake was a lie, and carbon killed oxide (carbon "die" oxide, get it? haha humor +100, and everyone clapped while congratulating for eternity - [quack quack](https://www.youtube.com/watch?v=oyFQVZ2h0V8&t=11s))
+
+## (2025-04-19) pre-version `0.4.1` todo list
+
+- [x] fix [issue#8](https://github.com/oazmi/esbuild-plugin-deno/issues/8):
+      when `stdin` is provided to esbuild, it skips the path resolution step and gets loaded directly by esbuild.
+      this means that it doesn't pass through the entry-plugin, and it is not recorded in the internal `importerPluginDataRecord`.
+      as a consequence, all of its dependencies will not be able to inherit any plugin-data, and not even the default settings will apply.
+  > to fix this issue, we simply observe if `stdin` is present in esbuild's initial options at the beginning,
+  > and manually add a record for it in `importerPluginDataRecord` if it is present.
 
 ## (2025-04-04) pre-version `0.4.0` todo list
 
