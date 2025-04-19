@@ -6,7 +6,7 @@ import { meshGrid } from "2d-array-utils"
 import "@local-file-alias" // this local-file alias will be resolved by the "deno.json" file in the current directory
 import { parse as parseJsonc } from "@std/jsonc" // this reference is resolved by our initial-data plugin's `runtimePackage`
 import { transpose2D } from "https://jsr.io/@oazmi/kitchensink/0.9.2/src/numericarray.ts"
-import "https://raw.githubusercontent.com/jenil/chota/7d780731421fc987d8f7a1c8f66c730d8573684c/src/chota.css"
+import "https://raw.githubusercontent.com/jenil/chota/7d78073/src/chota.css"
 import { cumulativeSum } from "jsr:@oazmi/kitchensink@~0.9.2/numericarray"
 import * as http from "node:http"
 import * as https from "node:https"

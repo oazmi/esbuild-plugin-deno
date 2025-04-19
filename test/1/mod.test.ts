@@ -22,7 +22,7 @@ Deno.test("test http plugin", async () => {
 		// "https://jsr.io/@oazmi/kitchensink/0.9.3/src/struct.ts",
 		"jsr:@oazmi/kitchensink/struct",         // this will be resolved to the latest version of the package by our jsr-plugin
 		"npm:@oazmi/kitchensink/stringman",      // this will be resolved to whatever-is-available-version of the package (in the `node_modules` directory) by our npm-plugin
-		"https://raw.githubusercontent.com/jenil/chota/7d780731421fc987d8f7a1c8f66c730d8573684c/src/chota.css", // http-plugin resolution and loading
+		"https://raw.githubusercontent.com/jenil/chota/7d78073/src/chota.css", // http-plugin resolution and loading
 		"npm:d3-brush@3.0.0", // this, despite not being part of "deno.json", will get auto-installed via our npm-plugin.
 		"https://esm.sh/@oazmi/tsignal", // this cdn makes use of domain-bound root-paths (leading "/" character), and our plugin does not conflate it with local fs-paths.
 	].map((path) => ({

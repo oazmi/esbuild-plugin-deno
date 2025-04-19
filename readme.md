@@ -75,7 +75,7 @@ import { meshGrid } from "2d-array-utils" // this alias will be resolved by the 
 import { transpose2D } from "https://jsr.io/@oazmi/kitchensink/0.9.2/src/numericarray.ts"
 import { cumulativeSum } from "npm:@oazmi/kitchensink@^0.9.5/numericarray"
 import { parse as parseJsonc } from "jsr:@std/jsonc"
-import "https://raw.githubusercontent.com/jenil/chota/7d780731421fc987d8f7a1c8f66c730d8573684c/src/chota.css"
+import "https://raw.githubusercontent.com/jenil/chota/7d78073/src/chota.css"
 import * as http from "node:http"
 import * as https from "node:https"
 console.log("hello world", transpose2D([[1], [2], [3]]))
@@ -93,7 +93,7 @@ entry point 2:
 import { meshGrid } from "2d-array-utils" // this alias will be resolved by the resolver-plugin's `globalImportMap` setting
 import { transpose2D } from "https://jsr.io/@oazmi/kitchensink/0.9.2/src/numericarray.ts"
 import { cumulativeSum } from "jsr:@oazmi/kitchensink@~0.9.2/numericarray"
-import "https://raw.githubusercontent.com/jenil/chota/7d780731421fc987d8f7a1c8f66c730d8573684c/src/chota.css"
+import "https://raw.githubusercontent.com/jenil/chota/7d78073/src/chota.css"
 import * as http from "node:http"
 import * as https from "node:https"
 console.log("skibidi gen-z rizzing toilet seat", transpose2D([[1], [2], [3]]))
@@ -110,7 +110,7 @@ additional remote entry points, 3 to 8:
 // importmap-alias:         "2d-array-utils"
 // jsr-file latest version: "jsr:@oazmi/kitchensink/struct"
 // npm-file any version:    "npm:@oazmi/kitchensink/stringman"
-// http-file:               "https://raw.githubusercontent.com/jenil/chota/7d780731421fc987d8f7a1c8f66c730d8573684c/src/chota.css"
+// http-file:               "https://raw.githubusercontent.com/jenil/chota/7d78073/src/chota.css"
 // npm-library with deps:   "npm:d3-brush@3.0.0"
 ```
 
@@ -130,7 +130,7 @@ const entry_points = [
 	"2d-array-utils", // this will bundle via our `globalImportMap` setting inside of our `resolvers_pipeline_plugin`
 	"jsr:@oazmi/kitchensink/struct", // this will be resolved to the latest version of the package by our `jsr_plugin`
 	"npm:@oazmi/kitchensink/stringman", // this will be resolved to whatever-is-available-version of the package (in the `node_modules` directory) by our `npm_plugin`
-	"https://raw.githubusercontent.com/jenil/chota/7d780731421fc987d8f7a1c8f66c730d8573684c/src/chota.css", // `http_plugin` resolution and loading
+	"https://raw.githubusercontent.com/jenil/chota/7d78073/src/chota.css", // `http_plugin` resolution and loading
 	"npm:d3-brush@3.0.0", // this will be auto-installed by our `npm_plugin`, without modifying/creating a "package.json" file.
 ].map((path) => ({
 	in: path,
