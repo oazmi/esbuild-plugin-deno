@@ -86,7 +86,7 @@
  * ```
 */
 
-import { defaultFetchConfig, ensureEndSlash, fetchScan, isString, json_stringify, memorize, normalizePath, object_entries, parsePackageUrl, pathToPosixPath, replacePrefix, semverMaxSatisfying } from "../deps.ts"
+import { defaultFetchConfig, defaultResolvePath, ensureEndSlash, fetchScanUrls, isString, json_stringify, memorize, normalizePath, object_entries, parsePackageUrl, pathToPosixPath, replacePrefix, resolveAsUrl, semverMaxSatisfying } from "../deps.ts"
 import { compareImportMapEntriesByLength, type ResolvePathFromImportMapEntriesConfig } from "../importmap/mod.ts"
 import type { ImportMapSortedEntries } from "../importmap/typedefs.ts"
 import { RuntimePackage } from "./base.ts"
@@ -160,9 +160,9 @@ export class DenoPackage extends RuntimePackage<DenoJsonSchema> {
 	protected override readonly importMapSortedEntries: ImportMapSortedEntries
 	protected override readonly exportMapSortedEntries: ImportMapSortedEntries
 
-	override getName(): string { return this.packageInfo.name! }
+	override getName(): string { return this.packageInfo.name ?? "@no-package/name" }
 
-	override getVersion(): string { return this.packageInfo.version! }
+	override getVersion(): string { return this.packageInfo.version ?? "0.0.0" }
 
 	override getPath(): string {
 		const package_path = this.packagePath
@@ -249,14 +249,25 @@ export class DenoPackage extends RuntimePackage<DenoJsonSchema> {
 		//   so that subsequent calls with the same `jsr_package` will return an existing instance.
 		//   it'll be nice if we could use a memorization decorator for such a thing, but I don't have any experience with writing them, so I'll look into it in the future.
 		const
-			package_jsonc_path_str = isString(jsr_package) ? jsr_package : jsr_package.href,
-			url_is_jsr_protocol = package_jsonc_path_str.startsWith("jsr:")
+			package_path_url = resolveAsUrl(jsr_package, defaultResolvePath()),
+			package_path_str = package_path_url.href,
+			url_is_jsr_protocol = package_path_str.startsWith("jsr:"),
+			url_is_directory = package_path_str.endsWith("/")
 		if (url_is_jsr_protocol) {
 			// by only extracting the hostname (and stripping away any `pathname`),
 			// we get to reduce the number of inputs that our function will memorize.
 			// (since the outputs are invariant of the pathname).
 			const { host } = parsePackageUrl(jsr_package)
 			jsr_package = await memorized_jsrPackageToMetadataUrl(`jsr:${host}`)
+		} else if (url_is_directory) {
+			// if the user had provided a directory path, then we'll have to scan for the list of well-known package files in that directory.
+			const
+				package_json_urls = deno_package_json_filenames.map((json_filename) => new URL(json_filename, package_path_url)),
+				// we don't use the head method below, because "file://" urls do not support the head method.
+				valid_url = await fetchScanUrls(package_json_urls)
+			// when no "deno.json" or equivalent package manager json file is found in the provided directory, we'll have to throw an error.
+			if (!valid_url) { throw new Error(`Scan Error! failed to find a "./deno.json(c)" or "./jsr.json(c)" package file in your supplied directory: "${package_path_url}".`) }
+			jsr_package = valid_url
 		}
 		return super.fromUrl<SCHEMA, INSTANCE>(jsr_package)
 	}
@@ -333,8 +344,8 @@ export const jsrPackageToMetadataUrl = async (jsr_package: `jsr:${string}` | URL
 		deno_json_urls = deno_package_json_filenames.map((json_filename) => new URL(json_filename, base_host))
 
 	// trying to fetch various possible "deno.json(c)" files and their alternatives, sequentially, and returning the url of the first successful response.
-	const valid_response = await fetchScan(deno_json_urls, { method: "HEAD" })
-	if (valid_response) { return new URL(valid_response.url) }
+	const valid_url = await fetchScanUrls(deno_json_urls, { method: "HEAD" })
+	if (valid_url) { return new URL(valid_url) }
 	throw new Error(`Network Error: couldn't locate "${jsr_package}"'s package json file. searched in the following locations:\n${json_stringify(deno_json_urls)}`)
 }
 

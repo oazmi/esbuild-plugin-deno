@@ -69,7 +69,18 @@ export const urlToString = (url: string | URL): string => { return isString(url)
 */
 export const fetchScan = async (urls: (string | URL)[], init?: RequestInit): Promise<Response | undefined> => {
 	for (const url of urls) {
-		const response = await fetch(url, { ...defaultFetchConfig, ...init })
-		if (response.ok) { return response }
+		const response = await fetch(url, { ...defaultFetchConfig, ...init }).catch(noop)
+		if (response?.ok) { return response }
+		await response?.body?.cancel()
+	}
+}
+
+export const fetchScanUrls = async (urls: (string | URL)[], init?: RequestInit): Promise<string | undefined> => {
+	const valid_response = await fetchScan(urls, init)
+	if (valid_response) {
+		const url = valid_response.url
+		// it is necessary to cancel the response's body to avoid memory leaks.
+		valid_response.body?.cancel()
+		return url
 	}
 }

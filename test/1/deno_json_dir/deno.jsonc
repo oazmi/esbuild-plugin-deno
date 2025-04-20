@@ -1,10 +1,14 @@
+// deno.json file for this test.
 {
+	/* the import map to use for this test.
+	 * the relative paths are relative to this jsonc file's location.
+	*/
 	"imports": {
 		"@oazmi/kitchensink": "jsr:@oazmi/kitchensink@0.9.8",
 		"@std/jsonc": "jsr:@std/jsonc@^1.0.1",
 		"@std/semver": "jsr:@std/semver@^1.0.3",
 		"@remote-file-alias": "https://jsr.io/@oazmi/kitchensink/0.9.8/src/pathman.ts",
-		"@local-file-alias": "./aliased_file.ts"
+		"@local-file-alias": "../aliased_file.ts"
 	},
 	"nodeModulesDir": "none",
 	"fmt": {

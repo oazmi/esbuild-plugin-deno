@@ -11,8 +11,8 @@ import { resolverPlugin } from "../../src/plugins/resolvers.ts"
 
 Deno.test("test http plugin", async () => {
 	const entry_points = [
-		"@remote-file-alias",    // this remote-file alias will be resolved by the "deno.json" file in the current directory
-		"@local-file-alias",     // this local-file alias will be resolved by the "deno.json" file in the current directory
+		"@remote-file-alias",    // this remote-file alias will be resolved by the "deno.jsonc" file in the "./deno_json_dir/" directory
+		"@local-file-alias",     // this local-file alias will be resolved by the "deno.jsonc" file in the "./deno_json_dir/" directory
 		"./local_path_entry.ts", // this will be loaded by esbuild natively (although it will initially pass though the entry-plugin's resolver pipeline)
 		"file://" + import.meta.dirname + "/file_uri_entry.ts", // this will be resolved and loaded by our http-plugin
 		// "https://jsr.io/@oazmi/kitchensink/0.9.2/src/array1d.ts",
@@ -23,7 +23,7 @@ Deno.test("test http plugin", async () => {
 		"jsr:@oazmi/kitchensink/struct",         // this will be resolved to the latest version of the package by our jsr-plugin
 		"npm:@oazmi/kitchensink/stringman",      // this will be resolved to whatever-is-available-version of the package (in the `node_modules` directory) by our npm-plugin
 		"https://raw.githubusercontent.com/jenil/chota/7d78073/src/chota.css", // http-plugin resolution and loading
-		"npm:d3-brush@3.0.0", // this, despite not being part of "deno.json", will get auto-installed via our npm-plugin.
+		"npm:d3-brush@3.0.0", // this, despite not being part of "deno.jsonc", will get auto-installed via our npm-plugin.
 		"https://esm.sh/@oazmi/tsignal", // this cdn makes use of domain-bound root-paths (leading "/" character), and our plugin does not conflate it with local fs-paths.
 	].map((path) => ({
 		in: path,
@@ -33,6 +33,11 @@ Deno.test("test http plugin", async () => {
 	const result = await esbuild.build({
 		absWorkingDir: import.meta.dirname,
 		entryPoints: entry_points,
+		stdin: {
+			contents: `import "@local-file-alias"; console.log("pen-pineapple-apple-pen");`,
+			resolveDir: "./",
+			loader: "ts",
+		},
 		outdir: "./dist/",
 		format: "esm",
 		platform: "node",
@@ -46,7 +51,8 @@ Deno.test("test http plugin", async () => {
 			npmPlugin({ autoInstall: true, log: true, }),
 			entryPlugin({
 				initialPluginData: {
-					runtimePackage: "./deno.json",
+					// we can either specify the path to "./deno.json(c)" or the directory in which it resides, relative to `absWorkingDir`.
+					runtimePackage: "./deno_json_dir/",
 					importMap: { "https://2d-lib": "https://jsr.io/@oazmi/kitchensink/0.9.2/src/array2d.ts" },
 					resolverConfig: { useNodeModules: false },
 				}
@@ -60,7 +66,7 @@ Deno.test("test http plugin", async () => {
 			// ...denoPlugins({
 			// 	globalImportMap: { "2d-array-utils": "https://jsr.io/@oazmi/kitchensink/0.9.2/src/array2d.ts" },
 			// 	pluginData: {
-			// 		runtimePackage: "./deno.json",
+			// 		runtimePackage: "./deno_json_dir/deno.jsonc",
 			// 		importMap: { "https://2d-lib": "https://jsr.io/@oazmi/kitchensink/0.9.2/src/array2d.ts" },
 			// 		resolverConfig: { useNodeModules: false },
 			// 	},

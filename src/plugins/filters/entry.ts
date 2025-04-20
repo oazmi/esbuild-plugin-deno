@@ -65,7 +65,7 @@
  * @module
 */
 
-import { bind_map_get, bind_map_has, bind_map_set, DEBUG, fetchScan, getUriScheme, isString, joinPaths, pathToPosixPath, resolveAsUrl, urlToString } from "../../deps.ts"
+import { bind_map_get, bind_map_has, bind_map_set, DEBUG, getUriScheme, isString, joinPaths, pathToPosixPath } from "../../deps.ts"
 import { RuntimePackage } from "../../packageman/base.ts"
 import { DenoPackage } from "../../packageman/deno.ts"
 import { logLogger } from "../funcdefs.ts"
@@ -344,16 +344,6 @@ export const entryPlugin = (config?: Partial<EntryPluginSetupConfig>): EsbuildPl
 	}
 }
 
-const package_json_filenames = [
-	"./deno.json",
-	"./deno.jsonc",
-	"./jsr.json",
-	"./jsr.jsonc",
-	// TODO: I still need to add support for node packages.
-	// "./package.json",
-	// "./package.jsonc", // as if such a thing will ever exist, lol
-]
-
 /** a utility function that resolves the path/url to your runtime-package json file (such as "deno.json"),
  * then creates a {@link DenoPackage} instance of out of it (which is needed for the `initialPluginData`, and then inherited by the dependencies).
  * 
@@ -365,7 +355,6 @@ const resolveRuntimePackage = async (build: EsbuildPluginBuild, initialRuntimePa
 	if (initialRuntimePackage instanceof RuntimePackage) { return initialRuntimePackage }
 	let deno_json_path = initialRuntimePackage
 	const
-		is_directory_path = urlToString(initialRuntimePackage).endsWith("/"),
 		is_relative_path = isString(initialRuntimePackage) && (getUriScheme(initialRuntimePackage) === "relative")
 	if (is_relative_path) {
 		deno_json_path = (await build.resolve(initialRuntimePackage, {
@@ -374,20 +363,10 @@ const resolveRuntimePackage = async (build: EsbuildPluginBuild, initialRuntimePa
 			pluginData: { resolverConfig: { useNodeModules: false } } satisfies CommonPluginData,
 		})).path
 	}
-	if (is_directory_path) {
-		// if the user had provided a directory path, then we'll have to scan for the list of well-known package files in that directory.
-		const
-			deno_json_urls = package_json_filenames.map((json_filename) => new URL(json_filename, resolveAsUrl(deno_json_path))),
-			// we don't use the head method below, because "file://" urls do not support the head method.
-			valid_response = await fetchScan(deno_json_urls)
-		if (!valid_response) {
-			// when no "deno.json" or equivalent package manager json file is found in the provided directory, we'll just warn the user.
-			logLogger(`[resolveRuntimePackage]    : WARNING! failed to find a "./deno.json(c)" or "./jsr.json(c)" package file in your supplied directory: "${initialRuntimePackage}".`)
-			return
-		}
-		deno_json_path = valid_response.url
-	}
-	// below, there is no need to ensure that `deno_json_path` is a valid "http://" or "file://" url,
-	// because the `fromUrl` class method automatically handles local paths as well.
-	return DenoPackage.fromUrl(deno_json_path)
+	// below, the `DenoPackage.fromUrl` method takes care of urls, local-paths, and directories as well.
+	// however, if scanning a directory for the common package json file names fails, then an error is throw.
+	// in that case, we'll catch the error and warn the end-user about the missing json file, instead of halting the build process.
+	return DenoPackage.fromUrl(deno_json_path).catch((reason): undefined => {
+		logLogger(`[resolveRuntimePackage]    : ${reason?.message ?? reason}`)
+	})
 }
