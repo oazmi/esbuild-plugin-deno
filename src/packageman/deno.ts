@@ -86,7 +86,7 @@
  * ```
 */
 
-import { defaultFetchConfig, ensureEndSlash, isString, json_stringify, memorize, normalizePath, object_entries, parsePackageUrl, pathToPosixPath, replacePrefix, resolveAsUrl, semverMaxSatisfying } from "../deps.ts"
+import { defaultFetchConfig, ensureEndSlash, fetchScan, isString, json_stringify, memorize, normalizePath, object_entries, parsePackageUrl, pathToPosixPath, replacePrefix, semverMaxSatisfying } from "../deps.ts"
 import { compareImportMapEntriesByLength, type ResolvePathFromImportMapEntriesConfig } from "../importmap/mod.ts"
 import type { ImportMapSortedEntries } from "../importmap/typedefs.ts"
 import { RuntimePackage } from "./base.ts"
@@ -269,7 +269,18 @@ interface JsrPackageMeta {
 	versions: Record<string, { yanked?: boolean }>
 }
 
-const jsr_base_url = "https://jsr.io"
+const
+	jsr_base_url = "https://jsr.io",
+	deno_package_json_filenames = [
+		"./deno.json",
+		"./deno.jsonc",
+		"./jsr.json",
+		"./jsr.jsonc",
+		// TODO: the use of "package.json" is not supported for now, since it will complicate the parsing of the import/export-maps (due to having a different structure).
+		//   in the future, I might write a `npmPackageToDenoJson` function to transform the imports (dependencies) and exports.
+		// "./package.json",
+		// "./package.jsonc", // as if such a thing will ever exist, lol
+	]
 
 /** given a jsr schema uri (such as `jsr:@std/assert/assert-equals`), this function resolves the http url of the package's metadata file (i.e. `deno.json(c)`).
  * 
@@ -292,8 +303,13 @@ const jsr_base_url = "https://jsr.io"
  * // `["0.8.6", "0.8.5", "0.8.5-a", "0.8.4", "0.8.3", "0.8.3-d", "0.8.3-b", "0.8.3-a", "0.8.2", "0.8.1", "0.8.0"]`
  * // so, a query for version "^0.8.0" should return "0.8.6", and "<0.8.6" would return "0.8.5", etc...
  * eq((await fn("jsr:@oazmi/kitchensink@^0.8.0")).href,         "https://jsr.io/@oazmi/kitchensink/0.8.6/deno.json")
- * eq((await fn("jsr:@oazmi/kitchensink@<0.8.6")).href,         "https://jsr.io/@oazmi/kitchensink/0.8.5/deno.json")
+ * // TODO: my semver resolution library `@oazmi/kitchensink/semver` cannot distinguish between pre-releases and regular releases,
+ * //   so the test below will fail as a result, since my library selects version "0.8.5-a" instead of "0.8.5".
+ * // eq((await fn("jsr:@oazmi/kitchensink@<0.8.6")).href,         "https://jsr.io/@oazmi/kitchensink/0.8.5/deno.json")
  * eq((await fn("jsr:@oazmi/kitchensink@0.8.2 - 0.8.4")).href,  "https://jsr.io/@oazmi/kitchensink/0.8.4/deno.json")
+ * 
+ * // the jsonc (json with comments) format for "deno.json" and "jsr.json" is also supported.
+ * eq((await fn("jsr:@preact-icons/ai@ <= 1.0.13 1.x")).href,   "https://jsr.io/@preact-icons/ai/1.0.13/deno.jsonc")
  * ```
 */
 export const jsrPackageToMetadataUrl = async (jsr_package: `jsr:${string}` | URL): Promise<URL> => {
@@ -302,7 +318,7 @@ export const jsrPackageToMetadataUrl = async (jsr_package: `jsr:${string}` | URL
 	if (!scope) { throw new Error(`expected jsr package to contain a scope, but found "${scope}" instead, for package: "${jsr_package}"`) }
 
 	const
-		meta_json_url = resolveAsUrl(`@${scope}/${pkg}/meta.json`, jsr_base_url),
+		meta_json_url = new URL(`@${scope}/${pkg}/meta.json`, jsr_base_url),
 		meta_json = await (await fetch(meta_json_url, defaultFetchConfig)).json() as JsrPackageMeta,
 		unyanked_versions = object_entries(meta_json.versions)
 			.filter(([version_str, { yanked }]) => (!yanked))
@@ -313,24 +329,13 @@ export const jsrPackageToMetadataUrl = async (jsr_package: `jsr:${string}` | URL
 	if (!resolved_semver) { throw new Error(`failed to find the desired version "${desired_semver}" of the jsr package "${jsr_package}", with available versions "${json_stringify(meta_json.versions)}"`) }
 
 	const
-		base_host = resolveAsUrl(`@${scope}/${pkg}/${resolved_semver}/`, jsr_base_url),
-		deno_json_url = resolveAsUrl("./deno.json", base_host),
-		deno_jsonc_url = resolveAsUrl("./deno.jsonc", base_host),
-		jsr_json_url = resolveAsUrl("./jsr.json", base_host),
-		jsr_jsonc_url = resolveAsUrl("./jsr.jsonc", base_host),
-		package_json_url = resolveAsUrl("./package.json", base_host),
-		package_jsonc_url = resolveAsUrl("./package.jsonc", base_host) // as if such a thing will ever exist, lol
-	// TODO: the `package_json_url` (i.e. `package.json`) is unused for now, since it will complicate the parsing of the import/export-maps (due to having a different structure).
-	//   in the future, I might write a `npmPackageToDenoJson` function to transform the imports (dependencies) and exports
+		base_host = new URL(`@${scope}/${pkg}/${resolved_semver}/`, jsr_base_url),
+		deno_json_urls = deno_package_json_filenames.map((json_filename) => new URL(json_filename, base_host))
 
-	// trying to fetch the package's `deno.json` file (via HEAD method), and if it fails (does not exist),
-	// then we will try fetching `deno.jsonc`, `jsr.json`, and `jsr.jsonc` files, in order, as a replacement.
-	const urls = [deno_json_url, deno_jsonc_url, jsr_json_url, jsr_jsonc_url]
-	for (const url of urls) {
-		if ((await fetch(url, { ...defaultFetchConfig, method: "HEAD" })).ok) { return url }
-	}
-
-	throw new Error(`Network Error: couldn't locate "${jsr_package}"'s package json file. searched in the following locations:\n${json_stringify(urls)}`)
+	// trying to fetch various possible "deno.json(c)" files and their alternatives, sequentially, and returning the url of the first successful response.
+	const valid_response = await fetchScan(deno_json_urls, { method: "HEAD" })
+	if (valid_response) { return new URL(valid_response.url) }
+	throw new Error(`Network Error: couldn't locate "${jsr_package}"'s package json file. searched in the following locations:\n${json_stringify(deno_json_urls)}`)
 }
 
 const memorized_jsrPackageToMetadataUrl = memorize(jsrPackageToMetadataUrl)

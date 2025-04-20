@@ -1,5 +1,6 @@
 import { getRuntimeCwd, identifyCurrentRuntime } from "@oazmi/kitchensink/crossenv"
 import { ensureEndSlash, ensureFileUrlIsLocalPath, ensureStartDotSlash, getUriScheme, pathToPosixPath, resolveAsUrl, resolvePathFactory } from "@oazmi/kitchensink/pathman"
+import { isString } from "@oazmi/kitchensink/struct"
 import type { RelativePathResolverConfig } from "./plugins/resolvers.ts"
 
 
@@ -12,7 +13,7 @@ export { ensureEndSlash, ensureFileUrlIsLocalPath, ensureStartDotSlash, fileUrlT
 export { maxSatisfying as semverMaxSatisfying, minSatisfying as semverMinSatisfying } from "@oazmi/kitchensink/semver"
 export { escapeLiteralStringForRegex, jsoncRemoveComments, replacePrefix, replaceSuffix } from "@oazmi/kitchensink/stringman"
 export { isArray, isObject, isString } from "@oazmi/kitchensink/struct"
-export type { ConstructorOf, MaybePromise, Optional } from "@oazmi/kitchensink/typedefs"
+export type { ConstructorOf, DeepPartial, MaybePromise, Optional } from "@oazmi/kitchensink/typedefs"
 export type * as esbuild from "npm:esbuild@^0.25.0"
 
 /** flags used for minifying (or eliminating) debugging logs and asserts, when an intelligent bundler, such as `esbuild`, is used. */
@@ -60,7 +61,15 @@ export const
 
 export const noop = (() => undefined)
 
-// TODO: import the fixed the implementation from kitchensink
-export type DeepPartial<T> = T extends (Function | Array<any> | String | BigInt | Number | Boolean | Symbol | URL | Map<any, any> | Set<any>)
-	? T : T extends Record<string, any>
-	? { [P in keyof T]?: DeepPartial<T[P]> } : T
+export const urlToString = (url: string | URL): string => { return isString(url) ? url : url.href }
+
+/** fetch multiple urls sequentially, and return the first successful response (i.e. http-code 200).
+ * 
+ * when none of the response is successful, an `undefined` is returned.
+*/
+export const fetchScan = async (urls: (string | URL)[], init?: RequestInit): Promise<Response | undefined> => {
+	for (const url of urls) {
+		const response = await fetch(url, { ...defaultFetchConfig, ...init })
+		if (response.ok) { return response }
+	}
+}
