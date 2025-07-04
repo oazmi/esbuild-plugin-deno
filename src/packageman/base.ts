@@ -4,24 +4,16 @@
  * @module
 */
 
-import { defaultFetchConfig, defaultResolvePath, json_parse, jsoncRemoveComments, resolveAsUrl, type ConstructorOf } from "../deps.ts"
+import { constructorOf, defaultFetchConfig, defaultResolvePath, isString, json_parse, jsoncRemoveComments, resolveAsUrl, type ConstructorOf } from "../deps.ts"
 import { resolvePathFromImportMapEntries, type ResolvePathFromImportMapEntriesConfig } from "../importmap/mod.ts"
 import type { ImportMapSortedEntries } from "../importmap/typedefs.ts"
 
 
 export interface RuntimePackageResolveImportConfig extends ResolvePathFromImportMapEntriesConfig {
-	/** a list of workspaces that should also be traversed in case the import resolution fails. */
-	workspaces: Array<RuntimePackage<any>>
-
 	/** once a workspace runtime-package has been visited, its path (returned by {@link RuntimePackage.getPath}) is saved to this `Set`,
-	 * so that it is not traversed again by any other deep child workspace during the current path-resolution task.
+	 * so that it is not traversed again by any other child/parent workspace during the current path-resolution task.
 	*/
-	visitedWorkspaces?: Set<string>
-}
-
-const defaultRuntimePackageResolveImportConfig: Omit<RuntimePackageResolveImportConfig, keyof ResolvePathFromImportMapEntriesConfig> = {
-	workspaces: [],
-	visitedWorkspaces: undefined,
+	workspacesVisited?: Set<string>
 }
 
 const cachedRuntimePackage = new Map<string, RuntimePackage<any>>()
@@ -33,21 +25,6 @@ const cachedRuntimePackage = new Map<string, RuntimePackage<any>>()
  * @template SCHEMA a record type representing the package schema.
 */
 export abstract class RuntimePackage<SCHEMA extends Record<string, any>> {
-	/** specify all child workspaces of this package.
-	 * 
-	 * the child-workspaces will also inherit the import/export-resolution of this (parent) package,
-	 * and thereby, they will also implicitly inherit the import/export-resolution of their sibling packages,
-	 * nephew packages, children of nephew packages, and so on.
-	 * 
-	 * > [!important]
-	 * > the constructor of the subclasses do **not** typically parse the workspace paths from the provided schema,
-	 * > nor do they load the {@link RuntimePackage} associated with those workspaces,
-	 * > since it would require asynchronous operations (such as `fetch`) which cannot be performed inside the constructor.
-	 * > this is why you would either need to manually add/push your child-workspace {@link RuntimePackage} object,
-	 * > or use the asynchronous {@link fromUrl} static method in the subclasses to take care of auto-loading the children workspaces.
-	*/
-	public readonly childWorkspaces: Array<RuntimePackage<any>>
-
 	/** the path or url of the package json(c) file.
 	 * 
 	 * the {@link RuntimePackage | base class} does nothing with this information;
@@ -79,7 +56,6 @@ export abstract class RuntimePackage<SCHEMA extends Record<string, any>> {
 	constructor(package_object: SCHEMA, package_path: string) {
 		this.packageInfo = package_object
 		this.packagePath = package_path
-		this.childWorkspaces = []
 	}
 
 	/** get the package's name. */
@@ -103,6 +79,8 @@ export abstract class RuntimePackage<SCHEMA extends Record<string, any>> {
 	 * > for test case examples and configuration options, see the documentation comments of {@link resolvePathFromImportMapEntries}
 	*/
 	resolveExport(path_alias: string, config?: Partial<RuntimePackageResolveImportConfig>): string | undefined {
+		// if this workspace package has already been visited, do not traverse it further.
+		if (config?.workspacesVisited?.has(this.getPath())) { return }
 		return resolvePathFromImportMapEntries(path_alias, this.exportMapSortedEntries, { sort: false, ...config })
 	}
 
@@ -115,6 +93,8 @@ export abstract class RuntimePackage<SCHEMA extends Record<string, any>> {
 	 * > for test case examples and configuration options, see the documentation comments of {@link resolvePathFromImportMapEntries}
 	*/
 	resolveImport(path_alias: string, config?: Partial<RuntimePackageResolveImportConfig>): string | undefined {
+		// if this workspace package has already been visited, do not traverse it further.
+		if (config?.workspacesVisited?.has(this.getPath())) { return }
 		return resolvePathFromImportMapEntries(path_alias, this.importMapSortedEntries, { sort: false, ...config })
 	}
 
@@ -125,8 +105,8 @@ export abstract class RuntimePackage<SCHEMA extends Record<string, any>> {
 	 * > 
 	 * > _why are we forcing a cache mechanism on the base class?_
 	 * > 
-	 * > because {@link childWorkspaces} are referenced by their absolute path,
-	 * > and resolving an import through a child-workspace would involve the creation of that child workspace package via this method,
+	 * > because the workspace children/parents, in the {@link WorkspacePackage} subclass, are referenced by their absolute path,
+	 * > and resolving an import through a workspace package would involve the creation of that child/parent runtime package via this method,
 	 * > thus leading to an exponential number of redundant re-creation of identical package manager objects.
 	 * 
 	 * > [!tip]
@@ -147,5 +127,98 @@ export abstract class RuntimePackage<SCHEMA extends Record<string, any>> {
 			new_instance = new this(package_object, package_jsonc_path_str)
 		cachedRuntimePackage.set(package_jsonc_path_str, new_instance as RuntimePackage<SCHEMA>)
 		return new_instance
+	}
+}
+
+export abstract class WorkspacePackage<SCHEMA extends Record<string, any>> extends RuntimePackage<SCHEMA> {
+	/** specify all child workspaces of this package.
+	 * 
+	 * - the exports of every child-workspace package are inherited by _this_ runtime package.
+	 *   > example: if `packageB` is child-workspace of `packageA`, then `packageA.exports` would be a superset of `packageB.exports`.
+	 * - similarly, the imports of _this_ runtime package will be implicitly available for all child-workspace packages.
+	 *   > example: if `packageB` is child-workspace of `packageA`, then `packageA.imports` would be a subset of `packageB.imports`.
+	 *   
+	 *   > [!note]
+	 *   > since child-workspaces are also considered to be dependencies of the parent package (the monorepo),
+	 *   > each child-workspace would be available to for importation by all child-workspaces.
+	 *   > in other words, sibling packages of the workspace would be able to import one another.
+	 * 
+	 * > [!important]
+	 * > the constructor of the subclasses do **not** typically parse the workspace paths from the provided schema,
+	 * > nor do they load the {@link WorkspacePackage} associated with those workspaces,
+	 * > since it would require asynchronous operations (such as `fetch`) which cannot be performed inside the constructor.
+	 * > this is why you would either need to manually add/push your child/parent-workspace {@link WorkspacePackage} object,
+	 * > or use the asynchronous {@link fromUrl} static method in the subclasses to take care of auto-loading and auto-injecting parent and child workspaces.
+	*/
+	public readonly workspaceChildren: Array<WorkspacePackage<any>>
+
+	/** specify all parent workspaces of this package.
+	 * 
+	 * - the imports of _this_ runtime package will be implicitly available for all child-workspace packages.
+	 *   > example: if `packageB` is child-workspace of `packageA`, then `packageA.imports` would be a subset of `packageB.imports`.
+	 * - the exports of every child-workspace package are inherited by _this_ runtime package.
+	 *   > example: if `packageB` is child-workspace of `packageA`, then `packageA.exports` would be a superset of `packageB.exports`.
+	 * 
+	 * > [!important]
+	 * > the constructor of the subclasses do **not** typically parse the workspace paths from the provided schema,
+	 * > nor do they load the {@link WorkspacePackage} associated with those workspaces,
+	 * > since it would require asynchronous operations (such as `fetch`) which cannot be performed inside the constructor.
+	 * > this is why you would either need to manually add/push your child/parent-workspace {@link WorkspacePackage} object,
+	 * > or use the asynchronous {@link fromUrl} static method in the subclasses to take care of auto-loading and auto-injecting parent and child workspaces.
+	*/
+	public readonly workspaceParents: Array<WorkspacePackage<any>>
+
+	constructor(package_object: SCHEMA, package_path: string) {
+		super(package_object, package_path)
+		this.workspaceChildren = []
+		this.workspaceParents = []
+	}
+
+	/** add a child workspace package, either by providing its path (absolute or relative), or by providing its {@link WorkspacePackage} object.
+	 * 
+	 * the exports of the added child workspace will become available to this package during workspace export-resolution.
+	*/
+	async addWorkspaceChild(package_jsonc_path: URL | string): Promise<void>
+	async addWorkspaceChild(runtime_package: WorkspacePackage<any>): Promise<void>
+	async addWorkspaceChild(package_or_path: URL | string | WorkspacePackage<any>): Promise<void> {
+		const
+			this_constructor = constructorOf(this) as unknown as typeof WorkspacePackage<SCHEMA>,
+			this_package_path = this.getPath(),
+			package_is_path = isString(package_or_path) || package_or_path instanceof URL,
+			// convert any relative workspace paths to absolute url-paths, if they're not already.
+			package_url = package_is_path ? resolveAsUrl(package_or_path, this_package_path) : undefined,
+			child_package = package_is_path
+				// below, a type error is raised by `this_constructor`, due to the fact `WorkspacePackage` is an abstract class, hence it should not instantiate an object.
+				? await (this_constructor as any).fromUrl(package_url!) as WorkspacePackage<SCHEMA>
+				: package_or_path
+		// we should ideally check for pre-existence of the `child_package` within `this.workspaceChildren`,
+		// by comparing its `child_package.getPath()` with the existing children's paths.
+		// but during import/export-resolution, duplicate paths will not be traversed more than once anyway, so it doesn't really matter that much.
+		this.workspaceChildren.push(child_package)
+		child_package.workspaceParents.push(this)
+	}
+
+	/** add a parent (monorepo) to this package, either by providing its path (absolute or relative), or by providing its {@link WorkspacePackage} object.
+	 * 
+	 * the imports of the added parent workspace will become available to this package during workspace import-resolution.
+	*/
+	async addWorkspaceParent(package_jsonc_path: URL | string): Promise<void>
+	async addWorkspaceParent(runtime_package: WorkspacePackage<any>): Promise<void>
+	async addWorkspaceParent(package_or_path: URL | string | WorkspacePackage<any>): Promise<void> {
+		const
+			this_constructor = constructorOf(this) as unknown as typeof WorkspacePackage<SCHEMA>,
+			this_package_path = this.getPath(),
+			package_is_path = isString(package_or_path) || package_or_path instanceof URL,
+			// convert any relative workspace paths to absolute url-paths, if they're not already.
+			package_url = package_is_path ? resolveAsUrl(package_or_path, this_package_path) : undefined,
+			parent_package = package_is_path
+				// below, a type error is raised by `this_constructor`, due to the fact `WorkspacePackage` is an abstract class, hence it should not instantiate an object.
+				? await (this_constructor as any).fromUrl(package_url!) as WorkspacePackage<SCHEMA>
+				: package_or_path
+		// we should ideally check for pre-existence of the `parent_package` within `this.workspaceParents`,
+		// by comparing its `parent_package.getPath()` with the existing parent's paths.
+		// but during import/export-resolution, duplicate paths will not be traversed more than once anyway, so it doesn't really matter that much.
+		this.workspaceParents.push(parent_package)
+		parent_package.workspaceChildren.push(this)
 	}
 }
