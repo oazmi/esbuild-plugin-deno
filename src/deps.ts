@@ -4,7 +4,7 @@ import { isString } from "@oazmi/kitchensink/struct"
 import type { RelativePathResolverConfig } from "./plugins/resolvers.ts"
 
 
-export { array_isEmpty, dom_decodeURI, json_parse, json_stringify, number_isFinite, number_parseInt, object_assign, object_entries, object_fromEntries, object_keys, object_values, promise_outside, promise_resolve } from "@oazmi/kitchensink/alias"
+export { array_isEmpty, dom_decodeURI, json_parse, json_stringify, number_isFinite, number_parseInt, object_assign, object_entries, object_fromEntries, object_keys, object_values, promise_all, promise_outside, promise_resolve } from "@oazmi/kitchensink/alias"
 export { bind_array_push, bind_map_get, bind_map_has, bind_map_set } from "@oazmi/kitchensink/binder"
 export { InvertibleMap, invertMap } from "@oazmi/kitchensink/collections"
 export { execShellCommand, identifyCurrentRuntime, RUNTIME } from "@oazmi/kitchensink/crossenv"
@@ -12,7 +12,7 @@ export { memorize } from "@oazmi/kitchensink/lambda"
 export { ensureEndSlash, ensureFileUrlIsLocalPath, ensureStartDotSlash, fileUrlToLocalPath, getUriScheme, joinPaths, normalizePath, parseFilepathInfo, parsePackageUrl, pathToPosixPath, resolveAsUrl, resolvePathFactory } from "@oazmi/kitchensink/pathman"
 export { maxSatisfying as semverMaxSatisfying, minSatisfying as semverMinSatisfying } from "@oazmi/kitchensink/semver"
 export { escapeLiteralStringForRegex, jsoncRemoveComments, replacePrefix, replaceSuffix } from "@oazmi/kitchensink/stringman"
-export { isArray, isObject, isString } from "@oazmi/kitchensink/struct"
+export { constructorOf, isArray, isObject, isString } from "@oazmi/kitchensink/struct"
 export type { ConstructorOf, DeepPartial, MaybePromise, Optional } from "@oazmi/kitchensink/typedefs"
 export type * as esbuild from "npm:esbuild@^0.25.0"
 
