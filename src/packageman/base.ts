@@ -4,7 +4,7 @@
  * @module
 */
 
-import { constructorOf, defaultFetchConfig, defaultResolvePath, isString, json_parse, jsoncRemoveComments, resolveAsUrl, type ConstructorOf } from "../deps.ts"
+import { constructorOf, defaultFetchConfig, defaultResolvePath, isString, json_parse, jsoncRemoveComments, promise_outside, resolveAsUrl, type ConstructorOf } from "../deps.ts"
 import { resolvePathFromImportMapEntries, type ResolvePathFromImportMapEntriesConfig } from "../importmap/mod.ts"
 import type { ImportMapSortedEntries } from "../importmap/typedefs.ts"
 
@@ -16,7 +16,7 @@ export interface RuntimePackageResolveImportConfig extends ResolvePathFromImport
 	workspacesVisited?: Set<string>
 }
 
-const cachedRuntimePackage = new Map<string, RuntimePackage<any>>()
+const cachedRuntimePackage = new Map<string, Promise<RuntimePackage<any>>>()
 
 /** an abstraction for import-map utilities of a general javascript runtime's package object with the schema `SCHEMA`.
  * - in the case of node, `SCHEMA` would represent `package.json`'s schema.
@@ -121,11 +121,13 @@ export abstract class RuntimePackage<SCHEMA extends Record<string, any>> {
 		const
 			package_jsonc_path_str = package_jsonc_path.href,
 			cached_result = cachedRuntimePackage.get(package_jsonc_path_str)
-		if (cached_result) { return cached_result as INSTANCE }
+		if (cached_result) { return cached_result as Promise<INSTANCE> }
+		const [promise, resolve, reject] = promise_outside<INSTANCE>()
+		cachedRuntimePackage.set(package_jsonc_path_str, promise as Promise<RuntimePackage<SCHEMA>>)
 		const
 			package_object = json_parse(jsoncRemoveComments(await ((await fetch(package_jsonc_path, defaultFetchConfig)).text()))) as SCHEMA,
 			new_instance = new this(package_object, package_jsonc_path_str)
-		cachedRuntimePackage.set(package_jsonc_path_str, new_instance as RuntimePackage<SCHEMA>)
+		resolve(new_instance)
 		return new_instance
 	}
 }
