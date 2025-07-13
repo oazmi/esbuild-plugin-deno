@@ -86,10 +86,10 @@
  * ```
 */
 
-import { defaultFetchConfig, defaultResolvePath, ensureEndSlash, fetchScanUrls, isString, json_stringify, memorize, normalizePath, object_entries, parsePackageUrl, pathToPosixPath, replacePrefix, resolveAsUrl, semverMaxSatisfying } from "../deps.ts"
-import { compareImportMapEntriesByLength, type ResolvePathFromImportMapEntriesConfig } from "../importmap/mod.ts"
+import { defaultFetchConfig, defaultResolvePath, ensureEndSlash, fetchScanUrls, isString, json_stringify, memorize, object_entries, parseFilepathInfo, parsePackageUrl, promise_all, promise_outside, replacePrefix, resolveAsUrl, semverMaxSatisfying } from "../deps.ts"
+import { compareImportMapEntriesByLength } from "../importmap/mod.ts"
 import type { ImportMapSortedEntries } from "../importmap/typedefs.ts"
-import { RuntimePackage } from "./base.ts"
+import { WorkspacePackage, type RuntimePackageResolveImportConfig } from "./base.ts"
 
 
 /** this is a subset of the "deno.json" file schema, copied from my other project.
@@ -140,10 +140,7 @@ export interface DenoJsonSchema {
 		}
 	}
 
-	/** the members of this workspace.
-	 * 
-	 * TODO: I haven't used deno workspaces, so I won't bother implementing this feature for the plugin until much later.
-	*/
+	/** the child packages of this workspace. */
 	workspace?: string[]
 
 	[property: string]: any
@@ -154,13 +151,13 @@ type Exports = string | {
 	[alias: string]: string
 }
 
-const get_dir_path_of_file_path = (file_path: string) => normalizePath(file_path.endsWith("/") ? file_path : file_path + "/../")
+const existingDenoPackageConstructionStatus = new Map<string, Promise<void>>()
 
-export class DenoPackage extends RuntimePackage<DenoJsonSchema> {
+export class DenoPackage extends WorkspacePackage<DenoJsonSchema> {
 	protected override readonly importMapSortedEntries: ImportMapSortedEntries
 	protected override readonly exportMapSortedEntries: ImportMapSortedEntries
 
-	override getName(): string { return this.packageInfo.name ?? "@no-package/name" }
+	override getName(): string { return this.packageInfo.name ?? "@no-name/package" }
 
 	override getVersion(): string { return this.packageInfo.version ?? "0.0.0" }
 
@@ -196,14 +193,16 @@ export class DenoPackage extends RuntimePackage<DenoJsonSchema> {
 		this.importMapSortedEntries = object_entries(imports_object).toSorted(compareImportMapEntriesByLength)
 	}
 
-	override resolveExport(path_alias: string, config?: Partial<ResolvePathFromImportMapEntriesConfig>): string | undefined {
+	override resolveExport(path_alias: string, config?: Partial<RuntimePackageResolveImportConfig>): string | undefined {
+		const package_json_path = this.getPath()
+		// if this workspace has already been visited, do not traverse it further.
+		if (config?.workspacesVisited?.has(package_json_path)) { return }
 		const
 			name = this.getName(),
 			version = this.getVersion(),
-			package_json_path = pathToPosixPath(this.getPath()),
 			{
 				baseAliasDir = `jsr:${name}@${version}`,
-				basePathDir = get_dir_path_of_file_path(package_json_path),
+				basePathDir = parseFilepathInfo(package_json_path).dirpath,
 				...rest_config
 			} = config ?? {},
 			residual_path_alias = replacePrefix(path_alias, baseAliasDir)?.replace(/^\/+/, "/")
@@ -213,12 +212,14 @@ export class DenoPackage extends RuntimePackage<DenoJsonSchema> {
 		return super.resolveExport(path_alias, { baseAliasDir, basePathDir, ...rest_config })
 	}
 
-	override resolveImport(path_alias: string, config?: Partial<ResolvePathFromImportMapEntriesConfig>): string | undefined {
+	override resolveImport(path_alias: string, config?: Partial<RuntimePackageResolveImportConfig>): string | undefined {
+		const package_json_path = this.getPath()
+		// if this workspace has already been visited, do not traverse it further.
+		if (config?.workspacesVisited?.has(package_json_path)) { return }
 		const
 			name = this.getName(),
 			version = this.getVersion(),
-			package_json_path = pathToPosixPath(this.getPath()),
-			basePathDir = get_dir_path_of_file_path(package_json_path),
+			basePathDir = parseFilepathInfo(package_json_path).dirpath,
 			path_alias_is_relative = path_alias.startsWith("./") || path_alias.startsWith("../"),
 			local_package_reference_aliases = path_alias_is_relative
 				? [""]
@@ -245,9 +246,6 @@ export class DenoPackage extends RuntimePackage<DenoJsonSchema> {
 		SCHEMA extends DenoJsonSchema,
 		INSTANCE = DenoPackage,
 	>(jsr_package: URL | string): Promise<INSTANCE> {
-		// TODO: ideally, we should also memorize the resulting instance of `DenoPackage` that gets created via this static method,
-		//   so that subsequent calls with the same `jsr_package` will return an existing instance.
-		//   it'll be nice if we could use a memorization decorator for such a thing, but I don't have any experience with writing them, so I'll look into it in the future.
 		const
 			package_path_url = resolveAsUrl(jsr_package, defaultResolvePath()),
 			package_path_str = package_path_url.href,
@@ -269,7 +267,29 @@ export class DenoPackage extends RuntimePackage<DenoJsonSchema> {
 			if (!valid_url) { throw new Error(`Scan Error! failed to find a "./deno.json(c)" or "./jsr.json(c)" package file in your supplied directory: "${package_path_url}".`) }
 			jsr_package = valid_url
 		}
-		return super.fromUrl<SCHEMA, INSTANCE>(jsr_package)
+		const
+			new_instance = await super.fromUrl<SCHEMA, INSTANCE>(jsr_package),
+			new_instance_path = (new_instance as DenoPackage).getPath(),
+			existing_package_status = existingDenoPackageConstructionStatus.get(new_instance_path)
+		// it is possible for the `new_instance` returned by `super.fromUrl` to be a pre-existing cached object.
+		// in that case, we would not want re-add all child workspace packages.
+		if (existing_package_status) {
+			await existing_package_status
+			return new_instance
+		}
+		// if this is indeed a newly instantiated object, then wait for the creation of all of its child workspaces,
+		// and then declare each as a child to `new_instance` via the `addWorkspaceChild` method.
+		const [promise, resolve, reject] = promise_outside<void>()
+		existingDenoPackageConstructionStatus.set(new_instance_path, promise)
+		await promise_all(
+			((new_instance as DenoPackage).packageInfo.workspace ?? []).map(async (path) => {
+				// turn the child workspace path to an absolute path, and also ensure that trailing directory slash is appended.
+				const child_path = ensureEndSlash(defaultResolvePath(path, new_instance_path))
+				await (new_instance as DenoPackage).addWorkspaceChild(child_path)
+			})
+		)
+		resolve()
+		return new_instance
 	}
 }
 
