@@ -70,7 +70,7 @@
  * eq(resIm("npm-pkg/utils/cli"), "npm:boomer-package/utils/cli")
  * 
  * // testing out the alias-path resolution of the package's exported entries.
- * eq(resEx("jsr:@scope/lib"),                         undefined) // by default, you must provide the version number as well
+ * eq(resEx("jsr:@scope/lib"),                         "https://jsr.io/@scope/lib/0.1.0/src/mod.ts")
  * eq(resEx("jsr:@scope/lib",               config_2), "https://jsr.io/@scope/lib/0.1.0/src/mod.ts")
  * eq(resEx("jsr:@scope/lib/",              config_2), "https://jsr.io/@scope/lib/0.1.0/src/mod.ts")
  * eq(resEx("jsr:@scope/lib@0.1.0",         config_1), "./src/mod.ts")
@@ -86,10 +86,10 @@
  * ```
 */
 
-import { defaultFetchConfig, defaultResolvePath, ensureEndSlash, fetchScanUrls, isString, json_stringify, memorize, object_entries, parseFilepathInfo, parsePackageUrl, promise_all, promise_outside, replacePrefix, resolveAsUrl, semverMaxSatisfying } from "../deps.ts"
+import { defaultFetchConfig, defaultResolvePath, ensureEndSlash, fetchScanUrls, isCertainlyRelativePath, isString, json_stringify, memorize, object_entries, parseFilepathInfo, parsePackageUrl, promise_all, promise_outside, replacePrefix, resolveAsUrl, semverMaxSatisfying } from "../deps.ts"
 import { compareImportMapEntriesByLength } from "../importmap/mod.ts"
 import type { ImportMapSortedEntries } from "../importmap/typedefs.ts"
-import { WorkspacePackage, type RuntimePackageResolveImportConfig } from "./base.ts"
+import { WorkspacePackage, type ResolveWorkspaceReturnType, type RuntimePackageResolveImportConfig } from "./base.ts"
 
 
 /** this is a subset of the "deno.json" file schema, copied from my other project.
@@ -196,50 +196,75 @@ export class DenoPackage extends WorkspacePackage<DenoJsonSchema> {
 	override resolveExport(path_alias: string, config?: Partial<RuntimePackageResolveImportConfig>): string | undefined {
 		const package_json_path = this.getPath()
 		// if this workspace has already been visited, do not traverse it further.
-		if (config?.workspacesVisited?.has(package_json_path)) { return }
+		if (config?.workspaceExportsVisited?.has(package_json_path)) { return }
 		const
 			name = this.getName(),
 			version = this.getVersion(),
 			{
-				baseAliasDir = `jsr:${name}@${version}`,
+				baseAliasDir: _baseAliasDir,
 				basePathDir = parseFilepathInfo(package_json_path).dirpath,
 				...rest_config
 			} = config ?? {},
-			residual_path_alias = replacePrefix(path_alias, baseAliasDir)?.replace(/^\/+/, "/")
-		if (residual_path_alias !== undefined) {
-			path_alias = baseAliasDir + (residual_path_alias === "/" ? "" : residual_path_alias)
+			baseAliasDirs = _baseAliasDir === undefined
+				? [`jsr:${name}@${version}`, `jsr:${name}`, `${name}`]
+				: [_baseAliasDir]
+		// when the original `config.baseAliasDir` option is not set by the user, we will try resolving the `path_alias` against three possible base alias paths:
+		// - "@scope/lib/pathname"
+		// - "jsr:@scope/lib/pathname"
+		// - "jsr:@scope/lib@version/pathname"
+		for (const baseAliasDir of baseAliasDirs) {
+			const residual_path_alias = replacePrefix(path_alias, baseAliasDir)?.replace(/^\/+/, "/")
+			if (residual_path_alias !== undefined) {
+				path_alias = baseAliasDir + (residual_path_alias === "/" ? "" : residual_path_alias)
+			}
+			const resolved_path = super.resolveExport(path_alias, { baseAliasDir, basePathDir, ...rest_config })
+			if (resolved_path) { return resolved_path }
 		}
-		return super.resolveExport(path_alias, { baseAliasDir, basePathDir, ...rest_config })
 	}
 
 	override resolveImport(path_alias: string, config?: Partial<RuntimePackageResolveImportConfig>): string | undefined {
 		const package_json_path = this.getPath()
 		// if this workspace has already been visited, do not traverse it further.
-		if (config?.workspacesVisited?.has(package_json_path)) { return }
+		if (config?.workspaceImportsVisited?.has(package_json_path)) { return }
 		const
-			name = this.getName(),
-			version = this.getVersion(),
 			basePathDir = parseFilepathInfo(package_json_path).dirpath,
-			path_alias_is_relative = path_alias.startsWith("./") || path_alias.startsWith("../"),
-			local_package_reference_aliases = path_alias_is_relative
-				? [""]
-				: [`jsr:${name}@${version}`, `jsr:${name}`, `${name}`]
+			path_alias_is_relative = isCertainlyRelativePath(path_alias),
+			self_reference_base_alias = path_alias_is_relative ? "" : undefined
 
 		// resolving the `path_alias` as a locally self-referenced package export.
 		// here is the list of possible combinations of base alias paths that can be performed within this package to reference its own export endpoints:
 		// - "@scope/lib/pathname"
 		// - "jsr:@scope/lib/pathname"
 		// - "jsr:@scope/lib@version/pathname"
-		let locally_resolved_export: string | undefined = undefined
-		for (const base_alias_dir of local_package_reference_aliases) {
-			locally_resolved_export = this.resolveExport(path_alias, { ...config, baseAliasDir: base_alias_dir })
-			if (locally_resolved_export) { break }
-		}
+		const locally_resolved_export: string | undefined = this.resolveExport(path_alias, { ...config, baseAliasDir: self_reference_base_alias })
+		// if (locally_resolved_export !== undefined) { return locally_resolved_export }
+		return locally_resolved_export ?? super.resolveImport(path_alias, { ...config, basePathDir })
+		// TODO: currently, I won't bother with the nonsense that is below - especially since deno itself cannot resolve recursive import aliases.
 
 		// if the `path_alias` is not a local export, then resolve it based on the package's import-map.
-		// do note that if the import-map specifies an entry where the alias's path directs to a relative path (for instance: `"@server": "./src/server.ts"`),
-		// then we would want the base-path to be the directory of the "deno.json" file (acquired via `this.getPath()`)
-		return locally_resolved_export ?? super.resolveImport(path_alias, { ...config, basePathDir })
+		// - do note that if the import-map specifies an entry where the alias's path directs to a relative path (for instance: `"@server": "./src/server.ts"`),
+		//   then we would want the base-path to be the directory of the "deno.json" file (acquired via `this.getPath()`)
+		// - however, if that is not the case (i.e. it directs to another aliased resource, for instance `"@server": "@my-workspace/server"`),
+		//   then we will have to check that alias against the local child-workspaces, and parent-workspace imports.
+		// const
+		// 	resolved_import = super.resolveImport(path_alias, { ...config, basePathDir }),
+		// 	is_certainly_relative_path = (resolved_import === undefined) || isCertainlyRelativePath(resolved_import),
+		// 	is_certainly_absolute_path = (resolved_import === undefined) || isAbsolutePath(resolved_import)
+		// if (is_certainly_relative_path || is_certainly_absolute_path) { return resolved_import }
+		// const workspace_resolution_result = this.resolveWorkspaceImport(resolved_import, config)
+		// TODO: suppose that the resolution did succeed, then you will be faced with the challenge of swapping out the current `this` runtime package with the one that correctly managed to resolve this import.
+		// TODO: another issue is that `super.resolveWorkspaceImport` calls the children's `resolveImport`, which in turn may call `resolveWorkspaceImport` on the parent during this step.
+		//   although the "visited" set will prevent infinite looping, there are still too many redundant operations being carried out, I feel.
+		// return workspace_resolution_result?.[0] ?? resolved_import
+	}
+
+	override resolveWorkspaceImport(path_alias: string, config?: Partial<RuntimePackageResolveImportConfig>): ResolveWorkspaceReturnType | undefined {
+		// notice: we do not conflate/merge between `config.workspaceExportsVisited` and `config.workspaceImportsVisited`.
+		// this is because otherwise it could be possible that a given workspace package may not be able to resolve the `path_alias` as an export,
+		// but it may successfully resolve it as an import. however, if the `resolveWorkspaceExport` method had already traversed that package,
+		// then it will not be revisited by `resolveWorkspaceImport`, which would eventually lead to a path alias resolution failure (`undefined`).
+		return this.resolveWorkspaceExport(path_alias, config)
+			?? super.resolveWorkspaceImport(path_alias, config)
 	}
 
 	static override async fromUrl<
