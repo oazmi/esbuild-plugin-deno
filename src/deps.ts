@@ -4,7 +4,7 @@ import { isString } from "@oazmi/kitchensink/struct"
 import type { RelativePathResolverConfig } from "./plugins/resolvers.ts"
 
 
-export { array_isEmpty, dom_decodeURI, json_parse, json_stringify, number_isFinite, number_parseInt, object_assign, object_entries, object_fromEntries, object_keys, object_values, promise_all, promise_outside, promise_resolve } from "@oazmi/kitchensink/alias"
+export { array_isArray, array_isEmpty, dom_decodeURI, json_parse, json_stringify, number_isFinite, number_parseInt, object_assign, object_entries, object_fromEntries, object_keys, object_values, promise_all, promise_outside, promise_resolve } from "@oazmi/kitchensink/alias"
 export { bind_array_push, bind_map_get, bind_map_has, bind_map_set } from "@oazmi/kitchensink/binder"
 export { InvertibleMap, invertMap } from "@oazmi/kitchensink/collections"
 export { execShellCommand, identifyCurrentRuntime, RUNTIME } from "@oazmi/kitchensink/crossenv"
@@ -29,6 +29,11 @@ export const enum DEBUG {
 export const isAbsolutePath = (segment: string): boolean => {
 	const scheme = getUriScheme(segment) ?? "relative"
 	return scheme !== "relative"
+}
+
+// this function helps with testing if a given path segment is guaranteed to be a relative path segment (i.e. begins with "./" or "../").
+export const isCertainlyRelativePath = (segment: string): boolean => {
+	return segment.startsWith("./") || segment.startsWith("../")
 }
 
 /** see {@link RelativePathResolverConfig.resolvePath} for details. */

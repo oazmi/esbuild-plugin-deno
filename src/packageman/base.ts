@@ -11,10 +11,20 @@ import type { ImportMapSortedEntries } from "../importmap/typedefs.ts"
 
 export interface RuntimePackageResolveImportConfig extends ResolvePathFromImportMapEntriesConfig {
 	/** once a workspace runtime-package has been visited, its path (returned by {@link RuntimePackage.getPath}) is saved to this `Set`,
-	 * so that it is not traversed again by any other child/parent workspace during the current path-resolution task.
+	 * so that it is not traversed again by any other child/parent workspace during the current import-path resolution task.
 	*/
-	workspacesVisited?: Set<string>
+	workspaceImportsVisited?: Set<string>
+
+	/** once a workspace runtime-package has been visited, its path (returned by {@link RuntimePackage.getPath}) is saved to this `Set`,
+	 * so that it is not traversed again by any other child/parent workspace during the current export-path resolution task.
+	*/
+	workspaceExportsVisited?: Set<string>
 }
+
+/** a 2-tuple returned by the workspace resolution methods {@link WorkspacePackage.resolveWorkspaceImport}, and {@link WorkspacePackage.resolveWorkspaceExport}.
+ * it consists of the `resolved_path` and the {@link WorkspacePackage | `child_workspace_package`} that managed to resolve the `path_alias` provided to the method.
+*/
+export type ResolveWorkspaceReturnType = [resolved_path: string, child_workspace_package: WorkspacePackage<any>]
 
 const cachedRuntimePackage = new Map<string, Promise<RuntimePackage<any>>>()
 
@@ -80,7 +90,7 @@ export abstract class RuntimePackage<SCHEMA extends Record<string, any>> {
 	*/
 	resolveExport(path_alias: string, config?: Partial<RuntimePackageResolveImportConfig>): string | undefined {
 		// if this workspace package has already been visited, do not traverse it further.
-		if (config?.workspacesVisited?.has(this.getPath())) { return }
+		if (config?.workspaceExportsVisited?.has(this.getPath())) { return }
 		return resolvePathFromImportMapEntries(path_alias, this.exportMapSortedEntries, { sort: false, ...config })
 	}
 
@@ -94,7 +104,7 @@ export abstract class RuntimePackage<SCHEMA extends Record<string, any>> {
 	*/
 	resolveImport(path_alias: string, config?: Partial<RuntimePackageResolveImportConfig>): string | undefined {
 		// if this workspace package has already been visited, do not traverse it further.
-		if (config?.workspacesVisited?.has(this.getPath())) { return }
+		if (config?.workspaceImportsVisited?.has(this.getPath())) { return }
 		return resolvePathFromImportMapEntries(path_alias, this.importMapSortedEntries, { sort: false, ...config })
 	}
 
@@ -227,30 +237,36 @@ export abstract class WorkspacePackage<SCHEMA extends Record<string, any>> exten
 	/** this method tries to resolve the provided export `path_alias` to an absolute resource path,
 	 * using this package's child workspaces (i.e. not including _this_ package's _own_ exports).
 	 * 
+	 * - if the action is successful, then a 2-tuple is returned,
+	 *   consisting of the `resolved_path` and the {@link WorkspacePackage | `child_workspace_package`} that managed to resolve the provided `path_alias`.
 	 * - if there are no child-workspaces, or if the child-workspaces fail to resolve the exported `path_alias`, then `undefined` will be returned.
 	 * - this method does not inspect this package's own exports. you should use {@link resolveExport} for that.
 	*/
-	resolveWorkspaceExport(path_alias: string, config?: Partial<RuntimePackageResolveImportConfig>): string | undefined {
+	resolveWorkspaceExport(path_alias: string, config?: Partial<RuntimePackageResolveImportConfig>): ResolveWorkspaceReturnType | undefined {
 		const
-			{ workspacesVisited = new Set<string>(), ...import_map_config } = config ?? {},
+			{ workspaceExportsVisited = new Set<string>(), ...import_map_config } = config ?? {},
 			workspace_children = this.workspaceChildren,
 			current_workspaces_path = this.getPath()
 		// if this workspace has already been visited, do not traverse it further.
-		if (workspacesVisited.has(current_workspaces_path)) { return }
-		// we share the `workspacesVisited` object among the child-workspaces,
+		if (workspaceExportsVisited.has(current_workspaces_path)) { return }
+		// we share the `workspaceExportsVisited` object among the child-workspaces,
 		// so that any runtime-package path that has been considered at least once will not be tried twice in an alternate child-workspace.
 		// NOTE: this may be unnecessary given that parent to child traversal should not lead to a circular dependency loop,
 		// but it is still possible if the end user had explicitly made such a circular dependency (in which case the visited set would be needed).
-		workspacesVisited.add(current_workspaces_path)
+		workspaceExportsVisited.add(current_workspaces_path)
 		for (const runtime_package of workspace_children) {
-			const resolved_path = runtime_package.resolveExport(path_alias, {
-				workspacesVisited,
+			const child_export_result = runtime_package.resolveExport(path_alias, {
+				workspaceExportsVisited,
 				...import_map_config,
 			}) ?? runtime_package.resolveWorkspaceExport(path_alias, {
-				workspacesVisited,
+				workspaceExportsVisited,
 				...import_map_config,
 			})
-			if (resolved_path) { return resolved_path }
+			if (child_export_result !== undefined) {
+				return isString(child_export_result)
+					? [child_export_result, runtime_package]
+					: child_export_result
+			}
 		}
 		return
 	}
@@ -258,6 +274,8 @@ export abstract class WorkspacePackage<SCHEMA extends Record<string, any>> exten
 	/** this method tries to resolve the provided import `path_alias` done by some resource within this package,
 	 * using the internal {@link importMapSortedEntries} list of import-aliases that this package uses.
 	 * 
+	 * - if the action is successful, then a 2-tuple is returned,
+	 *   consisting of the `resolved_path` and the {@link WorkspacePackage | `child_workspace_package`} that managed to resolve the provided `path_alias`.
 	 * - if no import resources match the given `path_alias` within this package, then this package's {@link workspaceParents} will be traversed.
 	 * - if there are no parent-workspaces, or if the parent-workspaces fail to resolve this `path_alias`, then `undefined` will be returned.
 	 *   (which would probably imply that the given `path_alias` is already either an absolute or relative path, or perhaps incorrect altogether)
@@ -265,25 +283,29 @@ export abstract class WorkspacePackage<SCHEMA extends Record<string, any>> exten
 	 * > [!tip]
 	 * > for test case examples and configuration options, see the documentation comments of {@link resolvePathFromImportMapEntries}
 	*/
-	resolveWorkspaceImport(path_alias: string, config?: Partial<RuntimePackageResolveImportConfig>): string | undefined {
+	resolveWorkspaceImport(path_alias: string, config?: Partial<RuntimePackageResolveImportConfig>): ResolveWorkspaceReturnType | undefined {
 		const
-			{ workspacesVisited = new Set<string>(), ...import_map_config } = config ?? {},
+			{ workspaceImportsVisited = new Set<string>(), ...import_map_config } = config ?? {},
 			workspace_parents = this.workspaceParents,
 			current_workspaces_path = this.getPath()
 		// if this workspace has already been visited, do not traverse it further.
-		if (workspacesVisited.has(current_workspaces_path)) { return }
-		// we share the `workspacesVisited` object among the parent-workspaces,
+		if (workspaceImportsVisited.has(current_workspaces_path)) { return }
+		// we share the `workspaceImportsVisited` object among the parent-workspaces,
 		// so that any runtime-package path that has been considered at least once will not be tried twice in an alternate parent-workspace.
-		workspacesVisited.add(current_workspaces_path)
+		workspaceImportsVisited.add(current_workspaces_path)
 		for (const runtime_package of workspace_parents) {
-			const resolved_path = runtime_package.resolveImport(path_alias, {
-				workspacesVisited,
+			const child_import_result = runtime_package.resolveImport(path_alias, {
+				workspaceImportsVisited,
 				...import_map_config,
 			}) ?? runtime_package.resolveWorkspaceImport(path_alias, {
-				workspacesVisited,
+				workspaceImportsVisited,
 				...import_map_config,
 			})
-			if (resolved_path) { return resolved_path }
+			if (child_import_result !== undefined) {
+				return isString(child_import_result)
+					? [child_import_result, runtime_package]
+					: child_import_result
+			}
 		}
 		return
 	}
