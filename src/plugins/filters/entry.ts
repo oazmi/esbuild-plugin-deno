@@ -66,7 +66,7 @@
 */
 
 import { bind_map_get, bind_map_has, bind_map_set, DEBUG, getUriScheme, isString, joinPaths, pathToPosixPath } from "../../deps.ts"
-import { RuntimePackage } from "../../packageman/base.ts"
+import { RuntimePackage, type WorkspacePackage } from "../../packageman/base.ts"
 import { DenoPackage } from "../../packageman/deno.ts"
 import { logLogger } from "../funcdefs.ts"
 import type { nodeModulesResolverFactory, resolverPlugin } from "../resolvers.ts"
@@ -82,13 +82,13 @@ export interface InitialPluginData extends Omit<CommonPluginData, "runtimePackag
 	 * so that your project's import and export aliases can be resolved appropriately.
 	 * 
 	 * there are several ways for you to specify your runtime package for package-resolution support:
-	 * - provide an existing {@link RuntimePackage} object.
+	 * - provide an existing {@link WorkspacePackage} object.
 	 * - provide a path `string` or `URL` to the package json(c) file (such as "deno.json", "jsr.jsonc", "package.json", etc...).
 	 * - provide a directory-path `string` or `URL` (**must** end with a trailing slash `"/"`) where a package json(c) file exists,
 	 *   and the plugin will scan for the following files at that location in the provided order:
 	 *   - `"deno.json"`, `"deno.jsonc"`, `"jsr.json"`, `"jsr.jsonc"`, `"package.json"`, `"package.jsonc"`.
 	*/
-	runtimePackage?: RuntimePackage<any> | URL | string
+	runtimePackage?: WorkspacePackage<any> | URL | string
 }
 
 /** configuration options for the {@link entryPluginSetup} esbuild-setup factory function. */
@@ -350,7 +350,7 @@ export const entryPlugin = (config?: Partial<EntryPluginSetupConfig>): EsbuildPl
  * there are several ways to specify the current runtime package (a class instance, a file path/url, or a directory path/url).
  * for all available options, see the documentation comments of {@link InitialPluginData.runtimePackage}.
 */
-const resolveRuntimePackage = async (build: EsbuildPluginBuild, initialRuntimePackage: InitialPluginData["runtimePackage"]): Promise<RuntimePackage<any> | undefined> => {
+const resolveRuntimePackage = async (build: EsbuildPluginBuild, initialRuntimePackage: InitialPluginData["runtimePackage"]): Promise<WorkspacePackage<any> | undefined> => {
 	if (!initialRuntimePackage) { return }
 	if (initialRuntimePackage instanceof RuntimePackage) { return initialRuntimePackage }
 	let deno_json_path = initialRuntimePackage
