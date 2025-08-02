@@ -65,7 +65,7 @@ Deno.test("test http plugin", async () => {
 			//
 			// ...denoPlugins({
 			// 	globalImportMap: { "2d-array-utils": "https://jsr.io/@oazmi/kitchensink/0.9.2/src/array2d.ts" },
-			// 	pluginData: {
+			// 	initialPluginData: {
 			// 		runtimePackage: "./deno_json_dir/deno.jsonc",
 			// 		importMap: { "https://2d-lib": "https://jsr.io/@oazmi/kitchensink/0.9.2/src/array2d.ts" },
 			// 		resolverConfig: { useNodeModules: false },
