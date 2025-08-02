@@ -68,16 +68,20 @@
       (for instance, it may serve a deno-compatible ts file, but your bundle is intended to run in the browser).
       so, allowing the user to modify the http-header would let them overcome this issue.
 - [ ] add support for parsing `package.json` in the `DenoPackage` class for achieving full jsr-compatibility in the jsr-plugin.
-- [ ] add a function to detect the current runtime, so that it can be later used for predicting the base-project-level scope's `runtimePackage: RuntimePackage` (i.e. is it a `package.json(c)` or `deno.json(c)` or `jsr.json(c)`).
-  - consider creating a function `fetchScan: (urls: (URL | string)[]) => URL`,
-    which will sequentially try fetching the provided `urls` using the `"HEAD"` method, and follow any redirects,
-    then return the first (fully-followed) url that results in a valid http response.
-  - use the said function for validating the existence of multiple runtime-package json(c) files, sequentially,
-    and acquire the first one that exists to use as the url to the `runtimePackage`.
 - [ ] ~~in the entry-plugin, consider merging the initial-plugin-data resolver (`initialPluginDataInjector`) into the inherit-plugin-data resolver (`inheritPluginDataInjector`),
       if it provides significant speed boost.
       doing so might undo the 60% slowdown introduced in version `0.3.0` (where inherit-plugin-data was added).~~
   > the reduction in speed was a government propaganda, the cake was a lie, and carbon killed oxide (carbon "die" oxide, get it? haha humor +100, and everyone clapped while congratulating for eternity - [quack quack](https://www.youtube.com/watch?v=oyFQVZ2h0V8&t=11s))
+
+## (2025-04-20) pre-version `0.4.2` todo list
+
+- [x] add a function to detect the current runtime, so that it can be later used for predicting the base-project-level scope's `runtimePackage: RuntimePackage` (i.e. is it a `package.json(c)` or `deno.json(c)` or `jsr.json(c)`).
+- [x] create a function `fetchScan: (urls: (URL | string)[]) => URL`,
+      which will sequentially try fetching the provided `urls` ~~using the `"HEAD"` method~~ (`"HEAD"` is not supported by the file-uri scheme), and follow any redirects,
+      then return the first (fully-followed) url that results in a valid http response.
+  - use the said function for validating the existence of multiple runtime-package json(c) files, sequentially,
+    and acquire the first one that exists to use as the url to the `runtimePackage`.
+- (this version was never released, because forgorr, and now I has ragretts)
 
 ## (2025-04-19) pre-version `0.4.1` todo list
 
