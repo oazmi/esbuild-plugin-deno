@@ -1,0 +1,12 @@
+{
+	"workspace": [
+		"a1/proj-a",
+		"b1/b2/proj-b/",
+		"./c1/c2/c3/proj-c/"
+	],
+	"imports": {
+		"@external/1": "jsr:@oazmi/kitchensink@0.9.14",
+		"@external/2": "https://jsr.io/@oazmi/kitchensink/0.9.14/src/pathman.ts"
+	},
+	"nodeModulesDir": "none"
+}

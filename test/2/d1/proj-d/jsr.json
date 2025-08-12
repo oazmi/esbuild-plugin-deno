@@ -1,0 +1,7 @@
+{
+	"name": "projD",
+	"version": "0.1.4",
+	"exports": {
+		".": "./mod.ts"
+	}
+}

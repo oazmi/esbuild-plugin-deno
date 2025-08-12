@@ -1,0 +1,11 @@
+{
+	"name": "projA",
+	"workspace": [
+		// a nested workspace. this is something that deno itself does not support,
+		// but our plugin will resolve it just fine.
+		"../../d1/proj-d"
+	],
+	"exports": {
+		".": "./mod.ts"
+	}
+}
