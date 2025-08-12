@@ -1,0 +1,10 @@
+{
+	"name": "projC",
+	"imports": {
+		"@external/3": "npm:@oazmi/tsignal@0.3.2"
+	},
+	"exports": {
+		".": "./mod.ts"
+	},
+	"nodeModulesDir": "none"
+}
