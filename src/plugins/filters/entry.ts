@@ -65,9 +65,9 @@
  * @module
 */
 
-import { bind_map_get, bind_map_has, bind_map_set, DEBUG, getUriScheme, isString, joinPaths, pathToPosixPath } from "../../deps.ts"
+import { bind_map_get, bind_map_has, bind_map_set, DEBUG, fetchScanUrls, getUriScheme, isString, joinPaths, pathToPosixPath, resolveAsUrl } from "../../deps.ts"
 import { RuntimePackage, type WorkspacePackage } from "../../packageman/base.ts"
-import { DenoPackage } from "../../packageman/deno.ts"
+import { DenoPackage, denoPackageJsonFilenames } from "../../packageman/deno.ts"
 import { logLogger } from "../funcdefs.ts"
 import type { nodeModulesResolverFactory, resolverPlugin } from "../resolvers.ts"
 import type { CommonPluginData, EsbuildPlugin, EsbuildPluginBuild, EsbuildPluginSetup, OnResolveArgs, OnResolveCallback } from "../typedefs.ts"
@@ -132,6 +132,15 @@ export interface EntryPluginSetupConfig {
 	*/
 	enableInheritPluginData: boolean
 
+	/** enable scanning of parental/ancestral directories of your project's {@link initialPluginData | base directory},
+	 * so that all relevant workspace packages up the directory tree can be discovered and cached.
+	 * 
+	 * this would permit the resolution of workspace package aliases that are not directly mentioned in your "deno.json" package file.
+	 * 
+	 * @defaultValue `false`
+	*/
+	scanAncestralWorkspaces: boolean
+
 	/** specify which `namespace`s should be intercepted by the entry-point plugin.
 	 * all other `namespace`s will not be processed by this plugin.
 	 * 
@@ -149,6 +158,7 @@ const defaultEntryPluginSetup: EntryPluginSetupConfig = {
 	initialPluginData: undefined,
 	forceInitialPluginData: false,
 	enableInheritPluginData: true,
+	scanAncestralWorkspaces: false,
 	acceptNamespaces: defaultEsbuildNamespaces,
 }
 
@@ -161,7 +171,7 @@ const defaultStdinPath = "<stdin>"
 */
 export const entryPluginSetup = (config?: Partial<EntryPluginSetupConfig>): EsbuildPluginSetup => {
 	const
-		{ filters, initialPluginData: _initialPluginData, forceInitialPluginData, enableInheritPluginData, acceptNamespaces: _acceptNamespaces } = { ...defaultEntryPluginSetup, ...config },
+		{ filters, initialPluginData: _initialPluginData, forceInitialPluginData, enableInheritPluginData, scanAncestralWorkspaces, acceptNamespaces: _acceptNamespaces } = { ...defaultEntryPluginSetup, ...config },
 		acceptNamespaces = new Set([..._acceptNamespaces, PLUGIN_NAMESPACE.LOADER_HTTP]),
 		// contains a record of **all** resources that have passed through the `inheritPluginDataInjector`,
 		// so that dependency resources which have been stripped out of their `pluginData` can inherit it back from their `importer`'s saved `pluginData`.
@@ -184,7 +194,7 @@ export const entryPluginSetup = (config?: Partial<EntryPluginSetupConfig>): Esbu
 			// here we resolve the path to the "deno.json" file if `initialRuntimePackage` is either a url or a local path.
 			// to resolve non-url-based file paths, we'll use the namespace of {@link resolverPlugin}
 			// to carry out the path resolution inside of the {@link resolveRuntimePackage} function.
-			initialPluginData.runtimePackage = await resolveRuntimePackage(build, initialRuntimePackage)
+			initialPluginData.runtimePackage = await resolveRuntimePackage(build, initialRuntimePackage, scanAncestralWorkspaces)
 
 			// moreover, if an stdin is present, we will have to manually add it to `importerPluginDataRecord`,
 			// because stdin's path does not go through path resolving, and thereby not intercepted by the entry plugin.
@@ -350,23 +360,58 @@ export const entryPlugin = (config?: Partial<EntryPluginSetupConfig>): EsbuildPl
  * there are several ways to specify the current runtime package (a class instance, a file path/url, or a directory path/url).
  * for all available options, see the documentation comments of {@link InitialPluginData.runtimePackage}.
 */
-const resolveRuntimePackage = async (build: EsbuildPluginBuild, initialRuntimePackage: InitialPluginData["runtimePackage"]): Promise<WorkspacePackage<any> | undefined> => {
+const resolveRuntimePackage = async (build: EsbuildPluginBuild, initialRuntimePackage: InitialPluginData["runtimePackage"], scanAncestralWorkspaces: boolean = true): Promise<WorkspacePackage<any> | undefined> => {
+	let
+		deno_package: WorkspacePackage<any> | undefined,
+		deno_json_path: string | URL | undefined
+
 	if (!initialRuntimePackage) { return }
-	if (initialRuntimePackage instanceof RuntimePackage) { return initialRuntimePackage }
-	let deno_json_path = initialRuntimePackage
-	const
-		is_relative_path = isString(initialRuntimePackage) && (getUriScheme(initialRuntimePackage) === "relative")
-	if (is_relative_path) {
-		deno_json_path = (await build.resolve(initialRuntimePackage, {
-			kind: "entry-point",
-			namespace: PLUGIN_NAMESPACE.RESOLVER_PIPELINE,
-			pluginData: { resolverConfig: { useNodeModules: false } } satisfies CommonPluginData,
-		})).path
+	if (initialRuntimePackage instanceof RuntimePackage) {
+		deno_package = initialRuntimePackage
+	} else {
+		const is_relative_path = isString(initialRuntimePackage) && (getUriScheme(initialRuntimePackage) === "relative")
+		deno_json_path = is_relative_path
+			? (await build.resolve(initialRuntimePackage, {
+				kind: "entry-point",
+				namespace: PLUGIN_NAMESPACE.RESOLVER_PIPELINE,
+				pluginData: { resolverConfig: { useNodeModules: false } } satisfies CommonPluginData,
+			})).path
+			: initialRuntimePackage
+
+		// below, the `DenoPackage.fromUrl` method takes care of urls, local-paths, and directories as well.
+		// however, if scanning a directory for the common package json file names fails, then an error is throw.
+		// in that case, we'll catch the error and warn the end-user about the missing json file, instead of halting the build process.
+		deno_package = await DenoPackage.fromUrl(deno_json_path).catch((reason): undefined => {
+			logLogger(`[resolveRuntimePackage]    : ${reason?.message ?? reason}`)
+		})
 	}
-	// below, the `DenoPackage.fromUrl` method takes care of urls, local-paths, and directories as well.
-	// however, if scanning a directory for the common package json file names fails, then an error is throw.
-	// in that case, we'll catch the error and warn the end-user about the missing json file, instead of halting the build process.
-	return DenoPackage.fromUrl(deno_json_path).catch((reason): undefined => {
-		logLogger(`[resolveRuntimePackage]    : ${reason?.message ?? reason}`)
-	})
+	// if the `scanAncestralWorkspaces` option is set to true, then we will traverse all parent, grandparent, etc... directories,
+	// looking for "deno.json" and equivalent package files and caching them, in a addition to building a workspace-tree between the various packages.
+	if (scanAncestralWorkspaces && (deno_package ?? deno_json_path)) {
+		await traverseAncestralWorkspaces(deno_package?.getPath() ?? deno_json_path!)
+	}
+	return deno_package
+}
+
+/** this utility function traverses the ancestral directories of the provided `starting_path`,
+ * caching any workspace package that it discovers along the way (i.e. "deno.json(c)", "jsr.json(c)", and "package.json(c)"),
+ * so that child packages would become aware of any parent workspace packages.
+*/
+const traverseAncestralWorkspaces = async (starting_path: string | URL): Promise<void> => {
+	const
+		dir_url = resolveAsUrl("./", starting_path),
+		parent_dir_url = resolveAsUrl("../", dir_url)
+	// if we can no longer traverse into a parent directory (i.e. we're at the root), then exit.
+	if (parent_dir_url.href === dir_url.href) { return }
+	const
+		deno_package_json_urls = denoPackageJsonFilenames.map((json_filename) => new URL(json_filename, dir_url)),
+		// we don't use the head method below, because "file://" urls do not support the head method.
+		valid_url = await fetchScanUrls(deno_package_json_urls)
+	if (valid_url) {
+		// caching the discovered deno package so that its workspace tree can be generated (if there's any that is).
+		const deno_package = await DenoPackage.fromUrl(valid_url).catch((reason): undefined => {
+			logLogger(`[resolveRuntimePackage]    : workspace file at "${valid_url}" was found, but we failed to load it as a deno package. reason:  ${reason?.message ?? reason}`)
+		})
+	}
+	return traverseAncestralWorkspaces(parent_dir_url)
 }
