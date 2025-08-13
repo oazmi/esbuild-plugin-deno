@@ -1,5 +1,5 @@
 import { exportA } from "jsr:projA"
-import { exportC } from "projC"
+import { exportC } from "projC/main"
 // import { exportD } from "jsr:projD@0.1.4" // deno would not permit this nephew import, but our plugin does.
 
 
