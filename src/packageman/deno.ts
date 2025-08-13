@@ -285,7 +285,7 @@ export class DenoPackage extends WorkspacePackage<DenoJsonSchema> {
 		} else if (url_is_directory) {
 			// if the user had provided a directory path, then we'll have to scan for the list of well-known package files in that directory.
 			const
-				package_json_urls = deno_package_json_filenames.map((json_filename) => new URL(json_filename, package_path_url)),
+				package_json_urls = denoPackageJsonFilenames.map((json_filename) => new URL(json_filename, package_path_url)),
 				// we don't use the head method below, because "file://" urls do not support the head method.
 				valid_url = await fetchScanUrls(package_json_urls)
 			// when no "deno.json" or equivalent package manager json file is found in the provided directory, we'll have to throw an error.
@@ -325,18 +325,18 @@ interface JsrPackageMeta {
 	versions: Record<string, { yanked?: boolean }>
 }
 
-const
-	jsr_base_url = "https://jsr.io",
-	deno_package_json_filenames = [
-		"./deno.json",
-		"./deno.jsonc",
-		"./jsr.json",
-		"./jsr.jsonc",
-		// TODO: the use of "package.json" is not supported for now, since it will complicate the parsing of the import/export-maps (due to having a different structure).
-		//   in the future, I might write a `npmPackageToDenoJson` function to transform the imports (dependencies) and exports.
-		// "./package.json",
-		// "./package.jsonc", // as if such a thing will ever exist, lol
-	]
+const jsr_base_url = "https://jsr.io"
+
+export const denoPackageJsonFilenames = [
+	"./deno.json",
+	"./deno.jsonc",
+	"./jsr.json",
+	"./jsr.jsonc",
+	// TODO: the use of "package.json" is not supported for now, since it will complicate the parsing of the import/export-maps (due to having a different structure).
+	//   in the future, I might write a `npmPackageToDenoJson` function to transform the imports (dependencies) and exports.
+	// "./package.json",
+	// "./package.jsonc", // as if such a thing will ever exist, lol
+]
 
 /** given a jsr schema uri (such as `jsr:@std/assert/assert-equals`), this function resolves the http url of the package's metadata file (i.e. `deno.json(c)`).
  * 
@@ -386,7 +386,7 @@ export const jsrPackageToMetadataUrl = async (jsr_package: `jsr:${string}` | URL
 
 	const
 		base_host = new URL(`@${scope}/${pkg}/${resolved_semver}/`, jsr_base_url),
-		deno_json_urls = deno_package_json_filenames.map((json_filename) => new URL(json_filename, base_host))
+		deno_json_urls = denoPackageJsonFilenames.map((json_filename) => new URL(json_filename, base_host))
 
 	// trying to fetch various possible "deno.json(c)" files and their alternatives, sequentially, and returning the url of the first successful response.
 	const valid_url = await fetchScanUrls(deno_json_urls, { method: "HEAD" })
