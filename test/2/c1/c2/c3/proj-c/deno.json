@@ -4,7 +4,8 @@
 		"@external/3": "npm:@oazmi/tsignal@0.3.2"
 	},
 	"exports": {
-		".": "./mod.ts"
+		".": "./mod.ts",
+		"./main": "./mod.ts"
 	},
 	"nodeModulesDir": "none"
 }

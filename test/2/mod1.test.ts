@@ -26,6 +26,7 @@ Deno.test("test workspace feature", async () => {
 			...esbuild_config,
 			entryPoints: [{ in: entrypoint, out: "proj-b" }],
 			plugins: denoPlugins({
+				scanAncestralWorkspaces: false,
 				initialPluginData: {
 					runtimePackage: "./deno.json",
 					resolverConfig: { useNodeModules: false },
@@ -33,21 +34,8 @@ Deno.test("test workspace feature", async () => {
 				log: true,
 			}),
 		})
+		// console.log(result.outputFiles.map((v) => (v.path)))
 	}
-
-	// the following will fail, since our plugin cannot scan ancestral directories for workspace packages.
-	// const result = await esbuild.build({
-	// 	...esbuild_config,
-	// 	entryPoints: [{ in: "./b1/b2/proj-b/" , out: "proj-b" }],
-	// 	plugins: denoPlugins({
-	// 		initialPluginData: {
-	// 			runtimePackage: "./deno.json",
-	// 			resolverConfig: { useNodeModules: false },
-	// 		},
-	// 		log: true,
-	// 	}),
-	// })
-	// console.log(result.outputFiles.map((v) => (v.path)))
 
 	await esbuild.stop()
 	await promiseTimeout(500)
