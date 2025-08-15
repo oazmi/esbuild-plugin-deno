@@ -73,9 +73,30 @@
       doing so might undo the 60% slowdown introduced in version `0.3.0` (where inherit-plugin-data was added).~~
   > the reduction in speed was a government propaganda, the cake was a lie, and carbon killed oxide (carbon "die" oxide, get it? haha humor +100, and everyone clapped while congratulating for eternity - [quack quack](https://www.youtube.com/watch?v=oyFQVZ2h0V8&t=11s))
 
+## pre-version `0.4.4` todo list
+
+- [ ] use esbuild type definitions from your own stud library in `jsr:@oazmi/esbuild-types` or `npm:@oazmi/esbuild-types`.
+- [ ] add a new logo and update the `./readme.md`.
+- [ ] use an updated version of `jsr:@oazmi/build-tools` to generate javascript bundles of this project.
+
+## (2025-08-14) pre-version `0.4.3` todo list
+
+- [x] create a new subclass `WorkspacePackage` of `RuntimePackage`, that adds two additional methods `resolveWorkspaceImport` and `resolveWorkspaceExport`,
+      which will traverse child and parent packages within the workspace to look for a suitable package capable of resolving the given alias.
+- [x] make `DenoPackage` extend `WorkspacePackage` instead of directly extending `RuntimePackage`,
+      and make the `DenoPackage.fromUrl` static function traverse and cache child packages referenced in `deno.json`'s `workspace` field.
+- [x] add a new config option `scanAncestralWorkspaces` to the entry-plugin, which, when enabled,
+      allows the plugin to traverse the ancestral directories of the user's project folder (where the deno package json file lies),
+      to discover deno workspace packages that may be at an upper level.
+- [x] fix [issue#7](https://github.com/oazmi/esbuild-plugin-deno/issues/7):
+      add support for deno workspaces and workspace discovery/scanning.
+      however, wildcards in the `workspace` field of `deno.json` are not currently supported.
+
 ## (2025-04-20) pre-version `0.4.2` todo list
 
 - [x] add a function to detect the current runtime, so that it can be later used for predicting the base-project-level scope's `runtimePackage: RuntimePackage` (i.e. is it a `package.json(c)` or `deno.json(c)` or `jsr.json(c)`).
+- [x] make the `DenoPackage.fromUrl` static function scan for deno compatible package json files
+      (`package.json(c)` or `deno.json(c)` or `jsr.json(c)`) when a path/url of a directory is provided, instead of a file.
 - [x] create a function `fetchScan: (urls: (URL | string)[]) => URL`,
       which will sequentially try fetching the provided `urls` ~~using the `"HEAD"` method~~ (`"HEAD"` is not supported by the file-uri scheme), and follow any redirects,
       then return the first (fully-followed) url that results in a valid http response.

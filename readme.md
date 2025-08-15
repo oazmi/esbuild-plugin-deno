@@ -1,6 +1,6 @@
 # @oazmi/esbuild-plugin-deno
 
-A suite of multi-purpose esbuild plugins for bundling libraries and web-apps with Deno, Node, or Bun.
+This is a suite of multi-purpose esbuild plugins for bundling libraries and web-apps with Deno, Node, or Bun.
 It is capable of resolving `file://`, `http://`, `https://`, `jsr:`, and `npm:` specifiers, in addition to supporting global `importMap`s, initial `pluginData` injection, and path pre-resolution.
 With its non-intrusive design, it works seamlessly alongside esbuild's native resolver/loader and other plugins (including those from npm).
 This means you won't face any issues with bundling non-javascript/typescript files (such as `.css`, `.svg`, etc...),
@@ -123,13 +123,13 @@ import esbuild from "esbuild"
 import { denoPlugins } from "@oazmi/esbuild-plugin-deno"
 
 const entry_points = [
-	"./local_path_entry.ts", // this will be loaded by esbuild natively (although it will initially pass though the `entry_plugin`'s resolver pipeline)
+	"./local_path_entry.ts", // this will be loaded by esbuild natively (although it will resolve though the pipeline of `entry_plugin`)
 	"file://" + import.meta.dirname + "/file_uri_entry.ts", // this will be resolved and loaded by our `http_plugin`
 	"jsr:@oazmi/kitchensink@^0.9.2/array1d", // this will be resolved by our `jsr_plugin`, and loaded by the `http_plugin`
 	"https://2d-lib", // this will bundle via our `importMap` setting inside of the `entry_plugin`'s `initialPluginData`
 	"2d-array-utils", // this will bundle via our `globalImportMap` setting inside of our `resolvers_pipeline_plugin`
 	"jsr:@oazmi/kitchensink/struct", // this will be resolved to the latest version of the package by our `jsr_plugin`
-	"npm:@oazmi/kitchensink/stringman", // this will be resolved to whatever-is-available-version of the package (in the `node_modules` directory) by our `npm_plugin`
+	"npm:@oazmi/kitchensink/stringman", // resolves to any existing version of the package (inside `./node_modules/`) by our `npm_plugin`
 	"https://raw.githubusercontent.com/jenil/chota/7d78073/src/chota.css", // `http_plugin` resolution and loading
 	"npm:d3-brush@3.0.0", // this will be auto-installed by our `npm_plugin`, without modifying/creating a "package.json" file.
 ].map((path) => ({
@@ -138,13 +138,27 @@ const entry_points = [
 }))
 
 const [entry_plugin, http_plugin, jsr_plugin, npm_plugin, resolver_pipeline_plugin] = denoPlugins({
-	// notice that the different aliases in `globalImportMap` and `pluginData.importMap` point to the same resource.
+	// notice that the different aliases in `globalImportMap` and `initialPluginData.importMap` point to the same resource.
 	// however, in bundled code-splitting enabled output, there will be no duplication of this resource.
 	globalImportMap: { "2d-array-utils": "https://jsr.io/@oazmi/kitchensink/0.9.2/src/array2d.ts" },
-	pluginData: {
+
+	// (optional) scans the parent, grandparent, and all ancestral directories of your current `runtimePackage` option,
+	// so that this plugin will discover any parent-workspace packages at a higher directory level,
+	// which in turn will let you resolve aliases from workspace packages that are not directly referenced in your "deno.json".
+	scanAncestralWorkspaces: true,
+
+	// under the `initialPluginData` field, you can specify the `pluginData` that should be pre-injected into all entry-points,
+	// during their path resolution (the `build.onResolve` step).
+	// you may use this field to conveniently inject your own `pluginData` for your own plugins,
+	// but below are some crucial configurations used by this plugin to resolve deno/jsr packages correctly.
+	// (remember, this field is empty by default, and you **must** populate it based on your project structure and requirements)
+	initialPluginData: {
 		// (optional) provide the path to your "deno.json" file, relative to esbuild's `absWorkingDir` build-option.
 		// if `absWorkingDir` is unavailable, then it will be resolved relative to `Deno.cwd()`.
-		runtimePackage: "./deno.json",
+		// you may also choose to instead provide a directory path (ending in a trailing slash "/"),
+		// to specify a folder/url to auto-scan for "deno.json(c)" or "jsr.json(c)" files to use here.
+		runtimePackage: "./deno.json", // or just "./" will suffice, since the plugin will then scan the directory.
+
 		// here, we specify that we do not wish to allow node-path-resolution by default at the top level.
 		// however, once we enter an npm-package's scope through the use of the `"npm:"` specifier in the import,
 		// the switch will be flicked to `true`, and all of that package's imports will utilize node-path-resolution.
@@ -152,18 +166,22 @@ const [entry_plugin, http_plugin, jsr_plugin, npm_plugin, resolver_pipeline_plug
 		// but for node projects, leave it enabled (which is the default by the way).
 		// the downside of it being enabled is that your filesystem will be read for resolving each resource's path (which is slow).
 		resolverConfig: { useNodeModules: false },
+
 		// this import-map only lingers around at the top-level scope.
 		// once this plugin traverses into the domain of another self-contained package (such as an npm/jsr-package),
 		// then this import-map will be cleared. (i.e. it will not affect other packages' scopes)
 		importMap: { "https://2d-lib": "https://jsr.io/@oazmi/kitchensink/0.9.2/src/array2d.ts" },
 	},
+
 	// enabling logging will let you see which resources are being resolved, and what their resolved path is.
 	log: true,
+
 	// auto-install npm-packages that have not been cached into a local "./node_modules/" directory.
 	// the "auto-cli" method of installation will vary based on your runtime,
 	// however, you can greatly customize it and even provide a custom cli-command generator yourself.
 	// see the docs for the list of possible options.
 	autoInstall: "auto-cli", // or just provide `true`
+
 	// provide any implicit (i.e. unspecified) npm dependencies which your project, or one of your npm packages may have.
 	// these will be the first thing to get auto-installed when `autoInstall` is enabled,
 	// and you may also install the package under a different alias.
@@ -230,7 +248,7 @@ discarding legacy quirks that had plagued generations.
 It was never meant to happen, but after 5000 years, it did.
 
 Emerging from the universal pool of developer tears came a new runtime named Deno.
-And with it began the ~~Shadow Games~~ Runtime Wars.
+And with it began the [~~Shadow Games~~](https://www.youtube.com/watch?v=3tH60cNil1g) Runtime Wars.
 
 <div style="max-width: min(100%, 384px);">
 

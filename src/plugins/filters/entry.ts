@@ -132,7 +132,8 @@ export interface EntryPluginSetupConfig {
 	*/
 	enableInheritPluginData: boolean
 
-	/** enable scanning of parental/ancestral directories of your project's {@link initialPluginData | base directory},
+	/** enable scanning of parental/ancestral directories of your project's
+	 * {@link InitialPluginData.runtimePackage | base directory (`initialPluginData.runtimePackage`)},
 	 * so that all relevant workspace packages up the directory tree can be discovered and cached.
 	 * 
 	 * this would permit the resolution of workspace package aliases that are not directly mentioned in your "deno.json" package file.
