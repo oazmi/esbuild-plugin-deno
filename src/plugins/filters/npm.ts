@@ -215,7 +215,6 @@ export interface NpmPluginSetupConfig {
 	*/
 	nodeModulesDirs: NodeModuleDirFormat[]
 
-
 	/** enable logging of resolved npm-package's path, when {@link DEBUG.LOG} is ennabled.
 	 * 
 	 * when set to `true`, the logs will show up in your console via `console.log()`.

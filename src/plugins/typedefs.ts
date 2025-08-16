@@ -1,6 +1,6 @@
 import type { defaultGetCwd, esbuild, MaybePromise } from "../deps.ts"
 import type { ImportMap } from "../importmap/typedefs.ts"
-import type { RuntimePackage } from "../packageman/base.ts"
+import type { WorkspacePackage } from "../packageman/base.ts"
 import type { entryPlugin } from "./filters/entry.ts"
 import type { NpmAutoInstallCliConfig, npmPluginSetup, NpmPluginSetupConfig } from "./filters/npm.ts"
 import type { resolverPlugin } from "./resolvers.ts"
@@ -52,7 +52,7 @@ export interface CommonPluginData {
 	/** specifies the current scope's runtime package manager (such as deno, jsr, npm, node, etc...),
 	 * so that the package's own import and export aliases can be resolved appropriately.
 	*/
-	runtimePackage?: RuntimePackage<any>
+	runtimePackage?: WorkspacePackage<any>
 
 	/** you may control which resolvers to disable through the use of this property. */
 	resolverConfig?: {

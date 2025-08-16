@@ -6,11 +6,13 @@
  * > otherwise, if you want, you can customize the namespace of this plugin by specifying it in the `config.namespace` option.
  * 
  * below is a summary what the path resolution procedure of this plugin entails, given a certain esbuild input {@link OnResolveArgs | `args`}:
- * 1. first, if {@link RuntimePackage | `args.pluginData.runtimePackage`} exists,
- *    then the plugin tries to resolve the input `args.path` through the use of the {@link RuntimePackage.resolveImport} method.
+ * 1. first, if {@link WorkspacePackage | `args.pluginData.runtimePackage`} exists,
+ *    then the plugin tries to resolve the input `args.path` through the use of the {@link WorkspacePackage.resolveImport} method.
  *    - if it succeeds (i.e. `args.path` was an alias/import-map specified in the package file),
  *      then the resolved path, along with the original `args.pluginData`, is returned.
- *    - otherwise, if it fails, then the next path resolution takes place (import-map).
+ *    - if it fails, then it tries to resolve the input `args.path` against any potential workspace package directories (specified in the `deno.json` config),
+ *      through the use of the {@link WorkspacePackage.resolveWorkspaceImport} method.
+ *    - otherwise, if workspace resolution fails, then the next path resolution takes place (import-map).
  * 2. next, if either {@link ImportMap | `args.pluginData.importMap`} exists,
  *    or {@link ImportMapResolverConfig.globalImportMap | `config.importMap.globalImportMap`} exists,
  *    then the plugin will try to resolve the input `args.path` with respect to these import-maps,
@@ -38,10 +40,10 @@
  * @module
 */
 
-import { DEBUG, defaultResolvePath, ensureEndSlash, ensureFileUrlIsLocalPath, getUriScheme, isAbsolutePath, joinPaths, noop, pathToPosixPath, promise_outside, resolveAsUrl, type DeepPartial } from "../deps.ts"
+import { array_isArray, DEBUG, defaultResolvePath, ensureEndSlash, ensureFileUrlIsLocalPath, getUriScheme, isAbsolutePath, isCertainlyRelativePath, joinPaths, noop, pathToPosixPath, promise_outside, resolveAsUrl, type DeepPartial } from "../deps.ts"
 import { resolvePathFromImportMap } from "../importmap/mod.ts"
 import type { ImportMap } from "../importmap/typedefs.ts"
-import type { RuntimePackage } from "../packageman/base.ts"
+import type { WorkspacePackage } from "../packageman/base.ts"
 import { logLogger } from "./funcdefs.ts"
 import type { CommonPluginData, EsbuildPlugin, EsbuildPluginBuild, EsbuildPluginSetup, LoggerFunction, OnResolveCallback, OnResolveResult } from "./typedefs.ts"
 import { PLUGIN_NAMESPACE, type OnResolveArgs } from "./typedefs.ts"
@@ -200,7 +202,7 @@ const defaultResolverPluginSetupConfig: ResolverPluginSetupConfig = {
  * @example
  * ```ts
  * import type { EsbuildPlugin, EsbuildPluginBuild, OnLoadArgs, OnResolveArgs } from "./typedefs.ts"
- * import { PLUGIN_NAMESPACE.RESOLVER_PIPELINE } from "./typedefs.ts"
+ * import { PLUGIN_NAMESPACE } from "./typedefs.ts"
  * 
  * const THIS_plugins_namespace = PLUGIN_NAMESPACE.RESOLVER_PIPELINE // == "oazmi-resolver-pipeline"
  * 
@@ -270,12 +272,15 @@ export const resolverPluginSetup = (config?: DeepPartial<ResolverPluginSetupConf
 			if (args.pluginData?.resolverConfig?.useRuntimePackage === false) { return }
 			const
 				{ path, pluginData = {} } = args,
-				runtimePackage = pluginData.runtimePackage as RuntimePackage<any> | undefined,
+				runtimePackage = pluginData.runtimePackage as WorkspacePackage<any> | undefined,
 				// if the input `path` is an import being performed inside of a package, in addition to not being a relative import,
 				// then use the package manager to resolve the imported path.
-				resolved_path = runtimePackage && !path.startsWith("./") && !path.startsWith("../")
-					? runtimePackage.resolveImport(path)
-					: undefined
+				resolved_result = runtimePackage && !isCertainlyRelativePath(path)
+					? (runtimePackage.resolveImport(path) ?? runtimePackage.resolveWorkspaceImport(path))
+					: undefined,
+				[resolved_path, resolved_package] = array_isArray(resolved_result)
+					? resolved_result
+					: [resolved_result, runtimePackage]
 			if (DEBUG.LOG && logFn) {
 				logFn(`[runtime-package] resolving: ${path}` + (!resolved_path ? ""
 					: `\n>> successfully resolved to: ${resolved_path}`
@@ -284,7 +289,7 @@ export const resolverPluginSetup = (config?: DeepPartial<ResolverPluginSetupConf
 			return resolved_path ? {
 				path: resolved_path,
 				namespace: output_ns,
-				pluginData: { ...pluginData } satisfies CommonPluginData,
+				pluginData: { ...pluginData, runtimePackage: resolved_package } satisfies CommonPluginData,
 			} : undefined
 		}
 
@@ -320,7 +325,7 @@ export const resolverPluginSetup = (config?: DeepPartial<ResolverPluginSetupConf
 			// since the next resolver (`relativePathResolver`) will do this simple task much faster, without reading the filesystem.
 			if (
 				(pluginData.resolverConfig?.useRelativePath !== false)
-				&& (path.startsWith("./") || path.startsWith("../") || isAbsolutePath(path))
+				&& (isCertainlyRelativePath(path) || isAbsolutePath(path))
 			) { return }
 			const
 				resolve_dir = resolvePath(ensureEndSlash(resolveDir ? resolveDir : absWorkingDir)),
