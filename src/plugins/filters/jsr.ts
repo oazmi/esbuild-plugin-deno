@@ -76,7 +76,10 @@ export const jsrPluginSetup = (config: Partial<JsrPluginSetupConfig> = {}): Esbu
 				runtimePackage = await DenoPackage.fromUrl(path),
 				relative_alias_pathname = parsePackageUrl(path).pathname,
 				relative_alias = relative_alias_pathname === "/" ? "." : ensureStartDotSlash(relative_alias_pathname),
-				path_url = runtimePackage.resolveExport(relative_alias, { baseAliasDir: "" })
+				import_config = { baseAliasDir: "" },
+				path_url = runtimePackage.resolveExport(relative_alias, import_config)
+			// TODO: I believe workspace resolution (the commented line below) is not needed here, because the resolvers-plugin will take care of it. (but I could be wrong)
+			// ?? runtimePackage.resolveWorkspaceExport(relative_alias, import_config)?.[0]
 			// TODO: maybe instead of throwing a js error, we should return a result to esbuild with the message embedded in `result.errors[0]`.
 			if (!path_url) { throw new Error(`failed to resolve the path "${path}" from the deno package: "jsr:${runtimePackage.getName()}@${runtimePackage.getVersion()}"`) }
 			// the `build.resolve` call made below implicitly gets resolved by our http plugin, and eventually gets loaded by it too.

@@ -70,7 +70,7 @@
  * eq(resIm("npm-pkg/utils/cli"), "npm:boomer-package/utils/cli")
  *
  * // testing out the alias-path resolution of the package's exported entries.
- * eq(resEx("jsr:@scope/lib"),                         undefined) // by default, you must provide the version number as well
+ * eq(resEx("jsr:@scope/lib"),                         "https://jsr.io/@scope/lib/0.1.0/src/mod.ts")
  * eq(resEx("jsr:@scope/lib",               config_2), "https://jsr.io/@scope/lib/0.1.0/src/mod.ts")
  * eq(resEx("jsr:@scope/lib/",              config_2), "https://jsr.io/@scope/lib/0.1.0/src/mod.ts")
  * eq(resEx("jsr:@scope/lib@0.1.0",         config_1), "./src/mod.ts")
@@ -85,9 +85,8 @@
  * eq(resEx("jsr:@scope/lib@0.1.0/utils/cli/file.js"), "https://jsr.io/@scope/lib/0.1.0/src/cli/file.js")
  * ```
 */
-import { type ResolvePathFromImportMapEntriesConfig } from "../importmap/mod.js";
 import type { ImportMapSortedEntries } from "../importmap/typedefs.js";
-import { RuntimePackage } from "./base.js";
+import { WorkspacePackage, type ResolveWorkspaceReturnType, type RuntimePackageResolveImportConfig } from "./base.js";
 /** this is a subset of the "deno.json" file schema, copied from my other project.
  * [source link](https://jsr.io/@oazmi/build-tools/0.2.4/src/types/deno_json.ts).
 */
@@ -129,10 +128,7 @@ export interface DenoJsonSchema {
             [key: string]: string;
         };
     };
-    /** the members of this workspace.
-     *
-     * TODO: I haven't used deno workspaces, so I won't bother implementing this feature for the plugin until much later.
-    */
+    /** the child packages of this workspace. */
     workspace?: string[];
     [property: string]: any;
 }
@@ -140,17 +136,19 @@ type Exports = string | {
     /** export aliases must follow the regex "^\.(/.*)?$" */
     [alias: string]: string;
 };
-export declare class DenoPackage extends RuntimePackage<DenoJsonSchema> {
+export declare class DenoPackage extends WorkspacePackage<DenoJsonSchema> {
     protected readonly importMapSortedEntries: ImportMapSortedEntries;
     protected readonly exportMapSortedEntries: ImportMapSortedEntries;
     getName(): string;
     getVersion(): string;
     getPath(): string;
     constructor(package_object: DenoJsonSchema, package_path: string);
-    resolveExport(path_alias: string, config?: Partial<ResolvePathFromImportMapEntriesConfig>): string | undefined;
-    resolveImport(path_alias: string, config?: Partial<ResolvePathFromImportMapEntriesConfig>): string | undefined;
+    resolveExport(path_alias: string, config?: Partial<RuntimePackageResolveImportConfig>): string | undefined;
+    resolveImport(path_alias: string, config?: Partial<RuntimePackageResolveImportConfig>): string | undefined;
+    resolveWorkspaceImport(path_alias: string, config?: Partial<RuntimePackageResolveImportConfig>): ResolveWorkspaceReturnType | undefined;
     static fromUrl<SCHEMA extends DenoJsonSchema, INSTANCE = DenoPackage>(jsr_package: URL | string): Promise<INSTANCE>;
 }
+export declare const denoPackageJsonFilenames: string[];
 /** given a jsr schema uri (such as `jsr:@std/assert/assert-equals`), this function resolves the http url of the package's metadata file (i.e. `deno.json(c)`).
  *
  * @example
@@ -172,8 +170,13 @@ export declare class DenoPackage extends RuntimePackage<DenoJsonSchema> {
  * // `["0.8.6", "0.8.5", "0.8.5-a", "0.8.4", "0.8.3", "0.8.3-d", "0.8.3-b", "0.8.3-a", "0.8.2", "0.8.1", "0.8.0"]`
  * // so, a query for version "^0.8.0" should return "0.8.6", and "<0.8.6" would return "0.8.5", etc...
  * eq((await fn("jsr:@oazmi/kitchensink@^0.8.0")).href,         "https://jsr.io/@oazmi/kitchensink/0.8.6/deno.json")
- * eq((await fn("jsr:@oazmi/kitchensink@<0.8.6")).href,         "https://jsr.io/@oazmi/kitchensink/0.8.5/deno.json")
+ * // TODO: my semver resolution library `@oazmi/kitchensink/semver` cannot distinguish between pre-releases and regular releases,
+ * //   so the test below will fail as a result, since my library selects version "0.8.5-a" instead of "0.8.5".
+ * // eq((await fn("jsr:@oazmi/kitchensink@<0.8.6")).href,         "https://jsr.io/@oazmi/kitchensink/0.8.5/deno.json")
  * eq((await fn("jsr:@oazmi/kitchensink@0.8.2 - 0.8.4")).href,  "https://jsr.io/@oazmi/kitchensink/0.8.4/deno.json")
+ *
+ * // the jsonc (json with comments) format for "deno.json" and "jsr.json" is also supported.
+ * eq((await fn("jsr:@preact-icons/ai@ <= 1.0.13 1.x")).href,   "https://jsr.io/@preact-icons/ai/1.0.13/deno.jsonc")
  * ```
 */
 export declare const jsrPackageToMetadataUrl: (jsr_package: `jsr:${string}` | URL) => Promise<URL>;

@@ -6,11 +6,13 @@
  * > otherwise, if you want, you can customize the namespace of this plugin by specifying it in the `config.namespace` option.
  *
  * below is a summary what the path resolution procedure of this plugin entails, given a certain esbuild input {@link OnResolveArgs | `args`}:
- * 1. first, if {@link RuntimePackage | `args.pluginData.runtimePackage`} exists,
- *    then the plugin tries to resolve the input `args.path` through the use of the {@link RuntimePackage.resolveImport} method.
+ * 1. first, if {@link WorkspacePackage | `args.pluginData.runtimePackage`} exists,
+ *    then the plugin tries to resolve the input `args.path` through the use of the {@link WorkspacePackage.resolveImport} method.
  *    - if it succeeds (i.e. `args.path` was an alias/import-map specified in the package file),
  *      then the resolved path, along with the original `args.pluginData`, is returned.
- *    - otherwise, if it fails, then the next path resolution takes place (import-map).
+ *    - if it fails, then it tries to resolve the input `args.path` against any potential workspace package directories (specified in the `deno.json` config),
+ *      through the use of the {@link WorkspacePackage.resolveWorkspaceImport} method.
+ *    - otherwise, if workspace resolution fails, then the next path resolution takes place (import-map).
  * 2. next, if either {@link ImportMap | `args.pluginData.importMap`} exists,
  *    or {@link ImportMapResolverConfig.globalImportMap | `config.importMap.globalImportMap`} exists,
  *    then the plugin will try to resolve the input `args.path` with respect to these import-maps,
@@ -155,7 +157,7 @@ export interface ResolverPluginSetupConfig {
  * @example
  * ```ts
  * import type { EsbuildPlugin, EsbuildPluginBuild, OnLoadArgs, OnResolveArgs } from "./typedefs.ts"
- * import { PLUGIN_NAMESPACE.RESOLVER_PIPELINE } from "./typedefs.ts"
+ * import { PLUGIN_NAMESPACE } from "./typedefs.ts"
  *
  * const THIS_plugins_namespace = PLUGIN_NAMESPACE.RESOLVER_PIPELINE // == "oazmi-resolver-pipeline"
  *

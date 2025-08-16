@@ -1,9 +1,10 @@
 import { getRuntimeCwd, identifyCurrentRuntime } from "@oazmi/kitchensink/crossenv"
 import { ensureEndSlash, ensureFileUrlIsLocalPath, ensureStartDotSlash, getUriScheme, pathToPosixPath, resolveAsUrl, resolvePathFactory } from "@oazmi/kitchensink/pathman"
+import { isString } from "@oazmi/kitchensink/struct"
 import type { RelativePathResolverConfig } from "./plugins/resolvers.js"
 
 
-export { array_isEmpty, dom_decodeURI, json_parse, json_stringify, number_isFinite, number_parseInt, object_assign, object_entries, object_fromEntries, object_keys, object_values, promise_outside, promise_resolve } from "@oazmi/kitchensink/alias"
+export { array_isArray, array_isEmpty, dom_decodeURI, json_parse, json_stringify, number_isFinite, number_parseInt, object_assign, object_entries, object_fromEntries, object_keys, object_values, promise_all, promise_outside, promise_resolve } from "@oazmi/kitchensink/alias"
 export { bind_array_push, bind_map_get, bind_map_has, bind_map_set } from "@oazmi/kitchensink/binder"
 export { InvertibleMap, invertMap } from "@oazmi/kitchensink/collections"
 export { execShellCommand, identifyCurrentRuntime, RUNTIME } from "@oazmi/kitchensink/crossenv"
@@ -11,8 +12,8 @@ export { memorize } from "@oazmi/kitchensink/lambda"
 export { ensureEndSlash, ensureFileUrlIsLocalPath, ensureStartDotSlash, fileUrlToLocalPath, getUriScheme, joinPaths, normalizePath, parseFilepathInfo, parsePackageUrl, pathToPosixPath, resolveAsUrl, resolvePathFactory } from "@oazmi/kitchensink/pathman"
 export { maxSatisfying as semverMaxSatisfying, minSatisfying as semverMinSatisfying } from "@oazmi/kitchensink/semver"
 export { escapeLiteralStringForRegex, jsoncRemoveComments, replacePrefix, replaceSuffix } from "@oazmi/kitchensink/stringman"
-export { isArray, isObject, isString } from "@oazmi/kitchensink/struct"
-export type { ConstructorOf, MaybePromise, Optional } from "@oazmi/kitchensink/typedefs"
+export { constructorOf, isArray, isObject, isString } from "@oazmi/kitchensink/struct"
+export type { ConstructorOf, DeepPartial, MaybePromise, Optional } from "@oazmi/kitchensink/typedefs"
 export type * as esbuild from "esbuild"
 
 /** flags used for minifying (or eliminating) debugging logs and asserts, when an intelligent bundler, such as `esbuild`, is used. */
@@ -28,6 +29,11 @@ export const enum DEBUG {
 export const isAbsolutePath = (segment: string): boolean => {
 	const scheme = getUriScheme(segment) ?? "relative"
 	return scheme !== "relative"
+}
+
+// this function helps with testing if a given path segment is guaranteed to be a relative path segment (i.e. begins with "./" or "../").
+export const isCertainlyRelativePath = (segment: string): boolean => {
+	return segment.startsWith("./") || segment.startsWith("../")
 }
 
 /** see {@link RelativePathResolverConfig.resolvePath} for details. */
@@ -60,7 +66,26 @@ export const
 
 export const noop = (() => undefined)
 
-// TODO: import the fixed the implementation from kitchensink
-export type DeepPartial<T> = T extends (Function | Array<any> | String | BigInt | Number | Boolean | Symbol | URL | Map<any, any> | Set<any>)
-	? T : T extends Record<string, any>
-	? { [P in keyof T]?: DeepPartial<T[P]> } : T
+export const urlToString = (url: string | URL): string => { return isString(url) ? url : url.href }
+
+/** fetch multiple urls sequentially, and return the first successful response (i.e. http-code 200).
+ * 
+ * when none of the response is successful, an `undefined` is returned.
+*/
+export const fetchScan = async (urls: (string | URL)[], init?: RequestInit): Promise<Response | undefined> => {
+	for (const url of urls) {
+		const response = await fetch(url, { ...defaultFetchConfig, ...init }).catch(noop)
+		if (response?.ok) { return response }
+		await response?.body?.cancel()
+	}
+}
+
+export const fetchScanUrls = async (urls: (string | URL)[], init?: RequestInit): Promise<string | undefined> => {
+	const valid_response = await fetchScan(urls, init)
+	if (valid_response) {
+		const url = valid_response.url
+		// it is necessary to cancel the response's body to avoid memory leaks.
+		valid_response.body?.cancel()
+		return url
+	}
+}

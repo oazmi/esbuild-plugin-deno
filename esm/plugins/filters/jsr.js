@@ -38,7 +38,9 @@ export const jsrPluginSetup = (config = {}) => {
             // TODO: I'm not following the idea below, but may have to in the future if problems arise due to symbols:
             // > we also strip away all symbols from the remaining plugin data, since I use symbols as a means of identifying if an entity had previously visited the same resolver.
             // restPluginData = Object.fromEntries(Object.entries(_restPluginData)),
-            runtimePackage = await DenoPackage.fromUrl(path), relative_alias_pathname = parsePackageUrl(path).pathname, relative_alias = relative_alias_pathname === "/" ? "." : ensureStartDotSlash(relative_alias_pathname), path_url = runtimePackage.resolveExport(relative_alias, { baseAliasDir: "" });
+            runtimePackage = await DenoPackage.fromUrl(path), relative_alias_pathname = parsePackageUrl(path).pathname, relative_alias = relative_alias_pathname === "/" ? "." : ensureStartDotSlash(relative_alias_pathname), import_config = { baseAliasDir: "" }, path_url = runtimePackage.resolveExport(relative_alias, import_config);
+            // TODO: I believe workspace resolution (the commented line below) is not needed here, because the resolvers-plugin will take care of it. (but I could be wrong)
+            // ?? runtimePackage.resolveWorkspaceExport(relative_alias, import_config)?.[0]
             // TODO: maybe instead of throwing a js error, we should return a result to esbuild with the message embedded in `result.errors[0]`.
             if (!path_url) {
                 throw new Error(`failed to resolve the path "${path}" from the deno package: "jsr:${runtimePackage.getName()}@${runtimePackage.getVersion()}"`);

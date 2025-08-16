@@ -1,6 +1,6 @@
 import type { esbuild, MaybePromise } from "../deps.js";
 import type { ImportMap } from "../importmap/typedefs.js";
-import type { RuntimePackage } from "../packageman/base.js";
+import type { WorkspacePackage } from "../packageman/base.js";
 /** a central enum containing the list of esbuild namespaces used by the plugins in this library. */
 export declare const enum PLUGIN_NAMESPACE {
     RESOLVER_PIPELINE = "oazmi-resolver-pipeline",
@@ -37,7 +37,7 @@ export interface CommonPluginData {
     /** specifies the current scope's runtime package manager (such as deno, jsr, npm, node, etc...),
      * so that the package's own import and export aliases can be resolved appropriately.
     */
-    runtimePackage?: RuntimePackage<any>;
+    runtimePackage?: WorkspacePackage<any>;
     /** you may control which resolvers to disable through the use of this property. */
     resolverConfig?: {
         /** enable or disable missing `pluginData` inheritance (performed by the {@link entryPlugin}) for the current entity.

@@ -64,17 +64,23 @@
  *
  * @module
 */
-import { RuntimePackage } from "../../packageman/base.js";
+import { type WorkspacePackage } from "../../packageman/base.js";
 import type { CommonPluginData, EsbuildPlugin, EsbuildPluginSetup } from "../typedefs.js";
 /** this is a slightly modified version of {@link CommonPluginData},
  * which accepts a path or url to your "deno.json" file under the `runtimePackage` property.
 */
 export interface InitialPluginData extends Omit<CommonPluginData, "runtimePackage"> {
-    /** specify your project's top-level runtime package manager object,
-     * or provide the path to the package json(c) file (such as "deno.json", "jsr.jsonc", "package.json", etc...),
+    /** specify your project's top-level runtime package manager,
      * so that your project's import and export aliases can be resolved appropriately.
+     *
+     * there are several ways for you to specify your runtime package for package-resolution support:
+     * - provide an existing {@link WorkspacePackage} object.
+     * - provide a path `string` or `URL` to the package json(c) file (such as "deno.json", "jsr.jsonc", "package.json", etc...).
+     * - provide a directory-path `string` or `URL` (**must** end with a trailing slash `"/"`) where a package json(c) file exists,
+     *   and the plugin will scan for the following files at that location in the provided order:
+     *   - `"deno.json"`, `"deno.jsonc"`, `"jsr.json"`, `"jsr.jsonc"`, `"package.json"`, `"package.jsonc"`.
     */
-    runtimePackage?: RuntimePackage<any> | URL | string;
+    runtimePackage?: WorkspacePackage<any> | URL | string;
 }
 /** configuration options for the {@link entryPluginSetup} esbuild-setup factory function. */
 export interface EntryPluginSetupConfig {
@@ -113,6 +119,15 @@ export interface EntryPluginSetupConfig {
      * @defaultValue `true`
     */
     enableInheritPluginData: boolean;
+    /** enable scanning of parental/ancestral directories of your project's
+     * {@link InitialPluginData.runtimePackage | base directory (`initialPluginData.runtimePackage`)},
+     * so that all relevant workspace packages up the directory tree can be discovered and cached.
+     *
+     * this would permit the resolution of workspace package aliases that are not directly mentioned in your "deno.json" package file.
+     *
+     * @defaultValue `false`
+    */
+    scanAncestralWorkspaces: boolean;
     /** specify which `namespace`s should be intercepted by the entry-point plugin.
      * all other `namespace`s will not be processed by this plugin.
      *

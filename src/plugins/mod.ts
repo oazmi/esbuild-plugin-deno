@@ -16,7 +16,7 @@ export { DIRECTORY } from "./typedefs.js"
 
 /** the configuration interface for the deno esbuild plugins suite {@link denoPlugins}. */
 export interface DenoPluginsConfig extends
-	Pick<EntryPluginSetupConfig, "initialPluginData">,
+	Pick<EntryPluginSetupConfig, "initialPluginData" | "scanAncestralWorkspaces">,
 	Pick<ResolverPluginSetupConfig, "log">,
 	Pick<NpmPluginSetupConfig, "autoInstall" | "peerDependencies" | "nodeModulesDirs">,
 	Pick<ImportMapResolverConfig, "globalImportMap"> {
@@ -55,6 +55,7 @@ export interface DenoPluginsConfig extends
 
 const defaultDenoPluginsConfig: DenoPluginsConfig = {
 	initialPluginData: undefined,
+	scanAncestralWorkspaces: false,
 	log: false,
 	logFor: ["npm", "resolver"],
 	autoInstall: true,
@@ -84,11 +85,11 @@ export const denoPlugins = (config?: Partial<DenoPluginsConfig>): [
 	resolver_pipeline_plugin: EsbuildPlugin,
 ] => {
 	const
-		{ acceptNamespaces, autoInstall, getCwd, globalImportMap, log, logFor, peerDependencies, nodeModulesDirs, initialPluginData } = { ...defaultDenoPluginsConfig, ...config },
+		{ acceptNamespaces, autoInstall, getCwd, globalImportMap, log, logFor, peerDependencies, nodeModulesDirs, initialPluginData, scanAncestralWorkspaces } = { ...defaultDenoPluginsConfig, ...config },
 		resolvePath = resolveResourcePathFactory(getCwd, isAbsolutePath)
 
 	return [
-		entryPlugin({ initialPluginData, acceptNamespaces }),
+		entryPlugin({ initialPluginData, scanAncestralWorkspaces, acceptNamespaces }),
 		httpPlugin({ acceptNamespaces, log: logFor.includes("http") ? log : false }),
 		jsrPlugin({ acceptNamespaces }),
 		npmPlugin({ acceptNamespaces, autoInstall, peerDependencies, nodeModulesDirs, log: logFor.includes("npm") ? log : false }),

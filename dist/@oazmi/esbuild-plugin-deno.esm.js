@@ -109,6 +109,7 @@ var number_parseInt = /* @__PURE__ */ (() => number_constructor.parseInt)();
 var object_assign = /* @__PURE__ */ (() => object_constructor.assign)();
 var object_entries = /* @__PURE__ */ (() => object_constructor.entries)();
 var object_fromEntries = /* @__PURE__ */ (() => object_constructor.fromEntries)();
+var object_getPrototypeOf = /* @__PURE__ */ (() => object_constructor.getPrototypeOf)();
 var object_keys = /* @__PURE__ */ (() => object_constructor.keys)();
 var promise_outside = () => {
   let resolve, reject;
@@ -118,6 +119,7 @@ var promise_outside = () => {
   });
   return [promise, resolve, reject];
 };
+var promise_all = /* @__PURE__ */ promise_constructor.all.bind(promise_constructor);
 var promise_resolve = /* @__PURE__ */ promise_constructor.resolve.bind(promise_constructor);
 var symbol_iterator = /* @__PURE__ */ (() => symbol_constructor.iterator)();
 var symbol_toStringTag = /* @__PURE__ */ (() => symbol_constructor.toStringTag)();
@@ -136,9 +138,9 @@ var DEBUG;
 
 // node_modules/@oazmi/kitchensink/esm/binder.js
 var bindMethodFactoryByName = (instance, method_name, ...args) => {
-  return (thisArg) => {
+  return ((thisArg) => {
     return instance[method_name].bind(thisArg, ...args);
-  };
+  });
 };
 var bindMethodToSelfByName = (self, method_name, ...args) => self[method_name].bind(self, ...args);
 var prototypeOfClass = (cls) => {
@@ -162,6 +164,9 @@ var bind_map_set = /* @__PURE__ */ bindMethodFactoryByName(map_proto, "set");
 var bind_map_values = /* @__PURE__ */ bindMethodFactoryByName(map_proto, "values");
 
 // node_modules/@oazmi/kitchensink/esm/struct.js
+var constructorOf = (class_instance) => {
+  return object_getPrototypeOf(class_instance).constructor;
+};
 var isComplex = (obj) => {
   const obj_type = typeof obj;
   return obj_type === "object" || obj_type === "function";
@@ -435,7 +440,7 @@ var joinPaths = (...segments) => {
   return joinPosixPaths(...segments.map(pathToPosixPath));
 };
 var resolvePosixPathFactory = (absolute_current_dir, absolute_segment_test_fn = isAbsolutePath) => {
-  const getCwdPath = isString(absolute_current_dir) ? () => absolute_current_dir : absolute_current_dir;
+  const getCwdPath = isString(absolute_current_dir) ? (() => absolute_current_dir) : absolute_current_dir;
   return (...segments) => {
     const last_abs_segment_idx = segments.findLastIndex(absolute_segment_test_fn);
     if (last_abs_segment_idx >= 0) {
@@ -450,7 +455,7 @@ var resolvePathFactory = (absolute_current_dir, absolute_segment_test_fn = isAbs
   if (isString(absolute_current_dir)) {
     absolute_current_dir = pathToPosixPath(absolute_current_dir);
   }
-  const getCwdPath = isString(absolute_current_dir) ? () => absolute_current_dir : () => pathToPosixPath(absolute_current_dir()), posix_path_resolver = resolvePosixPathFactory(getCwdPath, absolute_segment_test_fn);
+  const getCwdPath = isString(absolute_current_dir) ? (() => absolute_current_dir) : (() => pathToPosixPath(absolute_current_dir())), posix_path_resolver = resolvePosixPathFactory(getCwdPath, absolute_segment_test_fn);
   return (...segments) => posix_path_resolver(...segments.map(pathToPosixPath));
 };
 
@@ -998,6 +1003,9 @@ var isAbsolutePath2 = (segment) => {
   const scheme = getUriScheme(segment) ?? "relative";
   return scheme !== "relative";
 };
+var isCertainlyRelativePath = (segment) => {
+  return segment.startsWith("./") || segment.startsWith("../");
+};
 var resolveResourcePathFactory = (absolute_current_dir, absolute_segment_test_fn = isAbsolutePath2) => {
   const path_resolver = resolvePathFactory(absolute_current_dir, absolute_segment_test_fn);
   return (path, importer) => {
@@ -1020,7 +1028,24 @@ var resolveResourcePathFactory = (absolute_current_dir, absolute_segment_test_fn
 var defaultFetchConfig = { redirect: "follow", cache: "force-cache" };
 var defaultGetCwd = /* @__PURE__ */ ensureEndSlash(pathToPosixPath(getRuntimeCwd(identifyCurrentRuntime(), true)));
 var defaultResolvePath = /* @__PURE__ */ resolveResourcePathFactory(defaultGetCwd, isAbsolutePath2);
-var noop2 = () => void 0;
+var noop2 = (() => void 0);
+var fetchScan = async (urls, init) => {
+  for (const url of urls) {
+    const response = await fetch(url, { ...defaultFetchConfig, ...init }).catch(noop2);
+    if (response?.ok) {
+      return response;
+    }
+    await response?.body?.cancel();
+  }
+};
+var fetchScanUrls = async (urls, init) => {
+  const valid_response = await fetchScan(urls, init);
+  if (valid_response) {
+    const url = valid_response.url;
+    valid_response.body?.cancel();
+    return url;
+  }
+};
 
 // src/importmap/mod.ts
 var resolvePathFromImportMap = (path_alias, import_map) => {
@@ -1079,6 +1104,7 @@ var resolvePathFromImportMapEntries = (path_alias, import_map_entries, config) =
 };
 
 // src/packageman/base.ts
+var cachedRuntimePackage = /* @__PURE__ */ new Map();
 var RuntimePackage = class {
   /** the path or url of the package json(c) file.
    * 
@@ -1112,6 +1138,9 @@ var RuntimePackage = class {
    * > for test case examples and configuration options, see the documentation comments of {@link resolvePathFromImportMapEntries}
   */
   resolveExport(path_alias, config) {
+    if (config?.workspaceExportsVisited?.has(this.getPath())) {
+      return;
+    }
     return resolvePathFromImportMapEntries(path_alias, this.exportMapSortedEntries, { sort: false, ...config });
   }
   /** this method tries to resolve the provided import `path_alias` done by some resource within this package,
@@ -1123,9 +1152,21 @@ var RuntimePackage = class {
    * > for test case examples and configuration options, see the documentation comments of {@link resolvePathFromImportMapEntries}
   */
   resolveImport(path_alias, config) {
+    if (config?.workspaceImportsVisited?.has(this.getPath())) {
+      return;
+    }
     return resolvePathFromImportMapEntries(path_alias, this.importMapSortedEntries, { sort: false, ...config });
   }
   /** create an instance of this class by loading a package's json(c) file from a url or local file-system path.
+   * 
+   * > [!important]
+   * > the resulting new instance is cached (memorized), so that it can be reused if another query with the same normalized path is provided.
+   * > 
+   * > _why are we forcing a cache mechanism on the base class?_
+   * > 
+   * > because the workspace children/parents, in the {@link WorkspacePackage} subclass, are referenced by their absolute path,
+   * > and resolving an import through a workspace package would involve the creation of that child/parent runtime package via this method,
+   * > thus leading to an exponential number of redundant re-creation of identical package manager objects.
    * 
    * > [!tip]
    * > the constructor uses a "JSONC" parser (from [@oazmi/kitchensink/stringman](https://jsr.io/@oazmi/kitchensink/0.9.10/src/stringman.ts)) for the fetched files.
@@ -1133,21 +1174,140 @@ var RuntimePackage = class {
   */
   static async fromUrl(package_jsonc_path) {
     package_jsonc_path = resolveAsUrl(package_jsonc_path, defaultResolvePath());
-    const package_object = json_parse(jsoncRemoveComments(await (await fetch(package_jsonc_path, defaultFetchConfig)).text()));
-    return new this(package_object, package_jsonc_path.href);
+    const package_jsonc_path_str = package_jsonc_path.href, cached_result = cachedRuntimePackage.get(package_jsonc_path_str);
+    if (cached_result) {
+      return cached_result;
+    }
+    const [promise, resolve, reject] = promise_outside();
+    cachedRuntimePackage.set(package_jsonc_path_str, promise);
+    const package_object = json_parse(jsoncRemoveComments(await (await fetch(package_jsonc_path, defaultFetchConfig)).text())), new_instance = new this(package_object, package_jsonc_path_str);
+    resolve(new_instance);
+    return new_instance;
+  }
+};
+var WorkspacePackage = class extends RuntimePackage {
+  /** specify all child workspaces of this package.
+   * 
+   * - the exports of every child-workspace package are inherited by _this_ runtime package.
+   *   > example: if `packageB` is child-workspace of `packageA`, then `packageA.exports` would be a superset of `packageB.exports`.
+   * - similarly, the imports of _this_ runtime package will be implicitly available for all child-workspace packages.
+   *   > example: if `packageB` is child-workspace of `packageA`, then `packageA.imports` would be a subset of `packageB.imports`.
+   *   
+   *   > [!note]
+   *   > since child-workspaces are also considered to be dependencies of the parent package (the monorepo),
+   *   > each child-workspace would be available to for importation by all child-workspaces.
+   *   > in other words, sibling packages of the workspace would be able to import one another.
+   * 
+   * > [!important]
+   * > the constructor of the subclasses do **not** typically parse the workspace paths from the provided schema,
+   * > nor do they load the {@link WorkspacePackage} associated with those workspaces,
+   * > since it would require asynchronous operations (such as `fetch`) which cannot be performed inside the constructor.
+   * > this is why you would either need to manually add/push your child/parent-workspace {@link WorkspacePackage} object,
+   * > or use the asynchronous {@link fromUrl} static method in the subclasses to take care of auto-loading and auto-injecting parent and child workspaces.
+  */
+  workspaceChildren;
+  /** specify all parent workspaces of this package.
+   * 
+   * - the imports of _this_ runtime package will be implicitly available for all child-workspace packages.
+   *   > example: if `packageB` is child-workspace of `packageA`, then `packageA.imports` would be a subset of `packageB.imports`.
+   * - the exports of every child-workspace package are inherited by _this_ runtime package.
+   *   > example: if `packageB` is child-workspace of `packageA`, then `packageA.exports` would be a superset of `packageB.exports`.
+   * 
+   * > [!important]
+   * > the constructor of the subclasses do **not** typically parse the workspace paths from the provided schema,
+   * > nor do they load the {@link WorkspacePackage} associated with those workspaces,
+   * > since it would require asynchronous operations (such as `fetch`) which cannot be performed inside the constructor.
+   * > this is why you would either need to manually add/push your child/parent-workspace {@link WorkspacePackage} object,
+   * > or use the asynchronous {@link fromUrl} static method in the subclasses to take care of auto-loading and auto-injecting parent and child workspaces.
+  */
+  workspaceParents;
+  constructor(package_object, package_path) {
+    super(package_object, package_path);
+    this.workspaceChildren = [];
+    this.workspaceParents = [];
+  }
+  async addWorkspaceChild(package_or_path) {
+    const this_constructor = constructorOf(this), this_package_path = this.getPath(), package_is_path = isString(package_or_path) || package_or_path instanceof URL, package_url = package_is_path ? resolveAsUrl(package_or_path, this_package_path) : void 0, child_package = package_is_path ? await this_constructor.fromUrl(package_url) : package_or_path;
+    this.workspaceChildren.push(child_package);
+    child_package.workspaceParents.push(this);
+  }
+  async addWorkspaceParent(package_or_path) {
+    const this_constructor = constructorOf(this), this_package_path = this.getPath(), package_is_path = isString(package_or_path) || package_or_path instanceof URL, package_url = package_is_path ? resolveAsUrl(package_or_path, this_package_path) : void 0, parent_package = package_is_path ? await this_constructor.fromUrl(package_url) : package_or_path;
+    this.workspaceParents.push(parent_package);
+    parent_package.workspaceChildren.push(this);
+  }
+  /** this method tries to resolve the provided export `path_alias` to an absolute resource path,
+   * using this package's child workspaces (i.e. not including _this_ package's _own_ exports).
+   * 
+   * - if the action is successful, then a 2-tuple is returned,
+   *   consisting of the `resolved_path` and the {@link WorkspacePackage | `child_workspace_package`} that managed to resolve the provided `path_alias`.
+   * - if there are no child-workspaces, or if the child-workspaces fail to resolve the exported `path_alias`, then `undefined` will be returned.
+   * - this method does not inspect this package's own exports. you should use {@link resolveExport} for that.
+  */
+  resolveWorkspaceExport(path_alias, config) {
+    const { workspaceExportsVisited = /* @__PURE__ */ new Set(), ...import_map_config } = config ?? {}, workspace_children = this.workspaceChildren, current_workspaces_path = this.getPath();
+    if (workspaceExportsVisited.has(current_workspaces_path)) {
+      return;
+    }
+    workspaceExportsVisited.add(current_workspaces_path);
+    for (const runtime_package of workspace_children) {
+      const child_export_result = runtime_package.resolveExport(path_alias, {
+        workspaceExportsVisited,
+        ...import_map_config
+      }) ?? runtime_package.resolveWorkspaceExport(path_alias, {
+        workspaceExportsVisited,
+        ...import_map_config
+      });
+      if (child_export_result !== void 0) {
+        return isString(child_export_result) ? [child_export_result, runtime_package] : child_export_result;
+      }
+    }
+    return;
+  }
+  /** this method tries to resolve the provided import `path_alias` done by some resource within this package,
+   * using the internal {@link importMapSortedEntries} list of import-aliases that this package uses.
+   * 
+   * - if the action is successful, then a 2-tuple is returned,
+   *   consisting of the `resolved_path` and the {@link WorkspacePackage | `child_workspace_package`} that managed to resolve the provided `path_alias`.
+   * - if no import resources match the given `path_alias` within this package, then this package's {@link workspaceParents} will be traversed.
+   * - if there are no parent-workspaces, or if the parent-workspaces fail to resolve this `path_alias`, then `undefined` will be returned.
+   *   (which would probably imply that the given `path_alias` is already either an absolute or relative path, or perhaps incorrect altogether)
+   * 
+   * > [!tip]
+   * > for test case examples and configuration options, see the documentation comments of {@link resolvePathFromImportMapEntries}
+  */
+  resolveWorkspaceImport(path_alias, config) {
+    const { workspaceImportsVisited = /* @__PURE__ */ new Set(), ...import_map_config } = config ?? {}, workspace_parents = this.workspaceParents, current_workspaces_path = this.getPath();
+    if (workspaceImportsVisited.has(current_workspaces_path)) {
+      return;
+    }
+    workspaceImportsVisited.add(current_workspaces_path);
+    for (const runtime_package of workspace_parents) {
+      const child_import_result = runtime_package.resolveImport(path_alias, {
+        workspaceImportsVisited,
+        ...import_map_config
+      }) ?? runtime_package.resolveWorkspaceImport(path_alias, {
+        workspaceImportsVisited,
+        ...import_map_config
+      });
+      if (child_import_result !== void 0) {
+        return isString(child_import_result) ? [child_import_result, runtime_package] : child_import_result;
+      }
+    }
+    return;
   }
 };
 
 // src/packageman/deno.ts
-var get_dir_path_of_file_path = (file_path) => normalizePath(file_path.endsWith("/") ? file_path : file_path + "/../");
-var DenoPackage = class extends RuntimePackage {
+var existingDenoPackageConstructionStatus = /* @__PURE__ */ new Map();
+var DenoPackage = class extends WorkspacePackage {
   importMapSortedEntries;
   exportMapSortedEntries;
   getName() {
-    return this.packageInfo.name;
+    return this.packageInfo.name ?? "@no-name/package";
   }
   getVersion() {
-    return this.packageInfo.version;
+    return this.packageInfo.version ?? "0.0.0";
   }
   getPath() {
     const package_path = this.packagePath;
@@ -1166,37 +1326,78 @@ var DenoPackage = class extends RuntimePackage {
     this.importMapSortedEntries = object_entries(imports_object).toSorted(compareImportMapEntriesByLength);
   }
   resolveExport(path_alias, config) {
-    const name = this.getName(), version = this.getVersion(), package_json_path = pathToPosixPath(this.getPath()), {
-      baseAliasDir = `jsr:${name}@${version}`,
-      basePathDir = get_dir_path_of_file_path(package_json_path),
-      ...rest_config
-    } = config ?? {}, residual_path_alias = replacePrefix(path_alias, baseAliasDir)?.replace(/^\/+/, "/");
-    if (residual_path_alias !== void 0) {
-      path_alias = baseAliasDir + (residual_path_alias === "/" ? "" : residual_path_alias);
+    const package_json_path = this.getPath();
+    if (config?.workspaceExportsVisited?.has(package_json_path)) {
+      return;
     }
-    return super.resolveExport(path_alias, { baseAliasDir, basePathDir, ...rest_config });
-  }
-  resolveImport(path_alias, config) {
-    const name = this.getName(), version = this.getVersion(), package_json_path = pathToPosixPath(this.getPath()), basePathDir = get_dir_path_of_file_path(package_json_path), path_alias_is_relative = path_alias.startsWith("./") || path_alias.startsWith("../"), local_package_reference_aliases = path_alias_is_relative ? [""] : [`jsr:${name}@${version}`, `jsr:${name}`, `${name}`];
-    let locally_resolved_export = void 0;
-    for (const base_alias_dir of local_package_reference_aliases) {
-      locally_resolved_export = this.resolveExport(path_alias, { ...config, baseAliasDir: base_alias_dir });
-      if (locally_resolved_export) {
-        break;
+    const name = this.getName(), version = this.getVersion(), {
+      baseAliasDir: _baseAliasDir,
+      basePathDir = parseFilepathInfo(package_json_path).dirpath,
+      ...rest_config
+    } = config ?? {}, baseAliasDirs = _baseAliasDir === void 0 ? [`jsr:${name}@${version}`, `jsr:${name}`, `${name}`] : [_baseAliasDir];
+    for (const baseAliasDir of baseAliasDirs) {
+      const residual_path_alias = replacePrefix(path_alias, baseAliasDir)?.replace(/^\/+/, "/");
+      if (residual_path_alias !== void 0) {
+        path_alias = baseAliasDir + (residual_path_alias === "/" ? "" : residual_path_alias);
+      }
+      const resolved_path = super.resolveExport(path_alias, { baseAliasDir, basePathDir, ...rest_config });
+      if (resolved_path) {
+        return resolved_path;
       }
     }
+  }
+  resolveImport(path_alias, config) {
+    const package_json_path = this.getPath();
+    if (config?.workspaceImportsVisited?.has(package_json_path)) {
+      return;
+    }
+    const basePathDir = parseFilepathInfo(package_json_path).dirpath, path_alias_is_relative = isCertainlyRelativePath(path_alias), self_reference_base_alias = path_alias_is_relative ? "" : void 0;
+    const locally_resolved_export = this.resolveExport(path_alias, { ...config, baseAliasDir: self_reference_base_alias });
     return locally_resolved_export ?? super.resolveImport(path_alias, { ...config, basePathDir });
   }
+  resolveWorkspaceImport(path_alias, config) {
+    return this.resolveWorkspaceExport(path_alias, config) ?? super.resolveWorkspaceImport(path_alias, config);
+  }
   static async fromUrl(jsr_package) {
-    const package_jsonc_path_str = isString(jsr_package) ? jsr_package : jsr_package.href, url_is_jsr_protocol = package_jsonc_path_str.startsWith("jsr:");
+    const package_path_url = resolveAsUrl(jsr_package, defaultResolvePath()), package_path_str = package_path_url.href, url_is_jsr_protocol = package_path_str.startsWith("jsr:"), url_is_directory = package_path_str.endsWith("/");
     if (url_is_jsr_protocol) {
       const { host } = parsePackageUrl(jsr_package);
       jsr_package = await memorized_jsrPackageToMetadataUrl(`jsr:${host}`);
+    } else if (url_is_directory) {
+      const package_json_urls = denoPackageJsonFilenames.map((json_filename) => new URL(json_filename, package_path_url)), valid_url = await fetchScanUrls(package_json_urls);
+      if (!valid_url) {
+        throw new Error(`Scan Error! failed to find a "./deno.json(c)" or "./jsr.json(c)" package file in your supplied directory: "${package_path_url}".`);
+      }
+      jsr_package = valid_url;
     }
-    return super.fromUrl(jsr_package);
+    const new_instance = await super.fromUrl(jsr_package), new_instance_path = new_instance.getPath(), existing_package_status = existingDenoPackageConstructionStatus.get(new_instance_path);
+    if (existing_package_status) {
+      await existing_package_status;
+      return new_instance;
+    }
+    const [promise, resolve, reject] = promise_outside();
+    existingDenoPackageConstructionStatus.set(new_instance_path, promise);
+    await promise_all(
+      (new_instance.packageInfo.workspace ?? []).map(async (path) => {
+        const child_path = ensureEndSlash(defaultResolvePath(path, new_instance_path));
+        await new_instance.addWorkspaceChild(child_path);
+      })
+    );
+    resolve();
+    return new_instance;
   }
 };
 var jsr_base_url = "https://jsr.io";
+var denoPackageJsonFilenames = [
+  "./deno.json",
+  "./deno.jsonc",
+  "./jsr.json",
+  "./jsr.jsonc"
+  // TODO: the use of "package.json" is not supported for now, since it will complicate the parsing of the import/export-maps (due to having a different structure).
+  //   in the future, I might write a `npmPackageToDenoJson` function to transform the imports (dependencies) and exports.
+  // "./package.json",
+  // "./package.jsonc", // as if such a thing will ever exist, lol
+];
 var jsrPackageToMetadataUrl = async (jsr_package) => {
   const { protocol, scope, pkg, pathname, version: desired_semver } = parsePackageUrl(jsr_package);
   if (protocol !== "jsr:") {
@@ -1205,22 +1406,51 @@ var jsrPackageToMetadataUrl = async (jsr_package) => {
   if (!scope) {
     throw new Error(`expected jsr package to contain a scope, but found "${scope}" instead, for package: "${jsr_package}"`);
   }
-  const meta_json_url = resolveAsUrl(`@${scope}/${pkg}/meta.json`, jsr_base_url), meta_json = await (await fetch(meta_json_url, defaultFetchConfig)).json(), unyanked_versions = object_entries(meta_json.versions).filter(([version_str, { yanked }]) => !yanked).map(([version_str]) => version_str);
+  const meta_json_url = new URL(`@${scope}/${pkg}/meta.json`, jsr_base_url), meta_json = await (await fetch(meta_json_url, defaultFetchConfig)).json(), unyanked_versions = object_entries(meta_json.versions).filter(([version_str, { yanked }]) => !yanked).map(([version_str]) => version_str);
   const resolved_semver = maxSatisfying(unyanked_versions, desired_semver ?? meta_json.latest);
   if (!resolved_semver) {
     throw new Error(`failed to find the desired version "${desired_semver}" of the jsr package "${jsr_package}", with available versions "${json_stringify(meta_json.versions)}"`);
   }
-  const base_host = resolveAsUrl(`@${scope}/${pkg}/${resolved_semver}/`, jsr_base_url), deno_json_url = resolveAsUrl("./deno.json", base_host), deno_jsonc_url = resolveAsUrl("./deno.jsonc", base_host), jsr_json_url = resolveAsUrl("./jsr.json", base_host), jsr_jsonc_url = resolveAsUrl("./jsr.jsonc", base_host), package_json_url = resolveAsUrl("./package.json", base_host), package_jsonc_url = resolveAsUrl("./package.jsonc", base_host);
-  const urls = [deno_json_url, deno_jsonc_url, jsr_json_url, jsr_jsonc_url];
-  for (const url of urls) {
-    if ((await fetch(url, { ...defaultFetchConfig, method: "HEAD" })).ok) {
-      return url;
-    }
+  const base_host = new URL(`@${scope}/${pkg}/${resolved_semver}/`, jsr_base_url), deno_json_urls = denoPackageJsonFilenames.map((json_filename) => new URL(json_filename, base_host));
+  const valid_url = await fetchScanUrls(deno_json_urls, { method: "HEAD" });
+  if (valid_url) {
+    return new URL(valid_url);
   }
   throw new Error(`Network Error: couldn't locate "${jsr_package}"'s package json file. searched in the following locations:
-${json_stringify(urls)}`);
+${json_stringify(deno_json_urls)}`);
 };
 var memorized_jsrPackageToMetadataUrl = memorize(jsrPackageToMetadataUrl);
+
+// src/plugins/funcdefs.ts
+var logLogger = console.log;
+var arrayLoggerFactory = (history) => {
+  const history_push = bind_array_push(history);
+  return (...data) => {
+    history_push(data);
+  };
+};
+var arrayLoggerHistory = [];
+var arrayLogger = /* @__PURE__ */ arrayLoggerFactory(arrayLoggerHistory);
+var syncTaskQueueFactory = () => {
+  let latest_promise = promise_resolve();
+  const task_queuer = (task_fn, ...args) => {
+    const original_latest_promise = latest_promise, [promise_current_task_value, resolve_current_task_value] = promise_outside();
+    latest_promise = promise_current_task_value;
+    original_latest_promise.finally(() => {
+      resolve_current_task_value(task_fn(...args));
+    });
+    return promise_current_task_value;
+  };
+  return task_queuer;
+};
+var entryPointsToImportMapEntries = (entry_points) => {
+  if (!isArray(entry_points)) {
+    entry_points = object_entries(entry_points);
+  }
+  return entry_points.map((entry) => {
+    return isString(entry) ? [entry, entry] : !isArray(entry) ? [entry.in, entry.out] : entry;
+  });
+};
 
 // src/plugins/typedefs.ts
 var defaultEsbuildNamespaces = [void 0, "", "file"];
@@ -1253,15 +1483,16 @@ var defaultEntryPluginSetup = {
   initialPluginData: void 0,
   forceInitialPluginData: false,
   enableInheritPluginData: true,
+  scanAncestralWorkspaces: false,
   acceptNamespaces: defaultEsbuildNamespaces
 };
 var defaultStdinPath = "<stdin>";
 var entryPluginSetup = (config) => {
-  const { filters, initialPluginData: _initialPluginData, forceInitialPluginData, enableInheritPluginData, acceptNamespaces: _acceptNamespaces } = { ...defaultEntryPluginSetup, ...config }, acceptNamespaces = /* @__PURE__ */ new Set([..._acceptNamespaces, "oazmi-loader-http" /* LOADER_HTTP */]), importerPluginDataRecord = /* @__PURE__ */ new Map(), importerPluginDataRecord_get = bind_map_get(importerPluginDataRecord), importerPluginDataRecord_set = bind_map_set(importerPluginDataRecord), importerPluginDataRecord_has = bind_map_has(importerPluginDataRecord), ALREADY_CAPTURED_BY_INITIAL = Symbol(0 /* MINIFY */ ? "" : "[oazmi-entry]: already captured by initial-data-injector"), ALREADY_CAPTURED_BY_INHERITOR = Symbol(0 /* MINIFY */ ? "" : "[oazmi-entry]: already captured by inherit-data-injector"), ALREADY_CAPTURED_BY_RESOLVER = Symbol(0 /* MINIFY */ ? "" : "[oazmi-entry]: already captured by absolute-path-resolver");
+  const { filters, initialPluginData: _initialPluginData, forceInitialPluginData, enableInheritPluginData, scanAncestralWorkspaces, acceptNamespaces: _acceptNamespaces } = { ...defaultEntryPluginSetup, ...config }, acceptNamespaces = /* @__PURE__ */ new Set([..._acceptNamespaces, "oazmi-loader-http" /* LOADER_HTTP */]), importerPluginDataRecord = /* @__PURE__ */ new Map(), importerPluginDataRecord_get = bind_map_get(importerPluginDataRecord), importerPluginDataRecord_set = bind_map_set(importerPluginDataRecord), importerPluginDataRecord_has = bind_map_has(importerPluginDataRecord), ALREADY_CAPTURED_BY_INITIAL = Symbol(0 /* MINIFY */ ? "" : "[oazmi-entry]: already captured by initial-data-injector"), ALREADY_CAPTURED_BY_INHERITOR = Symbol(0 /* MINIFY */ ? "" : "[oazmi-entry]: already captured by inherit-data-injector"), ALREADY_CAPTURED_BY_RESOLVER = Symbol(0 /* MINIFY */ ? "" : "[oazmi-entry]: already captured by absolute-path-resolver");
   return async (build) => {
     const { runtimePackage: initialRuntimePackage, ...rest_initialPluginData } = _initialPluginData ?? {}, initialPluginData = rest_initialPluginData, initialPluginDataExists = _initialPluginData !== void 0;
     build.onStart(async () => {
-      initialPluginData.runtimePackage = await resolveRuntimePackage(build, initialRuntimePackage);
+      initialPluginData.runtimePackage = await resolveRuntimePackage(build, initialRuntimePackage, scanAncestralWorkspaces);
       const stdin = build.initialOptions.stdin;
       if (stdin) {
         const { sourcefile = defaultStdinPath, resolveDir = "" } = stdin, path = sourcefile === defaultStdinPath ? sourcefile : resolveDir ? joinPaths(resolveDir, sourcefile) : pathToPosixPath(sourcefile);
@@ -1352,14 +1583,41 @@ var entryPlugin = (config) => {
     setup: entryPluginSetup(config)
   };
 };
-var resolveRuntimePackage = async (build, initialRuntimePackage) => {
-  const denoPackageJson_exists = initialRuntimePackage !== void 0, denoPackageJson_isRuntimePackage = initialRuntimePackage instanceof RuntimePackage, denoPackageJson_url = !denoPackageJson_exists || denoPackageJson_isRuntimePackage ? void 0 : isString(initialRuntimePackage) ? resolveAsUrl((await build.resolve(initialRuntimePackage, {
-    kind: "entry-point",
-    namespace: "oazmi-resolver-pipeline" /* RESOLVER_PIPELINE */,
-    pluginData: { resolverConfig: { useNodeModules: false } }
-  })).path) : initialRuntimePackage;
-  const denoPackage = !denoPackageJson_exists ? void 0 : denoPackageJson_isRuntimePackage ? initialRuntimePackage : await DenoPackage.fromUrl(denoPackageJson_url);
-  return denoPackage;
+var resolveRuntimePackage = async (build, initialRuntimePackage, scanAncestralWorkspaces = true) => {
+  let deno_package, deno_json_path;
+  if (!initialRuntimePackage) {
+    return;
+  }
+  if (initialRuntimePackage instanceof RuntimePackage) {
+    deno_package = initialRuntimePackage;
+  } else {
+    const is_relative_path = isString(initialRuntimePackage) && getUriScheme(initialRuntimePackage) === "relative";
+    deno_json_path = is_relative_path ? (await build.resolve(initialRuntimePackage, {
+      kind: "entry-point",
+      namespace: "oazmi-resolver-pipeline" /* RESOLVER_PIPELINE */,
+      pluginData: { resolverConfig: { useNodeModules: false } }
+    })).path : initialRuntimePackage;
+    deno_package = await DenoPackage.fromUrl(deno_json_path).catch((reason) => {
+      logLogger(`[resolveRuntimePackage]    : ${reason?.message ?? reason}`);
+    });
+  }
+  if (scanAncestralWorkspaces && (deno_package ?? deno_json_path)) {
+    await traverseAncestralWorkspaces(deno_package?.getPath() ?? deno_json_path);
+  }
+  return deno_package;
+};
+var traverseAncestralWorkspaces = async (starting_path) => {
+  const dir_url = resolveAsUrl("./", starting_path), parent_dir_url = resolveAsUrl("../", dir_url);
+  if (parent_dir_url.href === dir_url.href) {
+    return;
+  }
+  const deno_package_json_urls = denoPackageJsonFilenames.map((json_filename) => new URL(json_filename, dir_url)), valid_url = await fetchScanUrls(deno_package_json_urls);
+  if (valid_url) {
+    const deno_package = await DenoPackage.fromUrl(valid_url).catch((reason) => {
+      logLogger(`[resolveRuntimePackage]    : workspace file at "${valid_url}" was found, but we failed to load it as a deno package. reason:  ${reason?.message ?? reason}`);
+    });
+  }
+  return traverseAncestralWorkspaces(parent_dir_url);
 };
 
 // src/loadermap/extensions.js
@@ -1477,37 +1735,6 @@ var guessHttpResponseLoaders = (response) => {
   return common_loaders;
 };
 
-// src/plugins/funcdefs.ts
-var logLogger = console.log;
-var arrayLoggerFactory = (history) => {
-  const history_push = bind_array_push(history);
-  return (...data) => {
-    history_push(data);
-  };
-};
-var arrayLoggerHistory = [];
-var arrayLogger = /* @__PURE__ */ arrayLoggerFactory(arrayLoggerHistory);
-var syncTaskQueueFactory = () => {
-  let latest_promise = promise_resolve();
-  const task_queuer = (task_fn, ...args) => {
-    const original_latest_promise = latest_promise, [promise_current_task_value, resolve_current_task_value] = promise_outside();
-    latest_promise = promise_current_task_value;
-    original_latest_promise.finally(() => {
-      resolve_current_task_value(task_fn(...args));
-    });
-    return promise_current_task_value;
-  };
-  return task_queuer;
-};
-var entryPointsToImportMapEntries = (entry_points) => {
-  if (!isArray(entry_points)) {
-    entry_points = object_entries(entry_points);
-  }
-  return entry_points.map((entry) => {
-    return isString(entry) ? [entry, entry] : !isArray(entry) ? [entry.in, entry.out] : entry;
-  });
-};
-
 // src/plugins/filters/http.ts
 var urlLoaderFactory = (config) => {
   const { defaultLoader, acceptLoaders = allEsbuildLoaders, log = false } = config, accept_loaders_set = new Set(acceptLoaders), logFn = log ? log === true ? logLogger : log : void 0;
@@ -1581,7 +1808,7 @@ var jsrPluginSetup = (config = {}) => {
       if (!acceptNamespaces.has(args.namespace)) {
         return;
       }
-      const { path, pluginData = {}, ...rest_args } = args, { importMap: _0, runtimePackage: _1, resolverConfig = {}, ...restPluginData } = pluginData, runtimePackage = await DenoPackage.fromUrl(path), relative_alias_pathname = parsePackageUrl(path).pathname, relative_alias = relative_alias_pathname === "/" ? "." : ensureStartDotSlash(relative_alias_pathname), path_url = runtimePackage.resolveExport(relative_alias, { baseAliasDir: "" });
+      const { path, pluginData = {}, ...rest_args } = args, { importMap: _0, runtimePackage: _1, resolverConfig = {}, ...restPluginData } = pluginData, runtimePackage = await DenoPackage.fromUrl(path), relative_alias_pathname = parsePackageUrl(path).pathname, relative_alias = relative_alias_pathname === "/" ? "." : ensureStartDotSlash(relative_alias_pathname), import_config = { baseAliasDir: "" }, path_url = runtimePackage.resolveExport(relative_alias, import_config);
       if (!path_url) {
         throw new Error(`failed to resolve the path "${path}" from the deno package: "jsr:${runtimePackage.getName()}@${runtimePackage.getVersion()}"`);
       }
@@ -1649,7 +1876,7 @@ var resolverPluginSetup = (config) => {
       if (args.pluginData?.resolverConfig?.useRuntimePackage === false) {
         return;
       }
-      const { path, pluginData = {} } = args, runtimePackage = pluginData.runtimePackage, resolved_path = runtimePackage && !path.startsWith("./") && !path.startsWith("../") ? runtimePackage.resolveImport(path) : void 0;
+      const { path, pluginData = {} } = args, runtimePackage = pluginData.runtimePackage, resolved_result = runtimePackage && !isCertainlyRelativePath(path) ? runtimePackage.resolveImport(path) ?? runtimePackage.resolveWorkspaceImport(path) : void 0, [resolved_path, resolved_package] = array_isArray(resolved_result) ? resolved_result : [resolved_result, runtimePackage];
       if (1 /* LOG */ && logFn) {
         logFn(`[runtime-package] resolving: ${path}` + (!resolved_path ? "" : `
 >> successfully resolved to: ${resolved_path}`));
@@ -1657,7 +1884,7 @@ var resolverPluginSetup = (config) => {
       return resolved_path ? {
         path: resolved_path,
         namespace: output_ns,
-        pluginData: { ...pluginData }
+        pluginData: { ...pluginData, runtimePackage: resolved_package }
       } : void 0;
     };
     const { globalImportMap } = importMapResolverConfig;
@@ -1683,7 +1910,7 @@ var resolverPluginSetup = (config) => {
       if (pluginData.resolverConfig?.useNodeModules === false) {
         return;
       }
-      if (pluginData.resolverConfig?.useRelativePath !== false && (path.startsWith("./") || path.startsWith("../") || isAbsolutePath3(path))) {
+      if (pluginData.resolverConfig?.useRelativePath !== false && (isCertainlyRelativePath(path) || isAbsolutePath3(path))) {
         return;
       }
       const resolve_dir = resolvePath(ensureEndSlash(resolveDir ? resolveDir : absWorkingDir)), module_path_alias = pathToPosixPath(path), native_results_promise = node_modules_resolver({
@@ -1813,7 +2040,7 @@ var npmPluginSetup = (config = {}) => {
   if (isObject(autoInstall)) {
     nodeModulesDirs.unshift(autoInstall.dir);
   }
-  return async (build) => {
+  return (async (build) => {
     const { absWorkingDir, outdir, outfile, entryPoints, write, loader } = build.initialOptions, cwd = ensureEndSlash(defaultGetCwd), abs_working_dir = absWorkingDir ? ensureEndSlash(pathToPosixPath(absWorkingDir)) : defaultGetCwd, dir_path_converter = (dir_path) => {
       switch (dir_path) {
         case 0 /* CWD */:
@@ -1845,7 +2072,7 @@ var npmPluginSetup = (config = {}) => {
         }
       });
     }
-    const npmSpecifierResolverFactory = (specifier) => async (args) => {
+    const npmSpecifierResolverFactory = (specifier) => (async (args) => {
       if (!acceptNamespaces.has(args.namespace)) {
         return;
       }
@@ -1890,12 +2117,12 @@ var npmPluginSetup = (config = {}) => {
       abs_result.namespace = "";
       Object.assign(abs_result.pluginData.resolverConfig, { ...originalResolverConfig, useRuntimePackage: false, useNodeModules: true });
       return abs_result;
-    };
+    });
     specifiers.forEach((specifier) => {
       const filter = new RegExp(`^${escapeLiteralStringForRegex(specifier)}`);
       build.onResolve({ filter }, npmSpecifierResolverFactory(specifier));
     });
-  };
+  });
 };
 var npmPlugin = (config) => {
   return {
@@ -2008,6 +2235,7 @@ var installNpmPackageDynamic = async (package_name) => {
 // src/plugins/mod.ts
 var defaultDenoPluginsConfig = {
   initialPluginData: void 0,
+  scanAncestralWorkspaces: false,
   log: false,
   logFor: ["npm", "resolver"],
   autoInstall: true,
@@ -2018,9 +2246,9 @@ var defaultDenoPluginsConfig = {
   acceptNamespaces: defaultEsbuildNamespaces
 };
 var denoPlugins = (config) => {
-  const { acceptNamespaces, autoInstall, getCwd, globalImportMap, log, logFor, peerDependencies, nodeModulesDirs, initialPluginData } = { ...defaultDenoPluginsConfig, ...config }, resolvePath = resolveResourcePathFactory(getCwd, isAbsolutePath2);
+  const { acceptNamespaces, autoInstall, getCwd, globalImportMap, log, logFor, peerDependencies, nodeModulesDirs, initialPluginData, scanAncestralWorkspaces } = { ...defaultDenoPluginsConfig, ...config }, resolvePath = resolveResourcePathFactory(getCwd, isAbsolutePath2);
   return [
-    entryPlugin({ initialPluginData, acceptNamespaces }),
+    entryPlugin({ initialPluginData, scanAncestralWorkspaces, acceptNamespaces }),
     httpPlugin({ acceptNamespaces, log: logFor.includes("http") ? log : false }),
     jsrPlugin({ acceptNamespaces }),
     npmPlugin({ acceptNamespaces, autoInstall, peerDependencies, nodeModulesDirs, log: logFor.includes("npm") ? log : false }),

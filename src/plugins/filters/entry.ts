@@ -65,9 +65,10 @@
  * @module
 */
 
-import { bind_map_get, bind_map_has, bind_map_set, DEBUG, isString, joinPaths, pathToPosixPath, resolveAsUrl } from "../../deps.js"
-import { RuntimePackage } from "../../packageman/base.js"
-import { DenoPackage } from "../../packageman/deno.js"
+import { bind_map_get, bind_map_has, bind_map_set, DEBUG, fetchScanUrls, getUriScheme, isString, joinPaths, pathToPosixPath, resolveAsUrl } from "../../deps.js"
+import { RuntimePackage, type WorkspacePackage } from "../../packageman/base.js"
+import { DenoPackage, denoPackageJsonFilenames } from "../../packageman/deno.js"
+import { logLogger } from "../funcdefs.js"
 import type { nodeModulesResolverFactory, resolverPlugin } from "../resolvers.js"
 import type { CommonPluginData, EsbuildPlugin, EsbuildPluginBuild, EsbuildPluginSetup, OnResolveArgs, OnResolveCallback } from "../typedefs.js"
 import { defaultEsbuildNamespaces, PLUGIN_NAMESPACE } from "../typedefs.js"
@@ -77,11 +78,17 @@ import { defaultEsbuildNamespaces, PLUGIN_NAMESPACE } from "../typedefs.js"
  * which accepts a path or url to your "deno.json" file under the `runtimePackage` property.
 */
 export interface InitialPluginData extends Omit<CommonPluginData, "runtimePackage"> {
-	/** specify your project's top-level runtime package manager object,
-	 * or provide the path to the package json(c) file (such as "deno.json", "jsr.jsonc", "package.json", etc...),
+	/** specify your project's top-level runtime package manager,
 	 * so that your project's import and export aliases can be resolved appropriately.
+	 * 
+	 * there are several ways for you to specify your runtime package for package-resolution support:
+	 * - provide an existing {@link WorkspacePackage} object.
+	 * - provide a path `string` or `URL` to the package json(c) file (such as "deno.json", "jsr.jsonc", "package.json", etc...).
+	 * - provide a directory-path `string` or `URL` (**must** end with a trailing slash `"/"`) where a package json(c) file exists,
+	 *   and the plugin will scan for the following files at that location in the provided order:
+	 *   - `"deno.json"`, `"deno.jsonc"`, `"jsr.json"`, `"jsr.jsonc"`, `"package.json"`, `"package.jsonc"`.
 	*/
-	runtimePackage?: RuntimePackage<any> | URL | string
+	runtimePackage?: WorkspacePackage<any> | URL | string
 }
 
 /** configuration options for the {@link entryPluginSetup} esbuild-setup factory function. */
@@ -125,6 +132,16 @@ export interface EntryPluginSetupConfig {
 	*/
 	enableInheritPluginData: boolean
 
+	/** enable scanning of parental/ancestral directories of your project's
+	 * {@link InitialPluginData.runtimePackage | base directory (`initialPluginData.runtimePackage`)},
+	 * so that all relevant workspace packages up the directory tree can be discovered and cached.
+	 * 
+	 * this would permit the resolution of workspace package aliases that are not directly mentioned in your "deno.json" package file.
+	 * 
+	 * @defaultValue `false`
+	*/
+	scanAncestralWorkspaces: boolean
+
 	/** specify which `namespace`s should be intercepted by the entry-point plugin.
 	 * all other `namespace`s will not be processed by this plugin.
 	 * 
@@ -142,6 +159,7 @@ const defaultEntryPluginSetup: EntryPluginSetupConfig = {
 	initialPluginData: undefined,
 	forceInitialPluginData: false,
 	enableInheritPluginData: true,
+	scanAncestralWorkspaces: false,
 	acceptNamespaces: defaultEsbuildNamespaces,
 }
 
@@ -154,7 +172,7 @@ const defaultStdinPath = "<stdin>"
 */
 export const entryPluginSetup = (config?: Partial<EntryPluginSetupConfig>): EsbuildPluginSetup => {
 	const
-		{ filters, initialPluginData: _initialPluginData, forceInitialPluginData, enableInheritPluginData, acceptNamespaces: _acceptNamespaces } = { ...defaultEntryPluginSetup, ...config },
+		{ filters, initialPluginData: _initialPluginData, forceInitialPluginData, enableInheritPluginData, scanAncestralWorkspaces, acceptNamespaces: _acceptNamespaces } = { ...defaultEntryPluginSetup, ...config },
 		acceptNamespaces = new Set([..._acceptNamespaces, PLUGIN_NAMESPACE.LOADER_HTTP]),
 		// contains a record of **all** resources that have passed through the `inheritPluginDataInjector`,
 		// so that dependency resources which have been stripped out of their `pluginData` can inherit it back from their `importer`'s saved `pluginData`.
@@ -177,13 +195,13 @@ export const entryPluginSetup = (config?: Partial<EntryPluginSetupConfig>): Esbu
 			// here we resolve the path to the "deno.json" file if `initialRuntimePackage` is either a url or a local path.
 			// to resolve non-url-based file paths, we'll use the namespace of {@link resolverPlugin}
 			// to carry out the path resolution inside of the {@link resolveRuntimePackage} function.
-			initialPluginData.runtimePackage = await resolveRuntimePackage(build, initialRuntimePackage)
+			initialPluginData.runtimePackage = await resolveRuntimePackage(build, initialRuntimePackage, scanAncestralWorkspaces)
 
 			// moreover, if an stdin is present, we will have to manually add it to `importerPluginDataRecord`,
 			// because stdin's path does not go through path resolving, and thereby not intercepted by the entry plugin.
 			// instead, stdin's contents are loaded (via `build.onLoad`) directly.
 			const stdin = build.initialOptions.stdin
-			if (stdin) { // && initialPluginDataExists) {
+			if (stdin) {
 				const
 					{ sourcefile = defaultStdinPath, resolveDir = "" } = stdin,
 					// when `sourcefile` is not defined by the user, esbuild sets it to `"<stdin>"`,
@@ -338,22 +356,63 @@ export const entryPlugin = (config?: Partial<EntryPluginSetupConfig>): EsbuildPl
 }
 
 /** a utility function that resolves the path/url to your runtime-package json file (such as "deno.json"),
- * then creates a {@link DenoPackage} instance of out of it (which is needed for the initial `pluginData`, and then inherited by the dependencies).
+ * then creates a {@link DenoPackage} instance of out of it (which is needed for the `initialPluginData`, and then inherited by the dependencies).
+ * 
+ * there are several ways to specify the current runtime package (a class instance, a file path/url, or a directory path/url).
+ * for all available options, see the documentation comments of {@link InitialPluginData.runtimePackage}.
 */
-const resolveRuntimePackage = async (build: EsbuildPluginBuild, initialRuntimePackage: InitialPluginData["runtimePackage"]): Promise<RuntimePackage<any> | undefined> => {
+const resolveRuntimePackage = async (build: EsbuildPluginBuild, initialRuntimePackage: InitialPluginData["runtimePackage"], scanAncestralWorkspaces: boolean = true): Promise<WorkspacePackage<any> | undefined> => {
+	let
+		deno_package: WorkspacePackage<any> | undefined,
+		deno_json_path: string | URL | undefined
+
+	if (!initialRuntimePackage) { return }
+	if (initialRuntimePackage instanceof RuntimePackage) {
+		deno_package = initialRuntimePackage
+	} else {
+		const is_relative_path = isString(initialRuntimePackage) && (getUriScheme(initialRuntimePackage) === "relative")
+		deno_json_path = is_relative_path
+			? (await build.resolve(initialRuntimePackage, {
+				kind: "entry-point",
+				namespace: PLUGIN_NAMESPACE.RESOLVER_PIPELINE,
+				pluginData: { resolverConfig: { useNodeModules: false } } satisfies CommonPluginData,
+			})).path
+			: initialRuntimePackage
+
+		// below, the `DenoPackage.fromUrl` method takes care of urls, local-paths, and directories as well.
+		// however, if scanning a directory for the common package json file names fails, then an error is throw.
+		// in that case, we'll catch the error and warn the end-user about the missing json file, instead of halting the build process.
+		deno_package = await DenoPackage.fromUrl(deno_json_path).catch((reason): undefined => {
+			logLogger(`[resolveRuntimePackage]    : ${reason?.message ?? reason}`)
+		})
+	}
+	// if the `scanAncestralWorkspaces` option is set to true, then we will traverse all parent, grandparent, etc... directories,
+	// looking for "deno.json" and equivalent package files and caching them, in a addition to building a workspace-tree between the various packages.
+	if (scanAncestralWorkspaces && (deno_package ?? deno_json_path)) {
+		await traverseAncestralWorkspaces(deno_package?.getPath() ?? deno_json_path!)
+	}
+	return deno_package
+}
+
+/** this utility function traverses the ancestral directories of the provided `starting_path`,
+ * caching any workspace package that it discovers along the way (i.e. "deno.json(c)", "jsr.json(c)", and "package.json(c)"),
+ * so that child packages would become aware of any parent workspace packages.
+*/
+const traverseAncestralWorkspaces = async (starting_path: string | URL): Promise<void> => {
 	const
-		denoPackageJson_exists = initialRuntimePackage !== undefined,
-		denoPackageJson_isRuntimePackage = initialRuntimePackage instanceof RuntimePackage,
-		denoPackageJson_url = (!denoPackageJson_exists || denoPackageJson_isRuntimePackage) ? undefined
-			: isString(initialRuntimePackage)
-				? resolveAsUrl((await build.resolve(initialRuntimePackage, {
-					kind: "entry-point",
-					namespace: PLUGIN_NAMESPACE.RESOLVER_PIPELINE,
-					pluginData: { resolverConfig: { useNodeModules: false } } satisfies CommonPluginData,
-				})).path)
-				: initialRuntimePackage
-	const denoPackage = !denoPackageJson_exists ? undefined
-		: denoPackageJson_isRuntimePackage ? initialRuntimePackage
-			: await DenoPackage.fromUrl(denoPackageJson_url!)
-	return denoPackage
+		dir_url = resolveAsUrl("./", starting_path),
+		parent_dir_url = resolveAsUrl("../", dir_url)
+	// if we can no longer traverse into a parent directory (i.e. we're at the root), then exit.
+	if (parent_dir_url.href === dir_url.href) { return }
+	const
+		deno_package_json_urls = denoPackageJsonFilenames.map((json_filename) => new URL(json_filename, dir_url)),
+		// we don't use the head method below, because "file://" urls do not support the head method.
+		valid_url = await fetchScanUrls(deno_package_json_urls)
+	if (valid_url) {
+		// caching the discovered deno package so that its workspace tree can be generated (if there's any that is).
+		const deno_package = await DenoPackage.fromUrl(valid_url).catch((reason): undefined => {
+			logLogger(`[resolveRuntimePackage]    : workspace file at "${valid_url}" was found, but we failed to load it as a deno package. reason:  ${reason?.message ?? reason}`)
+		})
+	}
+	return traverseAncestralWorkspaces(parent_dir_url)
 }

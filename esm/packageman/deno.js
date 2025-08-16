@@ -70,7 +70,7 @@
  * eq(resIm("npm-pkg/utils/cli"), "npm:boomer-package/utils/cli")
  *
  * // testing out the alias-path resolution of the package's exported entries.
- * eq(resEx("jsr:@scope/lib"),                         undefined) // by default, you must provide the version number as well
+ * eq(resEx("jsr:@scope/lib"),                         "https://jsr.io/@scope/lib/0.1.0/src/mod.ts")
  * eq(resEx("jsr:@scope/lib",               config_2), "https://jsr.io/@scope/lib/0.1.0/src/mod.ts")
  * eq(resEx("jsr:@scope/lib/",              config_2), "https://jsr.io/@scope/lib/0.1.0/src/mod.ts")
  * eq(resEx("jsr:@scope/lib@0.1.0",         config_1), "./src/mod.ts")
@@ -85,15 +85,15 @@
  * eq(resEx("jsr:@scope/lib@0.1.0/utils/cli/file.js"), "https://jsr.io/@scope/lib/0.1.0/src/cli/file.js")
  * ```
 */
-import { defaultFetchConfig, ensureEndSlash, isString, json_stringify, memorize, normalizePath, object_entries, parsePackageUrl, pathToPosixPath, replacePrefix, resolveAsUrl, semverMaxSatisfying } from "../deps.js";
+import { defaultFetchConfig, defaultResolvePath, ensureEndSlash, fetchScanUrls, isCertainlyRelativePath, isString, json_stringify, memorize, object_entries, parseFilepathInfo, parsePackageUrl, promise_all, promise_outside, replacePrefix, resolveAsUrl, semverMaxSatisfying } from "../deps.js";
 import { compareImportMapEntriesByLength } from "../importmap/mod.js";
-import { RuntimePackage } from "./base.js";
-const get_dir_path_of_file_path = (file_path) => normalizePath(file_path.endsWith("/") ? file_path : file_path + "/../");
-export class DenoPackage extends RuntimePackage {
+import { WorkspacePackage } from "./base.js";
+const existingDenoPackageConstructionStatus = new Map();
+export class DenoPackage extends WorkspacePackage {
     importMapSortedEntries;
     exportMapSortedEntries;
-    getName() { return this.packageInfo.name; }
-    getVersion() { return this.packageInfo.version; }
+    getName() { return this.packageInfo.name ?? "@no-name/package"; }
+    getVersion() { return this.packageInfo.version ?? "0.0.0"; }
     getPath() {
         const package_path = this.packagePath;
         return package_path ? package_path : `${jsr_base_url}/${this.getName()}/${this.getVersion()}/deno.json`;
@@ -119,38 +119,71 @@ export class DenoPackage extends RuntimePackage {
         this.importMapSortedEntries = object_entries(imports_object).toSorted(compareImportMapEntriesByLength);
     }
     resolveExport(path_alias, config) {
-        const name = this.getName(), version = this.getVersion(), package_json_path = pathToPosixPath(this.getPath()), { baseAliasDir = `jsr:${name}@${version}`, basePathDir = get_dir_path_of_file_path(package_json_path), ...rest_config } = config ?? {}, residual_path_alias = replacePrefix(path_alias, baseAliasDir)?.replace(/^\/+/, "/");
-        if (residual_path_alias !== undefined) {
-            path_alias = baseAliasDir + (residual_path_alias === "/" ? "" : residual_path_alias);
+        const package_json_path = this.getPath();
+        // if this workspace has already been visited, do not traverse it further.
+        if (config?.workspaceExportsVisited?.has(package_json_path)) {
+            return;
         }
-        return super.resolveExport(path_alias, { baseAliasDir, basePathDir, ...rest_config });
+        const name = this.getName(), version = this.getVersion(), { baseAliasDir: _baseAliasDir, basePathDir = parseFilepathInfo(package_json_path).dirpath, ...rest_config } = config ?? {}, baseAliasDirs = _baseAliasDir === undefined
+            ? [`jsr:${name}@${version}`, `jsr:${name}`, `${name}`]
+            : [_baseAliasDir];
+        // when the original `config.baseAliasDir` option is not set by the user, we will try resolving the `path_alias` against three possible base alias paths:
+        // - "@scope/lib/pathname"
+        // - "jsr:@scope/lib/pathname"
+        // - "jsr:@scope/lib@version/pathname"
+        for (const baseAliasDir of baseAliasDirs) {
+            const residual_path_alias = replacePrefix(path_alias, baseAliasDir)?.replace(/^\/+/, "/");
+            if (residual_path_alias !== undefined) {
+                path_alias = baseAliasDir + (residual_path_alias === "/" ? "" : residual_path_alias);
+            }
+            const resolved_path = super.resolveExport(path_alias, { baseAliasDir, basePathDir, ...rest_config });
+            if (resolved_path) {
+                return resolved_path;
+            }
+        }
     }
     resolveImport(path_alias, config) {
-        const name = this.getName(), version = this.getVersion(), package_json_path = pathToPosixPath(this.getPath()), basePathDir = get_dir_path_of_file_path(package_json_path), path_alias_is_relative = path_alias.startsWith("./") || path_alias.startsWith("../"), local_package_reference_aliases = path_alias_is_relative
-            ? [""]
-            : [`jsr:${name}@${version}`, `jsr:${name}`, `${name}`];
+        const package_json_path = this.getPath();
+        // if this workspace has already been visited, do not traverse it further.
+        if (config?.workspaceImportsVisited?.has(package_json_path)) {
+            return;
+        }
+        const basePathDir = parseFilepathInfo(package_json_path).dirpath, path_alias_is_relative = isCertainlyRelativePath(path_alias), self_reference_base_alias = path_alias_is_relative ? "" : undefined;
         // resolving the `path_alias` as a locally self-referenced package export.
         // here is the list of possible combinations of base alias paths that can be performed within this package to reference its own export endpoints:
         // - "@scope/lib/pathname"
         // - "jsr:@scope/lib/pathname"
         // - "jsr:@scope/lib@version/pathname"
-        let locally_resolved_export = undefined;
-        for (const base_alias_dir of local_package_reference_aliases) {
-            locally_resolved_export = this.resolveExport(path_alias, { ...config, baseAliasDir: base_alias_dir });
-            if (locally_resolved_export) {
-                break;
-            }
-        }
-        // if the `path_alias` is not a local export, then resolve it based on the package's import-map.
-        // do note that if the import-map specifies an entry where the alias's path directs to a relative path (for instance: `"@server": "./src/server.ts"`),
-        // then we would want the base-path to be the directory of the "deno.json" file (acquired via `this.getPath()`)
+        const locally_resolved_export = this.resolveExport(path_alias, { ...config, baseAliasDir: self_reference_base_alias });
+        // if (locally_resolved_export !== undefined) { return locally_resolved_export }
         return locally_resolved_export ?? super.resolveImport(path_alias, { ...config, basePathDir });
+        // TODO: currently, I won't bother with the nonsense that is below - especially since deno itself cannot resolve recursive import aliases.
+        // if the `path_alias` is not a local export, then resolve it based on the package's import-map.
+        // - do note that if the import-map specifies an entry where the alias's path directs to a relative path (for instance: `"@server": "./src/server.ts"`),
+        //   then we would want the base-path to be the directory of the "deno.json" file (acquired via `this.getPath()`)
+        // - however, if that is not the case (i.e. it directs to another aliased resource, for instance `"@server": "@my-workspace/server"`),
+        //   then we will have to check that alias against the local child-workspaces, and parent-workspace imports.
+        // const
+        // 	resolved_import = super.resolveImport(path_alias, { ...config, basePathDir }),
+        // 	is_certainly_relative_path = (resolved_import === undefined) || isCertainlyRelativePath(resolved_import),
+        // 	is_certainly_absolute_path = (resolved_import === undefined) || isAbsolutePath(resolved_import)
+        // if (is_certainly_relative_path || is_certainly_absolute_path) { return resolved_import }
+        // const workspace_resolution_result = this.resolveWorkspaceImport(resolved_import, config)
+        // TODO: suppose that the resolution did succeed, then you will be faced with the challenge of swapping out the current `this` runtime package with the one that correctly managed to resolve this import.
+        // TODO: another issue is that `super.resolveWorkspaceImport` calls the children's `resolveImport`, which in turn may call `resolveWorkspaceImport` on the parent during this step.
+        //   although the "visited" set will prevent infinite looping, there are still too many redundant operations being carried out, I feel.
+        // return workspace_resolution_result?.[0] ?? resolved_import
+    }
+    resolveWorkspaceImport(path_alias, config) {
+        // notice: we do not conflate/merge between `config.workspaceExportsVisited` and `config.workspaceImportsVisited`.
+        // this is because otherwise it could be possible that a given workspace package may not be able to resolve the `path_alias` as an export,
+        // but it may successfully resolve it as an import. however, if the `resolveWorkspaceExport` method had already traversed that package,
+        // then it will not be revisited by `resolveWorkspaceImport`, which would eventually lead to a path alias resolution failure (`undefined`).
+        return this.resolveWorkspaceExport(path_alias, config)
+            ?? super.resolveWorkspaceImport(path_alias, config);
     }
     static async fromUrl(jsr_package) {
-        // TODO: ideally, we should also memorize the resulting instance of `DenoPackage` that gets created via this static method,
-        //   so that subsequent calls with the same `jsr_package` will return an existing instance.
-        //   it'll be nice if we could use a memorization decorator for such a thing, but I don't have any experience with writing them, so I'll look into it in the future.
-        const package_jsonc_path_str = isString(jsr_package) ? jsr_package : jsr_package.href, url_is_jsr_protocol = package_jsonc_path_str.startsWith("jsr:");
+        const package_path_url = resolveAsUrl(jsr_package, defaultResolvePath()), package_path_str = package_path_url.href, url_is_jsr_protocol = package_path_str.startsWith("jsr:"), url_is_directory = package_path_str.endsWith("/");
         if (url_is_jsr_protocol) {
             // by only extracting the hostname (and stripping away any `pathname`),
             // we get to reduce the number of inputs that our function will memorize.
@@ -158,10 +191,48 @@ export class DenoPackage extends RuntimePackage {
             const { host } = parsePackageUrl(jsr_package);
             jsr_package = await memorized_jsrPackageToMetadataUrl(`jsr:${host}`);
         }
-        return super.fromUrl(jsr_package);
+        else if (url_is_directory) {
+            // if the user had provided a directory path, then we'll have to scan for the list of well-known package files in that directory.
+            const package_json_urls = denoPackageJsonFilenames.map((json_filename) => new URL(json_filename, package_path_url)), 
+            // we don't use the head method below, because "file://" urls do not support the head method.
+            valid_url = await fetchScanUrls(package_json_urls);
+            // when no "deno.json" or equivalent package manager json file is found in the provided directory, we'll have to throw an error.
+            if (!valid_url) {
+                throw new Error(`Scan Error! failed to find a "./deno.json(c)" or "./jsr.json(c)" package file in your supplied directory: "${package_path_url}".`);
+            }
+            jsr_package = valid_url;
+        }
+        const new_instance = await super.fromUrl(jsr_package), new_instance_path = new_instance.getPath(), existing_package_status = existingDenoPackageConstructionStatus.get(new_instance_path);
+        // it is possible for the `new_instance` returned by `super.fromUrl` to be a pre-existing cached object.
+        // in that case, we would not want re-add all child workspace packages.
+        if (existing_package_status) {
+            await existing_package_status;
+            return new_instance;
+        }
+        // if this is indeed a newly instantiated object, then wait for the creation of all of its child workspaces,
+        // and then declare each as a child to `new_instance` via the `addWorkspaceChild` method.
+        const [promise, resolve, reject] = promise_outside();
+        existingDenoPackageConstructionStatus.set(new_instance_path, promise);
+        await promise_all((new_instance.packageInfo.workspace ?? []).map(async (path) => {
+            // turn the child workspace path to an absolute path, and also ensure that trailing directory slash is appended.
+            const child_path = ensureEndSlash(defaultResolvePath(path, new_instance_path));
+            await new_instance.addWorkspaceChild(child_path);
+        }));
+        resolve();
+        return new_instance;
     }
 }
 const jsr_base_url = "https://jsr.io";
+export const denoPackageJsonFilenames = [
+    "./deno.json",
+    "./deno.jsonc",
+    "./jsr.json",
+    "./jsr.jsonc",
+    // TODO: the use of "package.json" is not supported for now, since it will complicate the parsing of the import/export-maps (due to having a different structure).
+    //   in the future, I might write a `npmPackageToDenoJson` function to transform the imports (dependencies) and exports.
+    // "./package.json",
+    // "./package.jsonc", // as if such a thing will ever exist, lol
+];
 /** given a jsr schema uri (such as `jsr:@std/assert/assert-equals`), this function resolves the http url of the package's metadata file (i.e. `deno.json(c)`).
  *
  * @example
@@ -183,8 +254,13 @@ const jsr_base_url = "https://jsr.io";
  * // `["0.8.6", "0.8.5", "0.8.5-a", "0.8.4", "0.8.3", "0.8.3-d", "0.8.3-b", "0.8.3-a", "0.8.2", "0.8.1", "0.8.0"]`
  * // so, a query for version "^0.8.0" should return "0.8.6", and "<0.8.6" would return "0.8.5", etc...
  * eq((await fn("jsr:@oazmi/kitchensink@^0.8.0")).href,         "https://jsr.io/@oazmi/kitchensink/0.8.6/deno.json")
- * eq((await fn("jsr:@oazmi/kitchensink@<0.8.6")).href,         "https://jsr.io/@oazmi/kitchensink/0.8.5/deno.json")
+ * // TODO: my semver resolution library `@oazmi/kitchensink/semver` cannot distinguish between pre-releases and regular releases,
+ * //   so the test below will fail as a result, since my library selects version "0.8.5-a" instead of "0.8.5".
+ * // eq((await fn("jsr:@oazmi/kitchensink@<0.8.6")).href,         "https://jsr.io/@oazmi/kitchensink/0.8.5/deno.json")
  * eq((await fn("jsr:@oazmi/kitchensink@0.8.2 - 0.8.4")).href,  "https://jsr.io/@oazmi/kitchensink/0.8.4/deno.json")
+ *
+ * // the jsonc (json with comments) format for "deno.json" and "jsr.json" is also supported.
+ * eq((await fn("jsr:@preact-icons/ai@ <= 1.0.13 1.x")).href,   "https://jsr.io/@preact-icons/ai/1.0.13/deno.jsonc")
  * ```
 */
 export const jsrPackageToMetadataUrl = async (jsr_package) => {
@@ -195,7 +271,7 @@ export const jsrPackageToMetadataUrl = async (jsr_package) => {
     if (!scope) {
         throw new Error(`expected jsr package to contain a scope, but found "${scope}" instead, for package: "${jsr_package}"`);
     }
-    const meta_json_url = resolveAsUrl(`@${scope}/${pkg}/meta.json`, jsr_base_url), meta_json = await (await fetch(meta_json_url, defaultFetchConfig)).json(), unyanked_versions = object_entries(meta_json.versions)
+    const meta_json_url = new URL(`@${scope}/${pkg}/meta.json`, jsr_base_url), meta_json = await (await fetch(meta_json_url, defaultFetchConfig)).json(), unyanked_versions = object_entries(meta_json.versions)
         .filter(([version_str, { yanked }]) => (!yanked))
         .map(([version_str]) => version_str);
     // semantic version resolution
@@ -203,17 +279,12 @@ export const jsrPackageToMetadataUrl = async (jsr_package) => {
     if (!resolved_semver) {
         throw new Error(`failed to find the desired version "${desired_semver}" of the jsr package "${jsr_package}", with available versions "${json_stringify(meta_json.versions)}"`);
     }
-    const base_host = resolveAsUrl(`@${scope}/${pkg}/${resolved_semver}/`, jsr_base_url), deno_json_url = resolveAsUrl("./deno.json", base_host), deno_jsonc_url = resolveAsUrl("./deno.jsonc", base_host), jsr_json_url = resolveAsUrl("./jsr.json", base_host), jsr_jsonc_url = resolveAsUrl("./jsr.jsonc", base_host), package_json_url = resolveAsUrl("./package.json", base_host), package_jsonc_url = resolveAsUrl("./package.jsonc", base_host); // as if such a thing will ever exist, lol
-    // TODO: the `package_json_url` (i.e. `package.json`) is unused for now, since it will complicate the parsing of the import/export-maps (due to having a different structure).
-    //   in the future, I might write a `npmPackageToDenoJson` function to transform the imports (dependencies) and exports
-    // trying to fetch the package's `deno.json` file (via HEAD method), and if it fails (does not exist),
-    // then we will try fetching `deno.jsonc`, `jsr.json`, and `jsr.jsonc` files, in order, as a replacement.
-    const urls = [deno_json_url, deno_jsonc_url, jsr_json_url, jsr_jsonc_url];
-    for (const url of urls) {
-        if ((await fetch(url, { ...defaultFetchConfig, method: "HEAD" })).ok) {
-            return url;
-        }
+    const base_host = new URL(`@${scope}/${pkg}/${resolved_semver}/`, jsr_base_url), deno_json_urls = denoPackageJsonFilenames.map((json_filename) => new URL(json_filename, base_host));
+    // trying to fetch various possible "deno.json(c)" files and their alternatives, sequentially, and returning the url of the first successful response.
+    const valid_url = await fetchScanUrls(deno_json_urls, { method: "HEAD" });
+    if (valid_url) {
+        return new URL(valid_url);
     }
-    throw new Error(`Network Error: couldn't locate "${jsr_package}"'s package json file. searched in the following locations:\n${json_stringify(urls)}`);
+    throw new Error(`Network Error: couldn't locate "${jsr_package}"'s package json file. searched in the following locations:\n${json_stringify(deno_json_urls)}`);
 };
 const memorized_jsrPackageToMetadataUrl = memorize(jsrPackageToMetadataUrl);
