@@ -1,12 +1,21 @@
 # @oazmi/esbuild-plugin-deno
 
-This is a suite of multi-purpose esbuild plugins for bundling libraries and web-apps with Deno, Node, or Bun.
+<p align="center">
+<img alt="logo" src="./assets/deno-minecart.svg" height="256">
+<br>
+<em><strong>Figure A</strong>:</em>
+<em>kawaii ka, soretomo kowaii ka?</em><br>
+<em>iya ya, yabaii da!</em>
+<em>yami no dino wa dekaii sa!</em>
+</p>
+
+This is a suite of multi-purpose esbuild plugins for bundling libraries and web-apps on Deno, Node, Bun, or even a Web browser.
 It is capable of resolving `file://`, `http://`, `https://`, `jsr:`, and `npm:` specifiers, in addition to supporting global `importMap`s, initial `pluginData` injection, and path pre-resolution.
 With its non-intrusive design, it works seamlessly alongside esbuild's native resolver/loader and other plugins (including those from npm).
 This means you won't face any issues with bundling non-javascript/typescript files (such as `.css`, `.svg`, etc...),
 regardless of where they come from (http, jsr, or npm).
 
-You may also use this library as a drop-in lightweight and cross-runtime alternative to the official [`jsr:@luca/esbuild-deno-loader`](https://jsr.io/@luca/esbuild-deno-loader) deno plugin;
+You may also use this library as a drop-in lightweight and cross-runtime alternative to the old official [`jsr:@luca/esbuild-deno-loader`](https://jsr.io/@luca/esbuild-deno-loader) deno plugin;
 That's because the plugins in this library do not rely on any javascript-runtime specific feature, apart from a soft-dependency on `Deno.cwd()`/`process.cwd()` (to query the current working directory).
 This permits it portablility across any runtime environment (web, deno, node, bun, (cloudflare workers?)).
 
@@ -253,7 +262,7 @@ And with it began the [~~Shadow Games~~](https://www.youtube.com/watch?v=3tH60cN
 <div style="max-width: min(100%, 384px);">
 
 ![deno2](./assets/deno2.svg)
-_**Figure A**: A historic sighting of Deno the Dino deprecating its former version._
+_**Figure B**: A historic sighting of Deno the Dino deprecating its former version._
 _Some believe Dino to be the [Lochness monster](https://en.wikipedia.org/wiki/Loch_Ness_Monster)._
 _Others think it is an alphabetically sorted occurrence of Node._
 

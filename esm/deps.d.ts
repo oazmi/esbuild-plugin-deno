@@ -8,7 +8,7 @@ export { maxSatisfying as semverMaxSatisfying, minSatisfying as semverMinSatisfy
 export { escapeLiteralStringForRegex, jsoncRemoveComments, replacePrefix, replaceSuffix } from "@oazmi/kitchensink/stringman";
 export { constructorOf, isArray, isObject, isString } from "@oazmi/kitchensink/struct";
 export type { ConstructorOf, DeepPartial, MaybePromise, Optional } from "@oazmi/kitchensink/typedefs";
-export type * as esbuild from "esbuild";
+export type * as esbuild from "@oazmi/esbuild-types";
 /** flags used for minifying (or eliminating) debugging logs and asserts, when an intelligent bundler, such as `esbuild`, is used. */
 export declare const enum DEBUG {
     LOG = 1,

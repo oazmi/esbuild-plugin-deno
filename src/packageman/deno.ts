@@ -96,12 +96,16 @@ import { WorkspacePackage, type ResolveWorkspaceReturnType, type RuntimePackageR
  * [source link](https://jsr.io/@oazmi/build-tools/0.2.4/src/types/deno_json.ts).
 */
 export interface DenoJsonSchema {
-	/** the name of this jsr package. it must be scoped */
+	/** the name of this jsr package. it must be scoped. */
 	name?: string
 
 	/** the version of this jsr package. */
 	version?: string
 
+	/** the exports done by the package. it can be one of the following:
+	 * - string: specifying the relative path to the default exported module. 
+	 * - key-value map: specifying the (relative) aliases as keys, and relative paths to exported modules, as the values.
+	*/
 	exports?: Exports
 
 	/** the location of an additional import map to be used when resolving modules.
@@ -143,6 +147,7 @@ export interface DenoJsonSchema {
 	/** the child packages of this workspace. */
 	workspace?: string[]
 
+	/** irrelevant properties of "deno.json". */
 	[property: string]: any
 }
 
@@ -153,6 +158,9 @@ type Exports = string | {
 
 const existingDenoPackageConstructionStatus = new Map<string, Promise<void>>()
 
+/** this an instance of this class can imitate deno import and export aliases resolution, including any connected workspace packages.
+ * check the base class {@link WorkspacePackage} for more details.
+*/
 export class DenoPackage extends WorkspacePackage<DenoJsonSchema> {
 	protected override readonly importMapSortedEntries: ImportMapSortedEntries
 	protected override readonly exportMapSortedEntries: ImportMapSortedEntries
@@ -327,6 +335,12 @@ interface JsrPackageMeta {
 
 const jsr_base_url = "https://jsr.io"
 
+/** these are package json file names that are compatible with deno.
+ * 
+ * currently it is set to `["./deno.json", "./deno.jsonc", "./jsr.json", "./jsr.jsonc"]`.
+ * notice that `"./package.json"` isn't supported yet, because esbuild itself takes care of `"package.json"` based resolution,
+ * once you've properly installed your npm packages.
+*/
 export const denoPackageJsonFilenames = [
 	"./deno.json",
 	"./deno.jsonc",

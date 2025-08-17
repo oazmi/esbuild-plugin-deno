@@ -138,9 +138,9 @@ var DEBUG;
 
 // node_modules/@oazmi/kitchensink/esm/binder.js
 var bindMethodFactoryByName = (instance, method_name, ...args) => {
-  return ((thisArg) => {
+  return (thisArg) => {
     return instance[method_name].bind(thisArg, ...args);
-  });
+  };
 };
 var bindMethodToSelfByName = (self, method_name, ...args) => self[method_name].bind(self, ...args);
 var prototypeOfClass = (cls) => {
@@ -440,7 +440,7 @@ var joinPaths = (...segments) => {
   return joinPosixPaths(...segments.map(pathToPosixPath));
 };
 var resolvePosixPathFactory = (absolute_current_dir, absolute_segment_test_fn = isAbsolutePath) => {
-  const getCwdPath = isString(absolute_current_dir) ? (() => absolute_current_dir) : absolute_current_dir;
+  const getCwdPath = isString(absolute_current_dir) ? () => absolute_current_dir : absolute_current_dir;
   return (...segments) => {
     const last_abs_segment_idx = segments.findLastIndex(absolute_segment_test_fn);
     if (last_abs_segment_idx >= 0) {
@@ -455,7 +455,7 @@ var resolvePathFactory = (absolute_current_dir, absolute_segment_test_fn = isAbs
   if (isString(absolute_current_dir)) {
     absolute_current_dir = pathToPosixPath(absolute_current_dir);
   }
-  const getCwdPath = isString(absolute_current_dir) ? (() => absolute_current_dir) : (() => pathToPosixPath(absolute_current_dir())), posix_path_resolver = resolvePosixPathFactory(getCwdPath, absolute_segment_test_fn);
+  const getCwdPath = isString(absolute_current_dir) ? () => absolute_current_dir : () => pathToPosixPath(absolute_current_dir()), posix_path_resolver = resolvePosixPathFactory(getCwdPath, absolute_segment_test_fn);
   return (...segments) => posix_path_resolver(...segments.map(pathToPosixPath));
 };
 
@@ -1028,7 +1028,7 @@ var resolveResourcePathFactory = (absolute_current_dir, absolute_segment_test_fn
 var defaultFetchConfig = { redirect: "follow", cache: "force-cache" };
 var defaultGetCwd = /* @__PURE__ */ ensureEndSlash(pathToPosixPath(getRuntimeCwd(identifyCurrentRuntime(), true)));
 var defaultResolvePath = /* @__PURE__ */ resolveResourcePathFactory(defaultGetCwd, isAbsolutePath2);
-var noop2 = (() => void 0);
+var noop2 = () => void 0;
 var fetchScan = async (urls, init) => {
   for (const url of urls) {
     const response = await fetch(url, { ...defaultFetchConfig, ...init }).catch(noop2);
@@ -1872,6 +1872,20 @@ var resolverPluginSetup = (config) => {
   const runtimePackageResolverConfig = { ...defaultRuntimePackageResolverConfig, ..._runtimePackageResolverConfig }, importMapResolverConfig = { ...defaultImportMapResolverConfig, ..._importMapResolverConfig }, nodeModulesResolverConfig = { ...defaultNodeModulesResolverConfig, ..._nodeModulesResolverConfig }, relativePathResolverConfig = { ...defaultRelativePathResolverConfig, ..._relativePathResolverConfig }, logFn = log ? log === true ? logLogger : log : void 0, output_ns = "discard-this-namespace", plugin_filter = /.*/;
   return async (build) => {
     const absWorkingDir = pathToPosixPath(build.initialOptions.absWorkingDir ?? "./");
+    const externalResourceSet = new Set(build.initialOptions.external);
+    const externalPathResolver = externalResourceSet.size <= 0 ? noop2 : async (args) => {
+      const { path, pluginData = {} } = args, is_external = externalResourceSet.has(path);
+      if (1 /* LOG */ && logFn) {
+        logFn(`[external-path]    checking: ${path}` + (!is_external ? "" : `
+>> successfully verified the path to be external`));
+      }
+      return is_external ? {
+        path,
+        external: true,
+        namespace: output_ns,
+        pluginData: { ...pluginData }
+      } : void 0;
+    };
     const runtimePackageResolver = runtimePackageResolverConfig.enabled === false ? noop2 : async (args) => {
       if (args.pluginData?.resolverConfig?.useRuntimePackage === false) {
         return;
@@ -1947,6 +1961,7 @@ var resolverPluginSetup = (config) => {
         pluginData: { ...pluginData }
       };
     };
+    build.onResolve({ filter: plugin_filter, namespace: plugin_ns }, externalPathResolver);
     build.onResolve({ filter: plugin_filter, namespace: plugin_ns }, runtimePackageResolver);
     build.onResolve({ filter: plugin_filter, namespace: plugin_ns }, importMapResolver);
     build.onResolve({ filter: plugin_filter, namespace: plugin_ns }, nodeModulesResolver);
@@ -2040,7 +2055,7 @@ var npmPluginSetup = (config = {}) => {
   if (isObject(autoInstall)) {
     nodeModulesDirs.unshift(autoInstall.dir);
   }
-  return (async (build) => {
+  return async (build) => {
     const { absWorkingDir, outdir, outfile, entryPoints, write, loader } = build.initialOptions, cwd = ensureEndSlash(defaultGetCwd), abs_working_dir = absWorkingDir ? ensureEndSlash(pathToPosixPath(absWorkingDir)) : defaultGetCwd, dir_path_converter = (dir_path) => {
       switch (dir_path) {
         case 0 /* CWD */:
@@ -2072,7 +2087,7 @@ var npmPluginSetup = (config = {}) => {
         }
       });
     }
-    const npmSpecifierResolverFactory = (specifier) => (async (args) => {
+    const npmSpecifierResolverFactory = (specifier) => async (args) => {
       if (!acceptNamespaces.has(args.namespace)) {
         return;
       }
@@ -2117,12 +2132,12 @@ var npmPluginSetup = (config = {}) => {
       abs_result.namespace = "";
       Object.assign(abs_result.pluginData.resolverConfig, { ...originalResolverConfig, useRuntimePackage: false, useNodeModules: true });
       return abs_result;
-    });
+    };
     specifiers.forEach((specifier) => {
       const filter = new RegExp(`^${escapeLiteralStringForRegex(specifier)}`);
       build.onResolve({ filter }, npmSpecifierResolverFactory(specifier));
     });
-  });
+  };
 };
 var npmPlugin = (config) => {
   return {

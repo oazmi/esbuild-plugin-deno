@@ -99,7 +99,7 @@ export interface EntryPluginSetupConfig {
 	*/
 	filters: RegExp[]
 
-	/** {@inheritDoc InitialPluginData} */
+	/** {@inheritDoc "plugins/filters/entry"!InitialPluginData} */
 	initialPluginData?: Partial<InitialPluginData>
 
 	/** specify the mode for forcefully inserting {@link initialPluginData} into `args.pluginData` of all entry-points:

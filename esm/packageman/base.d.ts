@@ -6,6 +6,7 @@
 import { type ConstructorOf } from "../deps.js";
 import { type ResolvePathFromImportMapEntriesConfig } from "../importmap/mod.js";
 import type { ImportMapSortedEntries } from "../importmap/typedefs.js";
+/** {@inheritDoc "importmap/mod"!ResolvePathFromImportMapEntriesConfig} */
 export interface RuntimePackageResolveImportConfig extends ResolvePathFromImportMapEntriesConfig {
     /** once a workspace runtime-package has been visited, its path (returned by {@link RuntimePackage.getPath}) is saved to this `Set`,
      * so that it is not traversed again by any other child/parent workspace during the current import-path resolution task.
@@ -96,6 +97,9 @@ export declare abstract class RuntimePackage<SCHEMA extends Record<string, any>>
     */
     static fromUrl<SCHEMA extends Record<string, any>, INSTANCE = RuntimePackage<SCHEMA>>(this: ConstructorOf<INSTANCE, [SCHEMA, string]>, package_jsonc_path: URL | string): Promise<INSTANCE>;
 }
+/** the `WorkspacePackage` abstract class adds support for resolving import and export aliases from workspace packages.
+ * check the base class {@link RuntimePackage} for more details.
+*/
 export declare abstract class WorkspacePackage<SCHEMA extends Record<string, any>> extends RuntimePackage<SCHEMA> {
     /** specify all child workspaces of this package.
      *

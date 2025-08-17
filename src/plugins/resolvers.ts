@@ -266,6 +266,25 @@ export const resolverPluginSetup = (config?: DeepPartial<ResolverPluginSetupConf
 		// if `build.initialOptions.absWorkingDir` is itself a relative path, then we'll resolve it relative to the current-working-directory,
 		// via the `resolvePath` function inside of the `relativePathResolver`.
 		const absWorkingDir = pathToPosixPath(build.initialOptions.absWorkingDir ?? "./")
+		const externalResourceSet = new Set(build.initialOptions.external)
+
+		// before everything, we will ensure that the `path` being resolved is not among the external modules.
+		const externalPathResolver: OnResolveCallback = (externalResourceSet.size <= 0) ? noop : async (args) => {
+			const
+				{ path, pluginData = {} } = args,
+				is_external = externalResourceSet.has(path)
+			if (DEBUG.LOG && logFn) {
+				logFn(`[external-path]    checking: ${path}` + (!is_external ? ""
+					: `\n>> successfully verified the path to be external`
+				))
+			}
+			return is_external ? {
+				path,
+				external: true,
+				namespace: output_ns,
+				pluginData: { ...pluginData },
+			} : undefined
+		}
 
 		// first comes the runtime-package-manager resolver, if it is enabled, that is.
 		const runtimePackageResolver: OnResolveCallback = (runtimePackageResolverConfig.enabled === false) ? noop : async (args) => {
@@ -374,6 +393,7 @@ export const resolverPluginSetup = (config?: DeepPartial<ResolverPluginSetupConf
 			}
 		}
 
+		build.onResolve({ filter: plugin_filter, namespace: plugin_ns }, externalPathResolver)
 		build.onResolve({ filter: plugin_filter, namespace: plugin_ns }, runtimePackageResolver)
 		build.onResolve({ filter: plugin_filter, namespace: plugin_ns }, importMapResolver)
 		build.onResolve({ filter: plugin_filter, namespace: plugin_ns }, nodeModulesResolver)

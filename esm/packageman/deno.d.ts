@@ -91,10 +91,14 @@ import { WorkspacePackage, type ResolveWorkspaceReturnType, type RuntimePackageR
  * [source link](https://jsr.io/@oazmi/build-tools/0.2.4/src/types/deno_json.ts).
 */
 export interface DenoJsonSchema {
-    /** the name of this jsr package. it must be scoped */
+    /** the name of this jsr package. it must be scoped. */
     name?: string;
     /** the version of this jsr package. */
     version?: string;
+    /** the exports done by the package. it can be one of the following:
+     * - string: specifying the relative path to the default exported module.
+     * - key-value map: specifying the (relative) aliases as keys, and relative paths to exported modules, as the values.
+    */
     exports?: Exports;
     /** the location of an additional import map to be used when resolving modules.
      * If an import map is specified as an `--importmap` flag or using "imports" and "scopes" properties, they will override this value.
@@ -130,12 +134,16 @@ export interface DenoJsonSchema {
     };
     /** the child packages of this workspace. */
     workspace?: string[];
+    /** irrelevant properties of "deno.json". */
     [property: string]: any;
 }
 type Exports = string | {
     /** export aliases must follow the regex "^\.(/.*)?$" */
     [alias: string]: string;
 };
+/** this an instance of this class can imitate deno import and export aliases resolution, including any connected workspace packages.
+ * check the base class {@link WorkspacePackage} for more details.
+*/
 export declare class DenoPackage extends WorkspacePackage<DenoJsonSchema> {
     protected readonly importMapSortedEntries: ImportMapSortedEntries;
     protected readonly exportMapSortedEntries: ImportMapSortedEntries;
@@ -148,6 +156,12 @@ export declare class DenoPackage extends WorkspacePackage<DenoJsonSchema> {
     resolveWorkspaceImport(path_alias: string, config?: Partial<RuntimePackageResolveImportConfig>): ResolveWorkspaceReturnType | undefined;
     static fromUrl<SCHEMA extends DenoJsonSchema, INSTANCE = DenoPackage>(jsr_package: URL | string): Promise<INSTANCE>;
 }
+/** these are package json file names that are compatible with deno.
+ *
+ * currently it is set to `["./deno.json", "./deno.jsonc", "./jsr.json", "./jsr.jsonc"]`.
+ * notice that `"./package.json"` isn't supported yet, because esbuild itself takes care of `"package.json"` based resolution,
+ * once you've properly installed your npm packages.
+*/
 export declare const denoPackageJsonFilenames: string[];
 /** given a jsr schema uri (such as `jsr:@std/assert/assert-equals`), this function resolves the http url of the package's metadata file (i.e. `deno.json(c)`).
  *

@@ -92,6 +92,9 @@ export class RuntimePackage {
         return new_instance;
     }
 }
+/** the `WorkspacePackage` abstract class adds support for resolving import and export aliases from workspace packages.
+ * check the base class {@link RuntimePackage} for more details.
+*/
 export class WorkspacePackage extends RuntimePackage {
     /** specify all child workspaces of this package.
      *

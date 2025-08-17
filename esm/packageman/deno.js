@@ -89,6 +89,9 @@ import { defaultFetchConfig, defaultResolvePath, ensureEndSlash, fetchScanUrls, 
 import { compareImportMapEntriesByLength } from "../importmap/mod.js";
 import { WorkspacePackage } from "./base.js";
 const existingDenoPackageConstructionStatus = new Map();
+/** this an instance of this class can imitate deno import and export aliases resolution, including any connected workspace packages.
+ * check the base class {@link WorkspacePackage} for more details.
+*/
 export class DenoPackage extends WorkspacePackage {
     importMapSortedEntries;
     exportMapSortedEntries;
@@ -223,6 +226,12 @@ export class DenoPackage extends WorkspacePackage {
     }
 }
 const jsr_base_url = "https://jsr.io";
+/** these are package json file names that are compatible with deno.
+ *
+ * currently it is set to `["./deno.json", "./deno.jsonc", "./jsr.json", "./jsr.jsonc"]`.
+ * notice that `"./package.json"` isn't supported yet, because esbuild itself takes care of `"package.json"` based resolution,
+ * once you've properly installed your npm packages.
+*/
 export const denoPackageJsonFilenames = [
     "./deno.json",
     "./deno.jsonc",
