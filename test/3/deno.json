@@ -1,0 +1,21 @@
+{
+	"imports": {
+		"@deno/dnt": "jsr:@deno/dnt@0.41.1",
+		"@oazmi/kitchensink": "jsr:@oazmi/kitchensink@0.9.14",
+		"@std/jsonc": "jsr:@std/jsonc@1.0.1",
+		"typedoc": "npm:typedoc@0.28.10"
+	},
+	"nodeModulesDir": "none",
+	"fmt": {
+		"useTabs": true,
+		"semiColons": false,
+		"singleQuote": false,
+		"lineWidth": 800,
+		"proseWrap": "preserve",
+		"include": ["./*.ts", "./*.json"]
+	},
+	"compilerOptions": {
+		"lib": ["esnext", "dom", "deno.ns"],
+		"strict": true
+	}
+}
