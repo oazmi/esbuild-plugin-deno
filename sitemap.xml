@@ -2,386 +2,386 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/index.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/modules.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/hierarchy.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/modules/importmap_mod.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/functions/importmap_mod.resolvePathFromImportMap.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/variables/importmap_mod.compareImportMapEntriesByLength.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/interfaces/importmap_mod.ResolvePathFromImportMapEntriesConfig.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/functions/importmap_mod.resolvePathFromImportMapEntries.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/types/importmap_mod.ImportMap.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/types/importmap_mod.ImportMapSortedEntries.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/interfaces/importmap_mod.ImportMapResolutionConfig.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/modules/loadermap_mod.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/types/loadermap_mod.MimeType.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/types/loadermap_mod.ExtensionType.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/variables/loadermap_mod.mimeTypeLoaderMap.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/variables/loadermap_mod.extensionTypeLoaderMap.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/functions/loadermap_mod.guessMimeLoaders.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/functions/loadermap_mod.guessExtensionLoaders.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/functions/loadermap_mod.guessHttpResponseLoaders.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/modules/mod.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/modules/packageman_base.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/interfaces/packageman_base.RuntimePackageResolveImportConfig.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/types/packageman_base.ResolveWorkspaceReturnType.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/classes/packageman_base.RuntimePackage.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/classes/packageman_base.WorkspacePackage.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/modules/packageman_deno.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/interfaces/packageman_deno.DenoJsonSchema.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/classes/packageman_deno.DenoPackage.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/variables/packageman_deno.denoPackageJsonFilenames.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/functions/packageman_deno.jsrPackageToMetadataUrl.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/modules/plugins_filters_entry.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/interfaces/plugins_filters_entry.InitialPluginData.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/interfaces/plugins_filters_entry.EntryPluginSetupConfig.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/functions/plugins_filters_entry.entryPluginSetup.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/functions/plugins_filters_entry.entryPlugin.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/modules/plugins_filters_http.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/interfaces/plugins_filters_http.UrlLoaderFactoryConfig.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/functions/plugins_filters_http.urlLoaderFactory.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/interfaces/plugins_filters_http.HttpPluginSetupConfig.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/functions/plugins_filters_http.httpPluginSetup.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/functions/plugins_filters_http.httpPlugin.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/modules/plugins_filters_jsr.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/interfaces/plugins_filters_jsr.JsrPluginSetupConfig.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/functions/plugins_filters_jsr.jsrPluginSetup.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/functions/plugins_filters_jsr.jsrPlugin.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/modules/plugins_filters_npm.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/types/plugins_filters_npm.NodeModuleDirFormat.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/interfaces/plugins_filters_npm.NpmAutoInstallCliConfig.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/interfaces/plugins_filters_npm.NpmPluginSetupConfig.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/functions/plugins_filters_npm.npmPluginSetup.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/functions/plugins_filters_npm.npmPlugin.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/types/plugins_filters_npm.FindResolveDirOfNpmPackage_FunctionSignature.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/functions/plugins_filters_npm.findResolveDirOfNpmPackageFactory.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/types/plugins_filters_npm.InstallNpmPackageConfig.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/functions/plugins_filters_npm.installNpmPackage.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/functions/plugins_filters_npm.installNpmPackageCli.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/functions/plugins_filters_npm.installNpmPackageDynamic.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/modules/plugins_funcdefs.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/variables/plugins_funcdefs.logLogger.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/variables/plugins_funcdefs.arrayLoggerHistory.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/variables/plugins_funcdefs.arrayLogger.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/types/plugins_funcdefs.SyncTaskQueue.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/functions/plugins_funcdefs.syncTaskQueueFactory.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/functions/plugins_funcdefs.entryPointsToImportMapEntries.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/modules/plugins_mod.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/interfaces/plugins_mod.DenoPluginsConfig.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/functions/plugins_mod.denoPlugins.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/modules/plugins_resolvers.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/interfaces/plugins_resolvers.RuntimePackageResolverConfig.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/interfaces/plugins_resolvers.ImportMapResolverConfig.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/interfaces/plugins_resolvers.NodeModulesResolverConfig.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/interfaces/plugins_resolvers.RelativePathResolverConfig.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/interfaces/plugins_resolvers.ResolverPluginSetupConfig.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/functions/plugins_resolvers.resolverPluginSetup.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/functions/plugins_resolvers.resolverPlugin.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/interfaces/plugins_resolvers.NodeModulesResolverFactoryConfig.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/functions/plugins_resolvers.nodeModulesResolverFactory.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/modules/plugins_typedefs.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/enums/plugins_typedefs.PLUGIN_NAMESPACE.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/variables/plugins_typedefs.defaultEsbuildNamespaces.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/variables/plugins_typedefs.allEsbuildLoaders.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/enums/plugins_typedefs.DIRECTORY.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/interfaces/plugins_typedefs.CommonPluginData.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/types/plugins_typedefs.OnResolveArgs.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/types/plugins_typedefs.OnLoadArgs.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/types/plugins_typedefs.OnResolveResult.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/types/plugins_typedefs.OnLoadResult.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/types/plugins_typedefs.OnResolveCallback.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/types/plugins_typedefs.OnLoadCallback.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/types/plugins_typedefs.EsbuildPlugin.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/types/plugins_typedefs.EsbuildPluginSetup.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/types/plugins_typedefs.EsbuildPluginBuild.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/types/plugins_typedefs.EsbuildLoaderType.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/types/plugins_typedefs.LoggerFunction.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/types/plugins_typedefs.EsbuildEntryPointType.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 	<url>
 		<loc>https://oazmi.github.io/esbuild-plugin-deno/types/plugins_typedefs.EsbuildEntryPointsType.html</loc>
-		<lastmod>2025-08-16T04:29:00.811Z</lastmod>
+		<lastmod>2025-08-17T22:17:42.927Z</lastmod>
 	</url>
 </urlset>
