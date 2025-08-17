@@ -1,6 +1,6 @@
 {
 	"name": "@oazmi/esbuild-plugin-deno",
-	"version": "0.4.3",
+	"version": "0.4.4",
 	"description": "A portable non-invasive suite of esbuild plugins for loading http, jsr, npm, and import-maps. Supports Deno, Node, Bun, Web. Alternate to @luca/esbuild-deno-loader , while compatible with other plugins and native esbuild resolvers (e.g. css loader).",
 	"author": "Omar Azmi",
 	"license": "Lulz plz don't steal yet",
@@ -32,6 +32,7 @@
 		"./plugins/typedefs": "./src/plugins/typedefs.ts"
 	},
 	"imports": {
+		"@oazmi/esbuild-types": "jsr:@oazmi/esbuild-types@0.25.0",
 		"@oazmi/kitchensink": "jsr:@oazmi/kitchensink@0.9.14"
 	},
 	"nodeModulesDir": "none",
@@ -63,9 +64,9 @@
 			"@oazmi/kitchensink": "0.9.14"
 		},
 		"devDependencies": {
-			"typescript": "^5.6.0",
-			"esbuild": "^0.25.0",
-			"typedoc": "^0.28.1"
+			"typescript": "^5.7.0",
+			"esbuild": "0.25.0",
+			"typedoc": "0.28.10"
 		},
 		"scripts": {
 			"build-dist": "npm run build-esm -- --platform=node && npm run build-esm-minify -- --platform=node"

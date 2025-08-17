@@ -2,7 +2,7 @@
 
 ## bucket list
 
-- [ ] support for deno and node workspaces.
+- [x] (2025-08-14) support for deno and node workspaces.
   > give this more priority, as it's starting to become annoying when I have to temporarily flatten dependencies of valrious local deno packages into a single package,
   > so that the bundle script is able to resolve imports of the other local packages.
 - [ ] support for `scopes` in `deno.json` (I haven't got a clue as to what it does anyway).
@@ -73,11 +73,15 @@
       doing so might undo the 60% slowdown introduced in version `0.3.0` (where inherit-plugin-data was added).~~
   > the reduction in speed was a government propaganda, the cake was a lie, and carbon killed oxide (carbon "die" oxide, get it? haha humor +100, and everyone clapped while congratulating for eternity - [quack quack](https://www.youtube.com/watch?v=oyFQVZ2h0V8&t=11s))
 
+## pre-version `0.4.5` todo list
+
+- [ ] use an updated version of `jsr:@oazmi/build-tools` to generate javascript bundles of this project.
+
 ## pre-version `0.4.4` todo list
 
-- [ ] use esbuild type definitions from your own stud library in `jsr:@oazmi/esbuild-types` or `npm:@oazmi/esbuild-types`.
-- [ ] add a new logo and update the `./readme.md`.
-- [ ] use an updated version of `jsr:@oazmi/build-tools` to generate javascript bundles of this project.
+- [x] use esbuild type definitions from your own stud library in `jsr:@oazmi/esbuild-types` or `npm:@oazmi/esbuild-types`.
+- [x] add a new logo and update the `./readme.md`.
+- [x] make the plugindata-resolvers skip any module/path declared as `external` in esbuild's initial build options.
 
 ## (2025-08-14) pre-version `0.4.3` todo list
 
@@ -91,6 +95,7 @@
 - [x] fix [issue#7](https://github.com/oazmi/esbuild-plugin-deno/issues/7):
       add support for deno workspaces and workspace discovery/scanning.
       however, wildcards in the `workspace` field of `deno.json` are not currently supported.
+- [x] add bundling tests for the workspace feature in `/test/2/`.
 
 ## (2025-04-20) pre-version `0.4.2` todo list
 

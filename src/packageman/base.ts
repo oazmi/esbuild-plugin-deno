@@ -9,6 +9,7 @@ import { resolvePathFromImportMapEntries, type ResolvePathFromImportMapEntriesCo
 import type { ImportMapSortedEntries } from "../importmap/typedefs.ts"
 
 
+/** {@inheritDoc "importmap/mod"!ResolvePathFromImportMapEntriesConfig} */
 export interface RuntimePackageResolveImportConfig extends ResolvePathFromImportMapEntriesConfig {
 	/** once a workspace runtime-package has been visited, its path (returned by {@link RuntimePackage.getPath}) is saved to this `Set`,
 	 * so that it is not traversed again by any other child/parent workspace during the current import-path resolution task.
@@ -142,6 +143,9 @@ export abstract class RuntimePackage<SCHEMA extends Record<string, any>> {
 	}
 }
 
+/** the `WorkspacePackage` abstract class adds support for resolving import and export aliases from workspace packages.
+ * check the base class {@link RuntimePackage} for more details.
+*/
 export abstract class WorkspacePackage<SCHEMA extends Record<string, any>> extends RuntimePackage<SCHEMA> {
 	/** specify all child workspaces of this package.
 	 * 
