@@ -22,5 +22,10 @@
 	"deno.enable": true,
 	"deno.disablePaths": [
 		"**/package.json"
-	]
+	],
+	"xml.format.maxLineWidth": 800,
+	"xml.format.splitAttributesIndentSize": 1,
+	"xml.format.splitAttributes": "splitNewLine",
+	"xml.format.joinContentLines": true,
+	"xml.format.legacy": true
 }
