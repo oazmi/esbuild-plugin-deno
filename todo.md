@@ -71,11 +71,14 @@
 - [ ] ~~in the entry-plugin, consider merging the initial-plugin-data resolver (`initialPluginDataInjector`) into the inherit-plugin-data resolver (`inheritPluginDataInjector`),
       if it provides significant speed boost.
       doing so might undo the 60% slowdown introduced in version `0.3.0` (where inherit-plugin-data was added).~~
-  > the reduction in speed was a government propaganda, the cake was a lie, and carbon killed oxide (carbon "die" oxide, get it? haha humor +100, and everyone clapped while congratulating for eternity - [quack quack](https://www.youtube.com/watch?v=oyFQVZ2h0V8&t=11s))
+  > the reduction in speed was a government lie, the cake was actually a pie, epstien didn't unalive (himself),
+  > please don't sniff formaldehyde, and did you know carbon killed oxide? (carbon "die" oxide, get it? haha humor +100,
+  > social credit score -50, and everyone clapped for eternity - [quack quack](https://www.youtube.com/watch?v=oyFQVZ2h0V8&t=11s))
 
 ## pre-version `0.4.5` todo list
 
-- [ ] use an updated version of `jsr:@oazmi/build-tools` to generate javascript bundles of this project.
+- [x] use an updated version of `jsr:@oazmi/build-tools` to generate javascript bundles of this project.
+- [x] update esbuild type definitions to `esbuild@0.27.0` via `jsr:@oazmi/esbuild-types@0.27.0`.
 
 ## pre-version `0.4.4` todo list
 

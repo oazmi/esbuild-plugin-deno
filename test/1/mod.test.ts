@@ -1,6 +1,6 @@
 import { promiseTimeout } from "@oazmi/kitchensink/lambda"
 import { parseFilepathInfo } from "@oazmi/kitchensink/pathman"
-import esbuild from "npm:esbuild@0.25.0"
+import esbuild from "npm:esbuild@0.27.0"
 import { entryPlugin } from "../../src/plugins/filters/entry.ts"
 import { httpPlugin } from "../../src/plugins/filters/http.ts"
 import { jsrPlugin } from "../../src/plugins/filters/jsr.ts"
