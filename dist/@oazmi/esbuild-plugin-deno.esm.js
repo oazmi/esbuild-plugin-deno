@@ -1,42 +1,4 @@
-// node_modules/@oazmi/kitchensink/esm/_dnt.polyfills.js
-function findLastIndex(self, callbackfn, that) {
-  const boundFunc = that === void 0 ? callbackfn : callbackfn.bind(that);
-  let index = self.length - 1;
-  while (index >= 0) {
-    const result = boundFunc(self[index], index, self);
-    if (result) {
-      return index;
-    }
-    index--;
-  }
-  return -1;
-}
-function findLast(self, callbackfn, that) {
-  const index = self.findLastIndex(callbackfn, that);
-  return index === -1 ? void 0 : self[index];
-}
-if (!Array.prototype.findLastIndex) {
-  Array.prototype.findLastIndex = function(callbackfn, that) {
-    return findLastIndex(this, callbackfn, that);
-  };
-}
-if (!Array.prototype.findLast) {
-  Array.prototype.findLast = function(callbackfn, that) {
-    return findLast(this, callbackfn, that);
-  };
-}
-if (!Uint8Array.prototype.findLastIndex) {
-  Uint8Array.prototype.findLastIndex = function(callbackfn, that) {
-    return findLastIndex(this, callbackfn, that);
-  };
-}
-if (!Uint8Array.prototype.findLast) {
-  Uint8Array.prototype.findLast = function(callbackfn, that) {
-    return findLast(this, callbackfn, that);
-  };
-}
-
-// node_modules/@oazmi/kitchensink/esm/_dnt.shims.js
+// src/_dnt.shims.ts
 var dntGlobals = {};
 var dntGlobalThis = createMergeProxy(globalThis, dntGlobals);
 function createMergeProxy(baseObj, extObj) {
@@ -93,7 +55,7 @@ function createMergeProxy(baseObj, extObj) {
   });
 }
 
-// node_modules/@oazmi/kitchensink/esm/alias.js
+// src/deps/jsr.io/@oazmi/kitchensink/0.9.15/src/alias.ts
 var array_constructor = Array;
 var json_constructor = JSON;
 var number_constructor = Number;
@@ -126,21 +88,11 @@ var symbol_toStringTag = /* @__PURE__ */ (() => symbol_constructor.toStringTag)(
 var dom_encodeURI = encodeURI;
 var dom_decodeURI = decodeURI;
 
-// node_modules/@oazmi/kitchensink/esm/deps.js
-var DEBUG;
-(function(DEBUG3) {
-  DEBUG3[DEBUG3["LOG"] = 0] = "LOG";
-  DEBUG3[DEBUG3["ASSERT"] = 0] = "ASSERT";
-  DEBUG3[DEBUG3["ERROR"] = 1] = "ERROR";
-  DEBUG3[DEBUG3["PRODUCTION"] = 1] = "PRODUCTION";
-  DEBUG3[DEBUG3["MINIFY"] = 1] = "MINIFY";
-})(DEBUG || (DEBUG = {}));
-
-// node_modules/@oazmi/kitchensink/esm/binder.js
+// src/deps/jsr.io/@oazmi/kitchensink/0.9.15/src/binder.ts
 var bindMethodFactoryByName = (instance, method_name, ...args) => {
-  return (thisArg) => {
+  return ((thisArg) => {
     return instance[method_name].bind(thisArg, ...args);
-  };
+  });
 };
 var bindMethodToSelfByName = (self, method_name, ...args) => self[method_name].bind(self, ...args);
 var prototypeOfClass = (cls) => {
@@ -163,7 +115,7 @@ var bind_map_keys = /* @__PURE__ */ bindMethodFactoryByName(map_proto, "keys");
 var bind_map_set = /* @__PURE__ */ bindMethodFactoryByName(map_proto, "set");
 var bind_map_values = /* @__PURE__ */ bindMethodFactoryByName(map_proto, "values");
 
-// node_modules/@oazmi/kitchensink/esm/struct.js
+// src/deps/jsr.io/@oazmi/kitchensink/0.9.15/src/struct.ts
 var constructorOf = (class_instance) => {
   return object_getPrototypeOf(class_instance).constructor;
 };
@@ -179,7 +131,7 @@ var isString = (obj) => {
   return typeof obj === "string";
 };
 
-// node_modules/@oazmi/kitchensink/esm/stringman.js
+// src/deps/jsr.io/@oazmi/kitchensink/0.9.15/src/stringman.ts
 var escapeLiteralCharsRegex = /[.*+?^${}()|[\]\\]/g;
 var escapeLiteralStringForRegex = (str) => str.replaceAll(escapeLiteralCharsRegex, "\\$&");
 var replacePrefix = (input, prefix, value = "") => {
@@ -189,25 +141,18 @@ var replaceSuffix = (input, suffix, value = "") => {
   return input.endsWith(suffix) ? (suffix === "" ? input : input.slice(0, -suffix.length)) + value : void 0;
 };
 var windows_new_line = "\r\n";
-var JSONC_INSIDE;
-(function(JSONC_INSIDE2) {
-  JSONC_INSIDE2[JSONC_INSIDE2["NONE"] = 0] = "NONE";
-  JSONC_INSIDE2[JSONC_INSIDE2["STRING"] = 1] = "STRING";
-  JSONC_INSIDE2[JSONC_INSIDE2["INLINE_COMMENT"] = 2] = "INLINE_COMMENT";
-  JSONC_INSIDE2[JSONC_INSIDE2["MULTILINE_COMMENT"] = 3] = "MULTILINE_COMMENT";
-})(JSONC_INSIDE || (JSONC_INSIDE = {}));
 var jsoncRemoveComments = (jsonc_string) => {
   jsonc_string = " " + jsonc_string.replaceAll(windows_new_line, "\n") + " ";
   const jsonc_string_length = jsonc_string.length - 1, json_chars = [], json_chars_push = bind_array_push(json_chars), json_chars_pop = bind_array_pop(json_chars);
-  let state = JSONC_INSIDE.NONE;
+  let state = 0 /* NONE */;
   for (let i = 1; i < jsonc_string_length; i++) {
     const char = jsonc_string[i];
     switch (char) {
       case "/": {
-        if (state === JSONC_INSIDE.NONE) {
+        if (state === 0 /* NONE */) {
           const next_char = jsonc_string[i + 1];
-          state = next_char === "/" ? JSONC_INSIDE.INLINE_COMMENT : next_char === "*" ? JSONC_INSIDE.MULTILINE_COMMENT : JSONC_INSIDE.NONE;
-          if (state !== JSONC_INSIDE.NONE) {
+          state = next_char === "/" ? 2 /* INLINE_COMMENT */ : next_char === "*" ? 3 /* MULTILINE_COMMENT */ : 0 /* NONE */;
+          if (state !== 0 /* NONE */) {
             i++;
             continue;
           }
@@ -215,10 +160,10 @@ var jsoncRemoveComments = (jsonc_string) => {
         break;
       }
       case "*": {
-        if (state === JSONC_INSIDE.MULTILINE_COMMENT) {
+        if (state === 3 /* MULTILINE_COMMENT */) {
           const next_char = jsonc_string[i + 1];
-          state = next_char === "/" ? JSONC_INSIDE.NONE : state;
-          if (state === JSONC_INSIDE.NONE) {
+          state = next_char === "/" ? 0 /* NONE */ : state;
+          if (state === 0 /* NONE */) {
             i++;
             continue;
           }
@@ -226,24 +171,24 @@ var jsoncRemoveComments = (jsonc_string) => {
         break;
       }
       case "\n": {
-        state = state === JSONC_INSIDE.INLINE_COMMENT ? JSONC_INSIDE.NONE : state;
+        state = state === 2 /* INLINE_COMMENT */ ? 0 /* NONE */ : state;
       }
       /* falls through */
       case "	":
       case "\v":
       case " ": {
-        if (state === JSONC_INSIDE.NONE) {
+        if (state === 0 /* NONE */) {
           continue;
         }
         break;
       }
       case '"': {
-        state = state === JSONC_INSIDE.NONE ? JSONC_INSIDE.STRING : state === JSONC_INSIDE.STRING ? JSONC_INSIDE.NONE : state;
+        state = state === 0 /* NONE */ ? 1 /* STRING */ : state === 1 /* STRING */ ? 0 /* NONE */ : state;
         break;
       }
       case "}":
       case "]": {
-        if (state === JSONC_INSIDE.NONE) {
+        if (state === 0 /* NONE */) {
           const prev_char = json_chars_pop();
           if (prev_char !== ",") {
             json_chars_push(prev_char);
@@ -252,14 +197,16 @@ var jsoncRemoveComments = (jsonc_string) => {
         break;
       }
     }
-    if (state === JSONC_INSIDE.NONE || state === JSONC_INSIDE.STRING) {
-      json_chars_push(char === "\\" ? char + jsonc_string[++i] : char);
+    if (state === 0 /* NONE */ || state === 1 /* STRING */) {
+      json_chars_push(
+        char === "\\" ? char + jsonc_string[++i] : char
+      );
     }
   }
   return json_chars.join("");
 };
 
-// node_modules/@oazmi/kitchensink/esm/pathman.js
+// src/deps/jsr.io/@oazmi/kitchensink/0.9.15/src/pathman.ts
 var uriProtocolSchemeMap = /* @__PURE__ */ object_entries({
   "node:": "node",
   "npm:": "npm",
@@ -305,7 +252,7 @@ var parsePackageUrl = (url_href) => {
   url_href = dom_decodeURI(isString(url_href) ? url_href : url_href.href);
   const { protocol, scope: scope_str, pkg, version: version_str, pathname: pathname_str } = package_regex.exec(url_href)?.groups ?? {};
   if (protocol === void 0 || pkg === void 0) {
-    throw new Error(DEBUG.ERROR ? "invalid package url format was provided: " + url_href : "");
+    throw new Error(1 /* ERROR */ ? "invalid package url format was provided: " + url_href : "");
   }
   const scope = scope_str ? scope_str : void 0, version = version_str ? version_str : void 0, pathname = pathname_str ? pathname_str : sep, host = `${scope ? "@" + scope + sep : ""}${pkg}${version ? "@" + version : ""}`, href = dom_encodeURI(`${protocol}/${host}${pathname}`);
   return {
@@ -327,7 +274,7 @@ var resolveAsUrl = (path, base) => {
   if (isString(base) && base !== "") {
     const base_scheme = getUriScheme(base);
     if (forbiddenBaseUriSchemes.includes(base_scheme)) {
-      throw new Error(DEBUG.ERROR ? "the following base scheme (url-protocol) is not supported: " + base_scheme : "");
+      throw new Error(1 /* ERROR */ ? "the following base scheme (url-protocol) is not supported: " + base_scheme : "");
     }
     base_url = resolveAsUrl(base);
   }
@@ -416,23 +363,24 @@ var ensureFileUrlIsLocalPath = (path) => {
   const path_is_string = isString(path), file_uri_to_local_path_conversion = fileUrlToLocalPath(path);
   return file_uri_to_local_path_conversion ?? (path_is_string ? pathToPosixPath(path) : path.href);
 };
+var joinPosixPaths_reduce_fn = (concatenatible_full_path, segment) => {
+  const prev_segment = concatenatible_full_path.pop(), prev_segment_is_dir = string_ends_with(prev_segment, sep), prev_segment_as_dir = prev_segment_is_dir ? prev_segment : prev_segment + sep;
+  if (!prev_segment_is_dir) {
+    const segment_is_rel_to_dir = string_starts_with(segment, dotslash), segment_is_rel_to_parent_dir = string_starts_with(segment, dotdotslash);
+    if (segment_is_rel_to_dir) {
+      segment = "." + segment;
+    } else if (segment_is_rel_to_parent_dir) {
+      segment = dotdotslash + segment;
+    }
+  }
+  concatenatible_full_path.push(prev_segment_as_dir, segment);
+  return concatenatible_full_path;
+};
 var joinPosixPaths = (...segments) => {
   segments = segments.map((segment) => {
     return segment === "." ? dotslash : segment === ".." ? dotdotslash : segment;
   });
-  const concatenatible_segments = segments.reduce((concatenatible_full_path, segment) => {
-    const prev_segment = concatenatible_full_path.pop(), prev_segment_is_dir = string_ends_with(prev_segment, sep), prev_segment_as_dir = prev_segment_is_dir ? prev_segment : prev_segment + sep;
-    if (!prev_segment_is_dir) {
-      const segment_is_rel_to_dir = string_starts_with(segment, dotslash), segment_is_rel_to_parent_dir = string_starts_with(segment, dotdotslash);
-      if (segment_is_rel_to_dir) {
-        segment = "." + segment;
-      } else if (segment_is_rel_to_parent_dir) {
-        segment = dotdotslash + segment;
-      }
-    }
-    concatenatible_full_path.push(prev_segment_as_dir, segment);
-    return concatenatible_full_path;
-  }, [sep]);
+  const concatenatible_segments = segments.reduce(joinPosixPaths_reduce_fn, [sep]);
   concatenatible_segments.shift();
   return normalizePosixPath(concatenatible_segments.join(""));
 };
@@ -440,7 +388,7 @@ var joinPaths = (...segments) => {
   return joinPosixPaths(...segments.map(pathToPosixPath));
 };
 var resolvePosixPathFactory = (absolute_current_dir, absolute_segment_test_fn = isAbsolutePath) => {
-  const getCwdPath = isString(absolute_current_dir) ? () => absolute_current_dir : absolute_current_dir;
+  const getCwdPath = isString(absolute_current_dir) ? (() => absolute_current_dir) : absolute_current_dir;
   return (...segments) => {
     const last_abs_segment_idx = segments.findLastIndex(absolute_segment_test_fn);
     if (last_abs_segment_idx >= 0) {
@@ -455,39 +403,29 @@ var resolvePathFactory = (absolute_current_dir, absolute_segment_test_fn = isAbs
   if (isString(absolute_current_dir)) {
     absolute_current_dir = pathToPosixPath(absolute_current_dir);
   }
-  const getCwdPath = isString(absolute_current_dir) ? () => absolute_current_dir : () => pathToPosixPath(absolute_current_dir()), posix_path_resolver = resolvePosixPathFactory(getCwdPath, absolute_segment_test_fn);
+  const getCwdPath = isString(absolute_current_dir) ? (() => absolute_current_dir) : (() => pathToPosixPath(absolute_current_dir())), posix_path_resolver = resolvePosixPathFactory(getCwdPath, absolute_segment_test_fn);
   return (...segments) => posix_path_resolver(...segments.map(pathToPosixPath));
 };
 
-// node_modules/@oazmi/kitchensink/esm/crossenv.js
-var RUNTIME;
-(function(RUNTIME2) {
-  RUNTIME2[RUNTIME2["DENO"] = 0] = "DENO";
-  RUNTIME2[RUNTIME2["BUN"] = 1] = "BUN";
-  RUNTIME2[RUNTIME2["NODE"] = 2] = "NODE";
-  RUNTIME2[RUNTIME2["CHROMIUM"] = 3] = "CHROMIUM";
-  RUNTIME2[RUNTIME2["EXTENSION"] = 4] = "EXTENSION";
-  RUNTIME2[RUNTIME2["WEB"] = 5] = "WEB";
-  RUNTIME2[RUNTIME2["WORKER"] = 6] = "WORKER";
-})(RUNTIME || (RUNTIME = {}));
+// src/deps/jsr.io/@oazmi/kitchensink/0.9.15/src/crossenv.ts
 var global_this_object = dntGlobalThis;
 var currentRuntimeValidationFnMap = {
-  [RUNTIME.DENO]: () => global_this_object.Deno?.version ? true : false,
-  [RUNTIME.BUN]: () => global_this_object.Bun?.version ? true : false,
-  [RUNTIME.NODE]: () => global_this_object.process?.versions ? true : false,
-  [RUNTIME.CHROMIUM]: () => global_this_object.chrome?.runtime ? true : false,
-  [RUNTIME.EXTENSION]: () => global_this_object.browser?.runtime ? true : false,
-  [RUNTIME.WEB]: () => global_this_object.window?.document ? true : false,
-  [RUNTIME.WORKER]: () => isObject(global_this_object.self) && isComplex(global_this_object.WorkerGlobalScope) && global_this_object.self instanceof global_this_object.WorkerGlobalScope ? true : false
+  [0 /* DENO */]: () => global_this_object.Deno?.version ? true : false,
+  [1 /* BUN */]: () => global_this_object.Bun?.version ? true : false,
+  [2 /* NODE */]: () => global_this_object.process?.versions ? true : false,
+  [3 /* CHROMIUM */]: () => global_this_object.chrome?.runtime ? true : false,
+  [4 /* EXTENSION */]: () => global_this_object.browser?.runtime ? true : false,
+  [5 /* WEB */]: () => global_this_object.window?.document ? true : false,
+  [6 /* WORKER */]: () => isObject(global_this_object.self) && isComplex(global_this_object.WorkerGlobalScope) && global_this_object.self instanceof global_this_object.WorkerGlobalScope ? true : false
 };
 var ordered_runtime_checklist = [
-  RUNTIME.DENO,
-  RUNTIME.BUN,
-  RUNTIME.NODE,
-  RUNTIME.CHROMIUM,
-  RUNTIME.EXTENSION,
-  RUNTIME.WEB,
-  RUNTIME.WORKER
+  0 /* DENO */,
+  1 /* BUN */,
+  2 /* NODE */,
+  3 /* CHROMIUM */,
+  4 /* EXTENSION */,
+  5 /* WEB */,
+  6 /* WORKER */
 ];
 var identifyCurrentRuntime = () => {
   for (const runtime of ordered_runtime_checklist) {
@@ -495,44 +433,44 @@ var identifyCurrentRuntime = () => {
       return runtime;
     }
   }
-  throw new Error(DEBUG.ERROR ? `failed to detect current javascript runtime!
+  throw new Error(1 /* ERROR */ ? `failed to detect current javascript runtime!
 please report this issue to "https://github.com/omar-azmi/kitchensink_ts/issues", along with information on your runtime environment.` : "");
 };
 var getRuntime = (runtime_enum) => {
   switch (runtime_enum) {
-    case RUNTIME.DENO:
+    case 0 /* DENO */:
       return global_this_object.Deno;
-    case RUNTIME.BUN:
+    case 1 /* BUN */:
       return global_this_object.Bun;
-    case RUNTIME.NODE:
+    case 2 /* NODE */:
       return global_this_object.process;
-    case RUNTIME.CHROMIUM:
+    case 3 /* CHROMIUM */:
       return global_this_object.chrome;
-    case RUNTIME.EXTENSION:
+    case 4 /* EXTENSION */:
       return global_this_object.browser;
-    case RUNTIME.WEB:
+    case 5 /* WEB */:
       return global_this_object.window;
-    case RUNTIME.WORKER:
+    case 6 /* WORKER */:
       return global_this_object.self;
     default:
-      throw new Error(DEBUG.ERROR ? `an invalid runtime enum was provided: "${runtime_enum}".` : "");
+      throw new Error(1 /* ERROR */ ? `an invalid runtime enum was provided: "${runtime_enum}".` : "");
   }
 };
 var getRuntimeCwd = (runtime_enum, current_path = true) => {
   const runtime = getRuntime(runtime_enum);
   if (!runtime) {
-    throw new Error(DEBUG.ERROR ? `the requested runtime associated with the enum "${runtime_enum}" is undefined (i.e. you're running on a different runtime from the provided enum).` : "");
+    throw new Error(1 /* ERROR */ ? `the requested runtime associated with the enum "${runtime_enum}" is undefined (i.e. you're running on a different runtime from the provided enum).` : "");
   }
   switch (runtime_enum) {
-    case RUNTIME.DENO:
-    case RUNTIME.BUN:
-    case RUNTIME.NODE:
+    case 0 /* DENO */:
+    case 1 /* BUN */:
+    case 2 /* NODE */:
       return pathToPosixPath(runtime.cwd());
-    case RUNTIME.CHROMIUM:
-    case RUNTIME.EXTENSION:
+    case 3 /* CHROMIUM */:
+    case 4 /* EXTENSION */:
       return runtime.runtime.getURL("");
-    case RUNTIME.WEB:
-    case RUNTIME.WORKER:
+    case 5 /* WEB */:
+    case 6 /* WORKER */:
       return new URL("./", current_path ? runtime.location.href : runtime.location.origin).href;
   }
 };
@@ -542,15 +480,15 @@ var defaultExecShellCommandConfig = {
 var execShellCommand = async (runtime_enum, command, config = {}) => {
   const { args, cwd, signal } = { ...defaultExecShellCommandConfig, ...config }, args_are_empty = array_isEmpty(args), runtime = getRuntime(runtime_enum);
   if (!runtime) {
-    throw new Error(DEBUG.ERROR ? `the requested runtime associated with the enum "${runtime_enum}" is undefined (i.e. you're running on a different runtime from the provided enum).` : "");
+    throw new Error(1 /* ERROR */ ? `the requested runtime associated with the enum "${runtime_enum}" is undefined (i.e. you're running on a different runtime from the provided enum).` : "");
   }
   if (!command && args_are_empty) {
     return { stdout: "", stderr: "" };
   }
   switch (runtime_enum) {
-    case RUNTIME.DENO:
-    case RUNTIME.BUN:
-    case RUNTIME.NODE: {
+    case 0 /* DENO */:
+    case 1 /* BUN */:
+    case 2 /* NODE */: {
       const { exec } = await get_node_child_process(), full_command = args_are_empty ? command : `${command} ${args.join(" ")}`, [promise, resolve, reject] = promise_outside();
       exec(full_command, { cwd: cwd ? ensureFileUrlIsLocalPath(cwd) : void 0, signal }, (error, stdout, stderr) => {
         if (error) {
@@ -561,7 +499,7 @@ var execShellCommand = async (runtime_enum, command, config = {}) => {
       return promise;
     }
     default:
-      throw new Error(DEBUG.ERROR ? `your non-system runtime environment enum ("${runtime_enum}") does not support shell commands` : "");
+      throw new Error(1 /* ERROR */ ? `your non-system runtime environment enum ("${runtime_enum}") does not support shell commands` : "");
   }
 };
 var node_child_process;
@@ -574,15 +512,21 @@ var get_node_child_process = async () => {
 var fs_entry_info_fields = ["size", "mtime", "atime", "birthtime", "ctime", "dev", "mode"];
 var fs_entry_info_all_fields = ["isFile", "isDirectory", "isSymlink", ...fs_entry_info_fields];
 
-// node_modules/@oazmi/kitchensink/esm/collections.js
+// src/deps/jsr.io/@oazmi/kitchensink/0.9.15/src/collections.ts
 var invertMap = (forward_map) => {
   const reverse_map_keys = [];
   forward_map.forEach((rset) => {
     reverse_map_keys.push(...rset);
   });
-  const reverse_map = new Map([...new Set(reverse_map_keys)].map((rkey) => [rkey, /* @__PURE__ */ new Set()])), get_reverse_map = bind_map_get(reverse_map);
+  const reverse_map = new Map(
+    [...new Set(reverse_map_keys)].map(
+      (rkey) => [rkey, /* @__PURE__ */ new Set()]
+    )
+  ), get_reverse_map = bind_map_get(reverse_map);
   for (const [fkey, rset] of forward_map) {
-    rset.forEach((rkey) => get_reverse_map(rkey).add(fkey));
+    rset.forEach(
+      (rkey) => get_reverse_map(rkey).add(fkey)
+    );
   }
   return reverse_map;
 };
@@ -733,11 +677,11 @@ var HybridWeakMap = class {
     return this.pick(key).delete(key);
   }
 };
-var TREE_VALUE_UNSET = /* @__PURE__ */ Symbol(DEBUG.MINIFY || "represents an unset value for a tree");
+var TREE_VALUE_UNSET = /* @__PURE__ */ Symbol(1 /* MINIFY */ || "represents an unset value for a tree");
 
-// node_modules/@oazmi/kitchensink/esm/lambda.js
-var THROTTLE_REJECT = /* @__PURE__ */ Symbol(DEBUG.MINIFY || "a rejection by a throttled function");
-var TIMEOUT = /* @__PURE__ */ Symbol(DEBUG.MINIFY || "a timeout by an awaited promiseTimeout function");
+// src/deps/jsr.io/@oazmi/kitchensink/0.9.15/src/lambda.ts
+var THROTTLE_REJECT = /* @__PURE__ */ Symbol(1 /* MINIFY */ || "a rejection by a throttled function");
+var TIMEOUT = /* @__PURE__ */ Symbol(1 /* MINIFY */ || "a timeout by an awaited promiseTimeout function");
 var memorizeCore = (fn, weak_ref = false) => {
   const memory = weak_ref ? new HybridWeakMap() : /* @__PURE__ */ new Map(), get = bindMethodToSelfByName(memory, "get"), set = bindMethodToSelfByName(memory, "set"), has = bindMethodToSelfByName(memory, "has"), memorized_fn = (arg) => {
     const arg_exists = has(arg), value = arg_exists ? get(arg) : fn(arg);
@@ -752,7 +696,7 @@ var memorize = (fn) => {
   return memorizeCore(fn).fn;
 };
 
-// node_modules/@oazmi/kitchensink/esm/semver.js
+// src/deps/jsr.io/@oazmi/kitchensink/0.9.15/src/semver.ts
 var digits_regex_str = "x|0|[1-9]\\d*";
 var semver_core_regex_str = `(?<major>${digits_regex_str})\\.(?<minor>${digits_regex_str})\\.(?<patch>${digits_regex_str})`;
 var semver_prerelease_str = `(?<prerelease>[^\\+\\s]*)`;
@@ -1028,7 +972,7 @@ var resolveResourcePathFactory = (absolute_current_dir, absolute_segment_test_fn
 var defaultFetchConfig = { redirect: "follow", cache: "force-cache" };
 var defaultGetCwd = /* @__PURE__ */ ensureEndSlash(pathToPosixPath(getRuntimeCwd(identifyCurrentRuntime(), true)));
 var defaultResolvePath = /* @__PURE__ */ resolveResourcePathFactory(defaultGetCwd, isAbsolutePath2);
-var noop2 = () => void 0;
+var noop2 = (() => void 0);
 var fetchScan = async (urls, init) => {
   for (const url of urls) {
     const response = await fetch(url, { ...defaultFetchConfig, ...init }).catch(noop2);
@@ -2055,7 +1999,7 @@ var npmPluginSetup = (config = {}) => {
   if (isObject(autoInstall)) {
     nodeModulesDirs.unshift(autoInstall.dir);
   }
-  return async (build) => {
+  return (async (build) => {
     const { absWorkingDir, outdir, outfile, entryPoints, write, loader } = build.initialOptions, cwd = ensureEndSlash(defaultGetCwd), abs_working_dir = absWorkingDir ? ensureEndSlash(pathToPosixPath(absWorkingDir)) : defaultGetCwd, dir_path_converter = (dir_path) => {
       switch (dir_path) {
         case 0 /* CWD */:
@@ -2087,7 +2031,7 @@ var npmPluginSetup = (config = {}) => {
         }
       });
     }
-    const npmSpecifierResolverFactory = (specifier) => async (args) => {
+    const npmSpecifierResolverFactory = (specifier) => (async (args) => {
       if (!acceptNamespaces.has(args.namespace)) {
         return;
       }
@@ -2132,12 +2076,12 @@ var npmPluginSetup = (config = {}) => {
       abs_result.namespace = "";
       Object.assign(abs_result.pluginData.resolverConfig, { ...originalResolverConfig, useRuntimePackage: false, useNodeModules: true });
       return abs_result;
-    };
+    });
     specifiers.forEach((specifier) => {
       const filter = new RegExp(`^${escapeLiteralStringForRegex(specifier)}`);
       build.onResolve({ filter }, npmSpecifierResolverFactory(specifier));
     });
-  };
+  });
 };
 var npmPlugin = (config) => {
   return {
@@ -2193,15 +2137,15 @@ var autoInstallOptionToNpmAutoInstallCliConfig = (option) => {
   }
   switch (option) {
     case "auto":
-      return current_js_runtime === RUNTIME.DENO || current_js_runtime === RUNTIME.BUN ? "dynamic" : autoInstallOptionToNpmAutoInstallCliConfig("npm");
+      return current_js_runtime === 0 /* DENO */ || current_js_runtime === 1 /* BUN */ ? "dynamic" : autoInstallOptionToNpmAutoInstallCliConfig("npm");
     case true:
     case "auto-cli":
       switch (current_js_runtime) {
-        case RUNTIME.DENO:
+        case 0 /* DENO */:
           return autoInstallOptionToNpmAutoInstallCliConfig("deno");
-        case RUNTIME.BUN:
+        case 1 /* BUN */:
           return autoInstallOptionToNpmAutoInstallCliConfig("bun");
-        case RUNTIME.NODE:
+        case 2 /* NODE */:
           return autoInstallOptionToNpmAutoInstallCliConfig("npm");
         default:
           throw new Error("ERROR! cli-installation of npm-packages is not possible on web-browser runtimes.");
@@ -2224,9 +2168,9 @@ var autoInstallOptionToNpmAutoInstallCliConfig = (option) => {
 };
 var installNpmPackage = async (package_name, config) => {
   switch (current_js_runtime) {
-    case RUNTIME.DENO:
-    case RUNTIME.BUN:
-    case RUNTIME.NODE: {
+    case 0 /* DENO */:
+    case 1 /* BUN */:
+    case 2 /* NODE */: {
       return config === "dynamic" ? installNpmPackageDynamic(package_name) : installNpmPackageCli(package_name, config);
     }
     default:

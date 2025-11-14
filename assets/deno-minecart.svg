@@ -9,7 +9,7 @@
 	xmlSpace="preserve"
 	sodipodi:docname="deno-minecart.svg"
 	inkscape:version="1.3.2 (091e20e, 2023-11-25, custom)"
-	inkscape:export-filename="deno2.png"
+	inkscape:export-filename="deno-minecart-banner.png"
 	inkscape:export-xdpi="96"
 	inkscape:export-ydpi="96"
 	xml:space="preserve"
@@ -73,41 +73,41 @@
 		<filter
 			inkscape:collect="always"
 			style="color-interpolation-filters:sRGB"
-			id="filter127"
-			x="-0.048"
-			y="-0.048"
-			width="1.096"
-			height="1.096">
+			id="filter4"
+			x="-0.038580801"
+			y="-0.063503998"
+			width="1.0771616"
+			height="1.127008">
 			<feGaussianBlur
 				inkscape:collect="always"
-				stdDeviation="10"
-				id="feGaussianBlur127" />
+				stdDeviation="13.23"
+				id="feGaussianBlur4" />
 		</filter>
 		<filter
 			inkscape:collect="always"
 			style="color-interpolation-filters:sRGB"
-			id="filter129"
-			x="-0.040506104"
-			y="-0.03670523"
-			width="1.0810122"
-			height="1.0734105">
+			id="filter5"
+			x="-0.037171914"
+			y="-0.038601061"
+			width="1.0743438"
+			height="1.0772021">
 			<feGaussianBlur
 				inkscape:collect="always"
-				stdDeviation="7.9889503"
-				id="feGaussianBlur129" />
+				stdDeviation="10.684669"
+				id="feGaussianBlur5" />
 		</filter>
 		<filter
 			inkscape:collect="always"
 			style="color-interpolation-filters:sRGB"
-			id="filter130"
-			x="-0.071999999"
-			y="-0.036"
-			width="1.144"
-			height="1.072">
+			id="filter6"
+			x="-0.053955688"
+			y="-0.043228403"
+			width="1.1079114"
+			height="1.0864568">
 			<feGaussianBlur
 				inkscape:collect="always"
-				stdDeviation="2.655"
-				id="feGaussianBlur130" />
+				stdDeviation="7.61"
+				id="feGaussianBlur6" />
 		</filter>
 	</defs>
 	<sodipodi:namedview
@@ -120,15 +120,37 @@
 		inkscape:pagecheckerboard="1"
 		inkscape:deskcolor="#505050"
 		showgrid="false"
-		inkscape:zoom="0.35355339"
-		inkscape:cx="592.55548"
-		inkscape:cy="572.75649"
+		inkscape:zoom="0.5"
+		inkscape:cx="500"
+		inkscape:cy="500"
 		inkscape:window-width="1920"
 		inkscape:window-height="1001"
 		inkscape:window-x="-9"
 		inkscape:window-y="-9"
 		inkscape:window-maximized="1"
-		inkscape:current-layer="my-dino" />
+		inkscape:current-layer="my-dino"
+		showguides="true">
+		<sodipodi:guide
+			position="0,0"
+			orientation="0,-1"
+			id="guide1"
+			inkscape:locked="false" />
+		<sodipodi:guide
+			position="-250,500"
+			orientation="1,0"
+			id="guide2"
+			inkscape:locked="false" />
+		<sodipodi:guide
+			position="0,500"
+			orientation="0,-1"
+			id="guide3"
+			inkscape:locked="false" />
+		<sodipodi:guide
+			position="750,500"
+			orientation="1,0"
+			id="guide4"
+			inkscape:locked="false" />
+	</sodipodi:namedview>
 	<style id="style1">
 		.colored-body-fill { fill:darkseagreen; }
 		.colored-neckwear-fill { fill:slategray; }
@@ -863,19 +885,21 @@
 	</g>
 	<path
 		id="rect126"
-		style="display:inline;opacity:0.25;mix-blend-mode:hard-light;fill:#000000;fill-opacity:1;stroke:none;stroke-width:7;stroke-linejoin:bevel;stroke-dasharray:none;stroke-opacity:1;filter:url(#filter127)"
+		style="display:inline;opacity:0.25;mix-blend-mode:hard-light;fill:#000000;fill-opacity:1;stroke:none;stroke-width:7;stroke-linejoin:bevel;stroke-dasharray:none;stroke-opacity:1;filter:url(#filter4)"
 		inkscape:label="cave-darkness"
-		d="M 0,0 V 327.5 L 88.5,416 4.5,500 H 287.39844 L 181.5332,104.90527 500,19.572266 V 0 Z" />
+		d="M 0,0 H -250 V 77.5 L 0,327.5 88.5,416 4.5,500 H 287.39844 L 181.5332,104.90527 500,19.572266 573,-1.5038025e-6 500,0 Z"
+		sodipodi:nodetypes="cccccccccccc" />
 	<path
-		style="display:inline;opacity:0.1;fill:#ffcf00;fill-opacity:1;stroke:none;stroke-width:7;stroke-linejoin:bevel;stroke-dasharray:none;stroke-opacity:1;filter:url(#filter129)"
-		d="M 88.500008,416 -200.72963,126.77036 -384.84793,233.07111 -144.63386,649.13408"
+		style="display:inline;opacity:0.1;fill:#ffcf00;fill-opacity:1;stroke:none;stroke-width:7;stroke-linejoin:bevel;stroke-dasharray:none;stroke-opacity:1;filter:url(#filter5)"
+		d="m 88.500008,416 -289.229638,-289.22964 -400.62465,231.30077 250,433.0127 153.2865,-88.5 53.43392,-53.44975"
 		id="path127"
-		sodipodi:nodetypes="cccc"
+		sodipodi:nodetypes="cccccc"
 		inkscape:label="helmet-light-glow"
 		transform="rotate(-150,93.337724,247.98842)" />
 	<path
-		d="m 0,327.5 v 177 L 88.5,416 Z"
-		style="display:inline;opacity:0.15;fill:#dc0000;stroke-width:7;stroke-linejoin:bevel;filter:url(#filter130)"
+		d="M -250,77.5 V 500 H 4.5 l 84,-84 z"
+		style="display:inline;opacity:0.15;fill:#dc0000;stroke-width:7;stroke-linejoin:bevel;filter:url(#filter6)"
 		id="path129"
-		inkscape:label="minecart-light-glow" />
+		inkscape:label="minecart-light-glow"
+		sodipodi:nodetypes="ccccc" />
 </svg>
