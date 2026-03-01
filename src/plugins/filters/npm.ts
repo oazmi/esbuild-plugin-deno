@@ -4,8 +4,8 @@
  * @module
 */
 
-import { array_isEmpty, DEBUG, defaultGetCwd, dom_decodeURI, ensureEndSlash, ensureFileUrlIsLocalPath, escapeLiteralStringForRegex, execShellCommand, getUriScheme, identifyCurrentRuntime, isObject, isString, joinPaths, normalizePath, object_entries, object_fromEntries, parsePackageUrl, pathToPosixPath, promise_outside, replacePrefix, RUNTIME, type DeepPartial } from "../../deps.ts"
-import { entryPointsToImportMapEntries, logLogger, syncTaskQueueFactory } from "../funcdefs.ts"
+import { array_isEmpty, DEBUG, defaultGetCwd, dom_decodeURI, ensureEndSlash, ensureFileUrlIsLocalPath, escapeLiteralStringForRegex, getUriScheme, identifyCurrentRuntime, isObject, isString, joinPaths, normalizePath, object_entries, object_fromEntries, parsePackageUrl, pathToPosixPath, promise_outside, replacePrefix, RUNTIME, spawnCommand, syncTaskQueueFactory, type DeepPartial } from "../../deps.ts"
+import { entryPointsToImportMapEntries, logLogger } from "../funcdefs.ts"
 import { nodeModulesResolverFactory, type resolverPlugin } from "../resolvers.ts"
 import type { CommonPluginData, EsbuildEntryPointsType, EsbuildPlugin, EsbuildPluginBuild, EsbuildPluginSetup, LoggerFunction, OnResolveArgs, OnResolveCallback } from "../typedefs.ts"
 import { defaultEsbuildNamespaces, DIRECTORY, PLUGIN_NAMESPACE } from "../typedefs.ts"
@@ -580,7 +580,7 @@ export const installNpmPackageCli = async (package_name: string, config: Exclude
 	if (DEBUG.LOG && logFn) {
 		logFn(`[npmPlugin]      installing: "${package_name}", in directory "${dir}"\n>>    using the cli-command: \`${cli_command}\``)
 	}
-	await execShellCommand(current_js_runtime, cli_command, { cwd: dir })
+	await spawnCommand(current_js_runtime, cli_command, { cwd: dir })
 }
 
 /** this function indirectly makes the deno or bun runtimes automatically install an npm-package.

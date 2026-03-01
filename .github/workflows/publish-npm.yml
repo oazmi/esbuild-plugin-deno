@@ -3,6 +3,10 @@ name: publish-to-npm
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read
+  id-token: write # the OIDC ID token is used for authentication with NPM.
+
 jobs:
   publish-to-npm:
     runs-on: ubuntu-latest
@@ -13,17 +17,15 @@ jobs:
           ref: "npm"
 
       - name: setup node
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           registry-url: "https://registry.npmjs.org"
 
       - name: install dependencies
         run: npm ci
 
       - name: publish
-        run: |
-          echo "//registry.npmjs.org/:_authToken=${{secrets.NPM_TOKEN}}" > .npmrc
-          npm publish --access public
+        run: npm publish --access public --provenance
         env:
           NODE_AUTH_TOKEN: ${{secrets.NPM_TOKEN}}

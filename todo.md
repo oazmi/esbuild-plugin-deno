@@ -56,6 +56,36 @@
 ## pre-version `0.5.0` todo list
 
 - [ ] add granulated tests for each plugin, and combination of plugins (for intertwined path resolution)
+- [ ] the plugins are almost always reported to be incompatible by typescript,
+      when they're not consumed by the the same version of esbuild that this library references.
+      to mitigate this, I should probably explore the common denominator of features I use among all of my filter and resolver plugins,
+      then extract those features, via typescript's `Pick`, inside `typedefs.ts`,
+      then apply it to the `EsbuildPluginSetup` and `EsbuildPluginBuild` type definitions.
+- [ ] in `readme.md`, write a guide on how users can write their own custom filter-plugins, utilizing the resolver-plugin.
+      and then show an example of a `jsr-local:` and a `npm-local:` specifier plugin that loads a local path/directory as a jsr/npm-package.
+      this will however have a few limitations:
+  - in your import-map (`deno.json(c)/imports: {...}`),
+    you must either reference your local-package's `deno.json` or its directory,
+    but not a subpath/alternative entry-point.
+  - you cannot version the package, for there is only a single version (the local path that your referenced).
+    but it's possible that you _may_ desire for your build to break when a version mismatch occurs.
+
+  to mitigate the two issues above, we can require the path to the package to be enclosed in square brackets, like so:
+  - `jsr-local:[D:/projects/2025/my-lib/deno.json]@^2.5.x/sub/entrypoint`
+  - `jsr-local:[file:///D:/projects/2025/my-lib/deno.json]@^2.5.x/sub/entrypoint`
+  - `jsr-local:[https://my-site.com/my-lib/]@^2.5.x/sub/entrypoint`
+  - `jsr-local:[https://[ff::ipv6::1:2:3]/my-lib]@^2.5.x/sub/entrypoint`
+
+  actually, I think I'm going to include this plugin in my project, but leave it disable by default.
+  see the next task below for details on what I mean by enabling and disabling.
+
+  also, the `npm-local` plugin will require us to dynamically modify the `nodeModuleDirs` config option of the npm-plugin.
+  this also means that I will have to ensure that the `nodeModuleDirs` object is shared between the npm-local plugin and the npm-plugins.
+  and I must also not be cloning it at any point for consumption.
+- [ ] make the `denoPlugins()` function accept a list of filter plugins that are enabled or disabled in its config.
+      on the default setting, we will leave all plugins enabled, except for the `jsr-local` and `npm-local` filter plugins.
+- [ ] also consider adding `jsr-git:` and `npm-git:` resolver/loader, which will either use the `git` shell command,
+      or use the http-api for git to fetch jsr and npm package contents from git repositories (be it in the local filesystem or github/gitlab).
 
 ## pre-version `0.4.x` todo list
 
@@ -74,6 +104,12 @@
   > the reduction in speed was a government lie, the cake was actually a pie, epstien didn't unalive (himself),
   > please don't sniff formaldehyde, and did you know carbon killed oxide? (carbon "die" oxide, get it? haha humor +100,
   > social credit score -50, and everyone clapped for eternity - [quack quack](https://www.youtube.com/watch?v=oyFQVZ2h0V8&t=11s))
+
+## pre-version `0.4.6` todo list
+
+- [ ] add support for the `links: Array<string>` field of `deno.json` for loading local versions of jsr-packages.
+      for reference, see the following documentation page: [link](https://docs.deno.com/runtime/fundamentals/configuration/#overriding-packages).
+      > NOTE: the documentation mentions that the paths must be relative paths, but I think I'll allow for any path (including http endpoints) for the time being.
 
 ## pre-version `0.4.5` todo list
 
