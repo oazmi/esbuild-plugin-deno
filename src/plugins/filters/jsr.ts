@@ -8,7 +8,7 @@
 
 import { ensureStartDotSlash, parsePackageUrl } from "../../deps.ts"
 import { DenoPackage } from "../../packageman/deno.ts"
-import type { CommonPluginData, EsbuildPlugin, EsbuildPluginBuild, EsbuildPluginSetup, OnResolveArgs, OnResolveCallback } from "../typedefs.ts"
+import type { CommonPluginData, EsbuildPluginBuild, EsbuildPluginCompatible, EsbuildPluginSetup, OnResolveArgs, OnResolveCallback } from "../typedefs.ts"
 import { defaultEsbuildNamespaces, PLUGIN_NAMESPACE } from "../typedefs.ts"
 import type { httpPlugin } from "./http.ts"
 
@@ -103,7 +103,7 @@ export const jsrPluginSetup = (config: Partial<JsrPluginSetupConfig> = {}): Esbu
 }
 
 /** {@inheritDoc jsrPluginSetup} */
-export const jsrPlugin = (config?: Partial<JsrPluginSetupConfig>): EsbuildPlugin => {
+export const jsrPlugin = (config?: Partial<JsrPluginSetupConfig>): EsbuildPluginCompatible => {
 	return {
 		name: "oazmi-jsr-plugin",
 		setup: jsrPluginSetup(config),

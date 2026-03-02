@@ -107,16 +107,18 @@
 
 ## pre-version `0.4.6` todo list
 
+- [x] use weak/loose definitions for the plugins' type (i.e. define a weak type alias of `esbuild.Plugin`), so that the plugins become compatible with other esbuild versions,
+      rather than strictly being coupled to the esbuild version used by this library.
 - [ ] add support for the `links: Array<string>` field of `deno.json` for loading local versions of jsr-packages.
       for reference, see the following documentation page: [link](https://docs.deno.com/runtime/fundamentals/configuration/#overriding-packages).
       > NOTE: the documentation mentions that the paths must be relative paths, but I think I'll allow for any path (including http endpoints) for the time being.
 
-## pre-version `0.4.5` todo list
+## (2025-11-14) pre-version `0.4.5` todo list
 
 - [x] use an updated version of `jsr:@oazmi/build-tools` to generate javascript bundles of this project.
 - [x] update esbuild type definitions to `esbuild@0.27.0` via `jsr:@oazmi/esbuild-types@0.27.0`.
 
-## pre-version `0.4.4` todo list
+## (2025-08-18) pre-version `0.4.4` todo list
 
 - [x] use esbuild type definitions from your own stud library in `jsr:@oazmi/esbuild-types` or `npm:@oazmi/esbuild-types`.
 - [x] add a new logo and update the `./readme.md`.

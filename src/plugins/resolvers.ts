@@ -45,7 +45,7 @@ import { resolvePathFromImportMap } from "../importmap/mod.ts"
 import type { ImportMap } from "../importmap/typedefs.ts"
 import type { WorkspacePackage } from "../packageman/base.ts"
 import { logLogger } from "./funcdefs.ts"
-import type { CommonPluginData, EsbuildPlugin, EsbuildPluginBuild, EsbuildPluginSetup, LoggerFunction, OnResolveCallback, OnResolveResult } from "./typedefs.ts"
+import type { CommonPluginData, EsbuildPlugin, EsbuildPluginBuild, EsbuildPluginCompatible, EsbuildPluginSetup, LoggerFunction, OnResolveCallback, OnResolveResult } from "./typedefs.ts"
 import { PLUGIN_NAMESPACE, type OnResolveArgs } from "./typedefs.ts"
 
 
@@ -402,7 +402,7 @@ export const resolverPluginSetup = (config?: DeepPartial<ResolverPluginSetupConf
 }
 
 /** {@inheritDoc resolverPluginSetup} */
-export const resolverPlugin = (config?: DeepPartial<ResolverPluginSetupConfig>): EsbuildPlugin => {
+export const resolverPlugin = (config?: DeepPartial<ResolverPluginSetupConfig>): EsbuildPluginCompatible => {
 	return {
 		name: "oazmi-plugindata-resolvers",
 		setup: resolverPluginSetup(config),

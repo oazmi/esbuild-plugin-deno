@@ -6,7 +6,7 @@
 import { DEBUG, type DeepPartial, defaultFetchConfig, fileUrlToLocalPath, getUriScheme, json_stringify, resolveAsUrl } from "../../deps.ts"
 import { guessHttpResponseLoaders } from "../../loadermap/mod.ts"
 import { logLogger } from "../funcdefs.ts"
-import type { EsbuildLoaderType, EsbuildPlugin, EsbuildPluginBuild, EsbuildPluginSetup, LoggerFunction, OnLoadArgs, OnLoadCallback, OnResolveArgs, OnResolveCallback, OnResolveResult } from "../typedefs.ts"
+import type { EsbuildLoaderType, EsbuildPluginBuild, EsbuildPluginCompatible, EsbuildPluginSetup, LoggerFunction, OnLoadArgs, OnLoadCallback, OnResolveArgs, OnResolveCallback, OnResolveResult } from "../typedefs.ts"
 import { allEsbuildLoaders, defaultEsbuildNamespaces, PLUGIN_NAMESPACE } from "../typedefs.ts"
 import type { entryPlugin } from "./entry.ts"
 
@@ -251,7 +251,7 @@ export const httpPluginSetup = (config: DeepPartial<HttpPluginSetupConfig> = {})
 }
 
 /** {@inheritDoc httpPluginSetup} */
-export const httpPlugin = (config?: Partial<HttpPluginSetupConfig>): EsbuildPlugin => {
+export const httpPlugin = (config?: Partial<HttpPluginSetupConfig>): EsbuildPluginCompatible => {
 	return {
 		name: "oazmi-http-plugin",
 		setup: httpPluginSetup(config),

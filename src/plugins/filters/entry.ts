@@ -70,7 +70,7 @@ import { RuntimePackage, type WorkspacePackage } from "../../packageman/base.ts"
 import { DenoPackage, denoPackageJsonFilenames } from "../../packageman/deno.ts"
 import { logLogger } from "../funcdefs.ts"
 import type { nodeModulesResolverFactory, resolverPlugin } from "../resolvers.ts"
-import type { CommonPluginData, EsbuildPlugin, EsbuildPluginBuild, EsbuildPluginSetup, OnResolveArgs, OnResolveCallback } from "../typedefs.ts"
+import type { CommonPluginData, EsbuildPluginBuild, EsbuildPluginCompatible, EsbuildPluginSetup, OnResolveArgs, OnResolveCallback } from "../typedefs.ts"
 import { defaultEsbuildNamespaces, PLUGIN_NAMESPACE } from "../typedefs.ts"
 
 
@@ -348,7 +348,7 @@ export const entryPluginSetup = (config?: Partial<EntryPluginSetupConfig>): Esbu
 }
 
 /** {@inheritDoc entryPluginSetup} */
-export const entryPlugin = (config?: Partial<EntryPluginSetupConfig>): EsbuildPlugin => {
+export const entryPlugin = (config?: Partial<EntryPluginSetupConfig>): EsbuildPluginCompatible => {
 	return {
 		name: "oazmi-entry",
 		setup: entryPluginSetup(config),
