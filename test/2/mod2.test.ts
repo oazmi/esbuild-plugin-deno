@@ -1,5 +1,5 @@
-import { promiseTimeout } from "@oazmi/kitchensink/lambda"
-import esbuild from "npm:esbuild@0.27.0"
+import { promiseTimeout } from "@oazmi/kitchensink/promiseman"
+import esbuild from "npm:esbuild@0.26.0"
 import { denoPlugins } from "../../src/plugins/mod.ts"
 
 
