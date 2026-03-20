@@ -109,6 +109,14 @@
 
 - [x] use weak/loose definitions for the plugins' type (i.e. define a weak type alias of `esbuild.Plugin`), so that the plugins become compatible with other esbuild versions,
       rather than strictly being coupled to the esbuild version used by this library.
+- [x] (breaking) fix the issue with newer version of deno (`2.7`) and npm (`>=7`) purging all undeclared packages (either in `deno.json` or `package.json`) installed under `./node_modules/`.
+  > the workaround that we perform is by including all previously auto-installed packages in the installation cli-command, along with the package name of the new package that is to be installed.
+  > this way, the package manager will not purge the existing installation, nor will it attempt to re-download it, since it will notice its existence.
+  >
+  > my previous intermediate workaround involved installing the package as a global package in the user's project directory (under `./node_modules/`),
+  > but it was only reasonably viable for npm (not possible at all with deno) on windows, because it installed the packages to `./lib/node_modules/` on unix systems,
+  > making impossible for esbuild to discover, unless we also create a soft symbolic-link with the name `./node_modules`, which in of itself will pollute the user's directory,
+  > and also their git ignore rules since the link `./node_modules` is identified as a file by git, and not a folder. so basically, it was not worth pursuing further.
 - [ ] add support for the `links: Array<string>` field of `deno.json` for loading local versions of jsr-packages.
       for reference, see the following documentation page: [link](https://docs.deno.com/runtime/fundamentals/configuration/#overriding-packages).
       > NOTE: the documentation mentions that the paths must be relative paths, but I think I'll allow for any path (including http endpoints) for the time being.
