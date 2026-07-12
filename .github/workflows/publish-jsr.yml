@@ -3,16 +3,15 @@ name: publish-to-jsr
 on:
   workflow_dispatch:
 
-permissions:
-  contents: read
-  id-token: write # the OIDC ID token is used for authentication with JSR.
-
 jobs:
   publish-to-jsr:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # this OIDC token is used for authentication with JSR, and also supposedly provides provenance.
     steps:
       - name: clone repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: "main"
 

@@ -9,9 +9,10 @@ runs:
   using: composite
   steps:
     - name: setup node
-      uses: actions/setup-node@v4
+      uses: actions/setup-node@v6
       with:
-        node-version: 22
+        node-version: 24
+        package-manager-cache: false
 
     - name: deno-task build-npm
       shell: bash
