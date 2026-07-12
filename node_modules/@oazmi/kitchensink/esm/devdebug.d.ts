@@ -1,13 +1,3 @@
-/** utility functions for development debugging.
- *
- * all development debug functions are assigned to global scope upon any import.
- * this is because it is easier to access it that way, and also makes it accessible through the console.
- *
- * nothing here is re-exported by {@link "mod"}. you will have to import this file directly to use any alias.
- *
- * @module
-*/
-import "./_dnt.polyfills.js";
 /** access your global dump array. dump anything into it using {@link dump} */
 export declare const dumps: any[];
 /** dump data from anywhere into the globally scoped {@link dumps} array variable */
@@ -36,7 +26,7 @@ export interface DebugWindowCanvasControls {
 */
 export declare const popupCanvas: (source_canvas?: CanvasImageSource, fps?: number) => Window & DebugWindowCanvasControls;
 interface SchemaNode<T extends any, TypeName extends string> {
-    encode: (value: T) => Uint8Array;
+    encode: (value: T) => Uint8Array<ArrayBuffer>;
     decode: (buffer: Uint8Array, offset: number, ...args: any[]) => [value: T, bytesize: number];
     value?: T;
 }
@@ -64,7 +54,7 @@ export declare class FileParser<S extends SchemaNode<any, string>> {
     /** clear the loaded data to free memory */
     clearLoadedData(): void;
     /** encode the provided javascript object into a `Uint8Array` bytes array using `this.schema.encode` */
-    encodeObject(value: NonNullable<S["value"]>): Uint8Array;
+    encodeObject(value: NonNullable<S["value"]>): Uint8Array<ArrayBuffer>;
     /** download the provided javascript object as a binary blob, by encoding it based on `this.schema.encode` */
     downloadObject(value: NonNullable<S["value"]>, filename?: string): void;
 }

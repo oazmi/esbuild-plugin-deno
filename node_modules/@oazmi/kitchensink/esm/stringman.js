@@ -2,7 +2,6 @@
  *
  * @module
 */
-import "./_dnt.polyfills.js";
 import { array_from, math_min, number_parseInt, string_toLowerCase, string_toUpperCase } from "./alias.js";
 import { bind_array_pop, bind_array_push, bind_string_charCodeAt } from "./binder.js";
 import { sliceContinuous } from "./typedbuffer.js";
@@ -18,7 +17,7 @@ const default_HexStringReprConfig = {
 };
 /** convert an array of integer numbers to hex-string, for the sake of easing representation, or for visual purposes.
  *
- * to customize the apearance of the hex-string, or to use a different radix, use the {@link HexStringReprConfig} interface to change the default `options`.
+ * to customize the appearance of the hex-string, or to use a different radix, use the {@link HexStringReprConfig} interface to change the default `options`.
  *
  * you must make sure that every element of your array `arr` is non-negative, in addition to being less than `options.radix ** 2`.
  * since the default `options.radix === 16`, each of your number must be smaller than `256` on the default config.
@@ -39,8 +38,11 @@ const default_HexStringReprConfig = {
  * 	}
  *
  * const my_binary_code_repr = hexStringOfArray(my_binary_code, my_custom_config)
- *
  * assertEq(my_binary_code_repr, "<0x01,0x02,0x03,0x7D,0x7E,0x7F,0xC0,0xE1,0xFF,>")
+ *
+ * const my_custom_config2 = { ...my_custom_config, sep: "", trailingSep: false, prefix: "" }
+ * const my_binary_code_repr2 = hexStringOfArray(my_binary_code, my_custom_config2)
+ * assertEq(my_binary_code_repr2, "<0102037D7E7FC0E1FF>")
  * ```
 */
 export const hexStringOfArray = (arr, options) => {
@@ -49,7 +51,7 @@ export const hexStringOfArray = (arr, options) => {
         s = s.length === 2 ? s : "0" + s;
         return toUpperCase ? string_toUpperCase(s) : s;
     }).reduce((str, s) => str + prefix + s + postfix + sep, "");
-    return bra + str.slice(0, trailingSep ? undefined : -sep.length) + ket;
+    return bra + str.slice(0, (trailingSep || !sep) ? undefined : -sep.length) + ket;
 };
 /** convert hex-string back to an array of integers,
  * provided that you know the exact {@link HexStringReprConfig} config of your particular hex-string.

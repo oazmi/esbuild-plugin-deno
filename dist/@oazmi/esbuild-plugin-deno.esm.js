@@ -55,7 +55,7 @@ function createMergeProxy(baseObj, extObj) {
   });
 }
 
-// src/deps/jsr.io/@oazmi/kitchensink/0.9.15/src/alias.ts
+// src/deps/jsr.io/@oazmi/kitchensink/0.10.1/src/alias.ts
 var array_constructor = Array;
 var json_constructor = JSON;
 var number_constructor = Number;
@@ -88,7 +88,7 @@ var symbol_toStringTag = /* @__PURE__ */ (() => symbol_constructor.toStringTag)(
 var dom_encodeURI = encodeURI;
 var dom_decodeURI = decodeURI;
 
-// src/deps/jsr.io/@oazmi/kitchensink/0.9.15/src/binder.ts
+// src/deps/jsr.io/@oazmi/kitchensink/0.10.1/src/binder.ts
 var bindMethodFactoryByName = (instance, method_name, ...args) => {
   return ((thisArg) => {
     return instance[method_name].bind(thisArg, ...args);
@@ -115,7 +115,7 @@ var bind_map_keys = /* @__PURE__ */ bindMethodFactoryByName(map_proto, "keys");
 var bind_map_set = /* @__PURE__ */ bindMethodFactoryByName(map_proto, "set");
 var bind_map_values = /* @__PURE__ */ bindMethodFactoryByName(map_proto, "values");
 
-// src/deps/jsr.io/@oazmi/kitchensink/0.9.15/src/struct.ts
+// src/deps/jsr.io/@oazmi/kitchensink/0.10.1/src/struct.ts
 var constructorOf = (class_instance) => {
   return object_getPrototypeOf(class_instance).constructor;
 };
@@ -131,7 +131,20 @@ var isString = (obj) => {
   return typeof obj === "string";
 };
 
-// src/deps/jsr.io/@oazmi/kitchensink/0.9.15/src/stringman.ts
+// src/deps/jsr.io/@oazmi/kitchensink/0.10.1/src/typedbuffer.ts
+var concatBytes = (...arrs) => {
+  const offsets = [0];
+  for (const arr of arrs) {
+    offsets.push(offsets[offsets.length - 1] + arr.length);
+  }
+  const outarr = new Uint8Array(offsets.pop());
+  for (const arr of arrs) {
+    outarr.set(arr, offsets.shift());
+  }
+  return outarr;
+};
+
+// src/deps/jsr.io/@oazmi/kitchensink/0.10.1/src/stringman.ts
 var escapeLiteralCharsRegex = /[.*+?^${}()|[\]\\]/g;
 var escapeLiteralStringForRegex = (str) => str.replaceAll(escapeLiteralCharsRegex, "\\$&");
 var replacePrefix = (input, prefix, value = "") => {
@@ -206,7 +219,7 @@ var jsoncRemoveComments = (jsonc_string) => {
   return json_chars.join("");
 };
 
-// src/deps/jsr.io/@oazmi/kitchensink/0.9.15/src/pathman.ts
+// src/deps/jsr.io/@oazmi/kitchensink/0.10.1/src/pathman.ts
 var uriProtocolSchemeMap = /* @__PURE__ */ object_entries({
   "node:": "node",
   "npm:": "npm",
@@ -407,7 +420,7 @@ var resolvePathFactory = (absolute_current_dir, absolute_segment_test_fn = isAbs
   return (...segments) => posix_path_resolver(...segments.map(pathToPosixPath));
 };
 
-// src/deps/jsr.io/@oazmi/kitchensink/0.9.15/src/crossenv.ts
+// src/deps/jsr.io/@oazmi/kitchensink/0.10.1/src/crossenv.ts
 var global_this_object = dntGlobalThis;
 var currentRuntimeValidationFnMap = {
   [0 /* DENO */]: () => global_this_object.Deno?.version ? true : false,
@@ -416,11 +429,13 @@ var currentRuntimeValidationFnMap = {
   [3 /* CHROMIUM */]: () => global_this_object.chrome?.runtime ? true : false,
   [4 /* EXTENSION */]: () => global_this_object.browser?.runtime ? true : false,
   [5 /* WEB */]: () => global_this_object.window?.document ? true : false,
+  [7 /* TXIKI */]: () => global_this_object.tjs?.version ? true : false,
   [6 /* WORKER */]: () => isObject(global_this_object.self) && isComplex(global_this_object.WorkerGlobalScope) && global_this_object.self instanceof global_this_object.WorkerGlobalScope ? true : false
 };
-var ordered_runtime_checklist = [
+var currentRuntimeIdentificationOrdering = [
   0 /* DENO */,
   1 /* BUN */,
+  7 /* TXIKI */,
   2 /* NODE */,
   3 /* CHROMIUM */,
   4 /* EXTENSION */,
@@ -428,7 +443,7 @@ var ordered_runtime_checklist = [
   6 /* WORKER */
 ];
 var identifyCurrentRuntime = () => {
-  for (const runtime of ordered_runtime_checklist) {
+  for (const runtime of currentRuntimeIdentificationOrdering) {
     if (currentRuntimeValidationFnMap[runtime]()) {
       return runtime;
     }
@@ -452,6 +467,8 @@ var getRuntime = (runtime_enum) => {
       return global_this_object.window;
     case 6 /* WORKER */:
       return global_this_object.self;
+    case 7 /* TXIKI */:
+      return global_this_object.tjs;
     default:
       throw new Error(1 /* ERROR */ ? `an invalid runtime enum was provided: "${runtime_enum}".` : "");
   }
@@ -466,6 +483,8 @@ var getRuntimeCwd = (runtime_enum, current_path = true) => {
     case 1 /* BUN */:
     case 2 /* NODE */:
       return pathToPosixPath(runtime.cwd());
+    case 7 /* TXIKI */:
+      return pathToPosixPath(runtime.cwd);
     case 3 /* CHROMIUM */:
     case 4 /* EXTENSION */:
       return runtime.runtime.getURL("");
@@ -477,30 +496,106 @@ var getRuntimeCwd = (runtime_enum, current_path = true) => {
 var defaultExecShellCommandConfig = {
   args: []
 };
-var execShellCommand = async (runtime_enum, command, config = {}) => {
-  const { args, cwd, signal } = { ...defaultExecShellCommandConfig, ...config }, args_are_empty = array_isEmpty(args), runtime = getRuntime(runtime_enum);
+var spawnCommand = async (runtime_enum, process_name, config = {}) => {
+  const { cwd: _cwd, env: _env, ...rest_config } = { ...defaultExecShellCommandConfig, ...config }, cwd = _cwd ? ensureFileUrlIsLocalPath(_cwd) : void 0, runtime = getRuntime(runtime_enum), env = _env && (runtime_enum === 0 /* DENO */ || runtime_enum === 7 /* TXIKI */) ? object_fromEntries(object_entries(_env).map(([key, value]) => [key, value ?? ""])) : _env, full_config = { ...rest_config, cwd, env };
   if (!runtime) {
     throw new Error(1 /* ERROR */ ? `the requested runtime associated with the enum "${runtime_enum}" is undefined (i.e. you're running on a different runtime from the provided enum).` : "");
   }
-  if (!command && args_are_empty) {
-    return { stdout: "", stderr: "" };
+  if (!process_name) {
+    return { stdout: new Uint8Array(0), stderr: new Uint8Array(0) };
   }
   switch (runtime_enum) {
-    case 0 /* DENO */:
-    case 1 /* BUN */:
+    case 0 /* DENO */: {
+      return deno_spawnCommand(runtime, process_name, full_config);
+    }
+    case 1 /* BUN */: {
+      return bun_spawnCommand(runtime, process_name, full_config);
+    }
+    case 7 /* TXIKI */: {
+      return txiki_spawnCommand(runtime, process_name, full_config);
+    }
     case 2 /* NODE */: {
-      const { exec } = await get_node_child_process(), full_command = args_are_empty ? command : `${command} ${args.join(" ")}`, [promise, resolve, reject] = promise_outside();
-      exec(full_command, { cwd: cwd ? ensureFileUrlIsLocalPath(cwd) : void 0, signal }, (error, stdout, stderr) => {
-        if (error) {
-          reject(error.message);
-        }
-        resolve({ stdout, stderr });
-      });
-      return promise;
+      return node_spawnCommand(runtime, process_name, full_config);
     }
     default:
       throw new Error(1 /* ERROR */ ? `your non-system runtime environment enum ("${runtime_enum}") does not support shell commands` : "");
   }
+};
+var deno_spawnCommand = async (runtime, process_name, config) => {
+  const { args, cwd, env: _env = {}, detached, signal } = config, env = object_fromEntries(object_entries(_env).map(([key, value]) => [key, value ?? ""])), command = new runtime.Command(process_name, { args, cwd, env, detached, signal, stdin: "null", stdout: "piped", stderr: "piped" }), { success, code, stdout, stderr } = await command.output();
+  if (!success) {
+    throw new Error(1 /* ERROR */ ? `[deno_spawnCommand]: failed while executing command/process: "${process_name}", with error code: "${code}". cli arguments used:
+	${args.join(" ")}` : "");
+  }
+  return { stdout, stderr };
+};
+var bun_spawnCommand = async (runtime, process_name, config) => {
+  const { args, cwd, env, detached, signal } = config, cmd = [process_name, ...args], [promise, resolve, reject] = promise_outside();
+  runtime.spawn(cmd, {
+    cwd,
+    env,
+    detached,
+    signal,
+    stdout: "pipe",
+    stderr: "pipe",
+    onExit(subprocess, exit_code, signal_code, error) {
+      if (error) {
+        reject(error);
+      }
+      const stdout_promise = new Response(subprocess.stdout).bytes(), stderr_promise = new Response(subprocess.stderr).bytes();
+      promise_all([stdout_promise, stderr_promise]).then(
+        ([stdout, stderr]) => {
+          resolve({ stdout, stderr });
+        },
+        (err) => {
+          reject(err);
+        }
+      );
+    }
+  });
+  return promise;
+};
+var txiki_spawnCommand = async (runtime, process_name, config) => {
+  let subprocess, subprocess_ended = false;
+  const { args, cwd, detached, env, signal } = config, cmd = [process_name, ...args], exit_status_promise = (subprocess = runtime.spawn(cmd, { cwd, env, stdout: "pipe", stderr: "pipe" })).wait(), subprocess_discarded = exit_status_promise.then((status) => {
+    subprocess_ended = true;
+  });
+  signal?.addEventListener("abort", () => {
+    const kill_subprocess = async () => {
+      if (!subprocess_ended) {
+        await subprocess.kill("SIGTERM");
+      }
+    };
+    Promise.race([subprocess_discarded, kill_subprocess()]);
+  });
+  const collect_reader = async (reader) => {
+    const buf = new Uint8Array(4096), bufs = [];
+    let bytes_read = 0;
+    while ((bytes_read = await reader.read(buf) ?? -1) >= 0) {
+      bufs.push(buf.slice(0, bytes_read));
+    }
+    return concatBytes(...bufs);
+  };
+  await subprocess_discarded;
+  const stdout = await collect_reader(subprocess.stdout), stderr = await collect_reader(subprocess.stderr);
+  return { stdout, stderr };
+};
+var node_spawnCommand = async (runtime, process_name, config) => {
+  const { spawn } = await get_node_child_process(), { args, cwd, env, detached, signal } = config, stdouts = [], stderrs = [], [promise, resolve, reject] = promise_outside(), subprocess = spawn(process_name, args, { shell: false, cwd, env, detached, signal, stdio: ["ignore", "pipe", "pipe"] });
+  subprocess.once("close", (exit_code, term_signal) => {
+    const stdout = concatBytes(...stdouts), stderr = concatBytes(...stderrs);
+    resolve({ stdout, stderr });
+  });
+  subprocess.stdout.on("data", (chunk) => {
+    stdouts.push(new Uint8Array(chunk.buffer, chunk.byteOffset, chunk.byteLength));
+  });
+  subprocess.stderr.on("data", (chunk) => {
+    stderrs.push(new Uint8Array(chunk.buffer, chunk.byteOffset, chunk.byteLength));
+  });
+  subprocess.once("error", (err) => {
+    reject(err);
+  });
+  return promise;
 };
 var node_child_process;
 var import_node_child_process = async () => {
@@ -512,7 +607,7 @@ var get_node_child_process = async () => {
 var fs_entry_info_fields = ["size", "mtime", "atime", "birthtime", "ctime", "dev", "mode"];
 var fs_entry_info_all_fields = ["isFile", "isDirectory", "isSymlink", ...fs_entry_info_fields];
 
-// src/deps/jsr.io/@oazmi/kitchensink/0.9.15/src/collections.ts
+// src/deps/jsr.io/@oazmi/kitchensink/0.10.1/src/collections.ts
 var invertMap = (forward_map) => {
   const reverse_map_keys = [];
   forward_map.forEach((rset) => {
@@ -535,8 +630,8 @@ var InvertibleMap = class {
    * optionally provide an initial `forward_map` to populate the forward mapping, and then automatically deriving the reverse mapping from it. <br>
    * or provide an initial `reverse_map` to populate the reverse mapping, and then automatically deriving the froward mapping from it. <br>
    * if both `forward_map` and `reverse_map` are provided, then it will be up to YOU to make sure that they are actual inverses of each other. <br>
-   * @param forward_map initiallize by populating with an optional initial forward map (the reverse map will be automatically computed if `reverse_map === undefined`)
-   * @param reverse_map initiallize by populating with an optional initial reverse map (the forward map will be automatically computed if `forward_map === undefined`)
+   * @param forward_map initialize by populating with an optional initial forward map (the reverse map will be automatically computed if `reverse_map === undefined`)
+   * @param reverse_map initialize by populating with an optional initial reverse map (the forward map will be automatically computed if `forward_map === undefined`)
    */
   constructor(forward_map, reverse_map) {
     const fmap = forward_map ?? (reverse_map ? invertMap(reverse_map) : /* @__PURE__ */ new Map()), rmap = reverse_map ?? (forward_map ? invertMap(forward_map) : /* @__PURE__ */ new Map()), fmap_set = bind_map_set(fmap), rmap_set = bind_map_set(rmap), fmap_delete = bind_map_delete(fmap), rmap_delete = bind_map_delete(rmap), size = fmap.size, rsize = rmap.size, forEach = bind_map_forEach(fmap), rforEach = bind_map_forEach(rmap), get = bind_map_get(fmap), rget = bind_map_get(rmap), has = bind_map_has(fmap), rhas = bind_map_has(rmap), entries = bind_map_entries(fmap), rentries = bind_map_entries(rmap), keys = bind_map_keys(fmap), rkeys = bind_map_keys(rmap), values = bind_map_values(fmap), rvalues = bind_map_values(rmap);
@@ -679,9 +774,7 @@ var HybridWeakMap = class {
 };
 var TREE_VALUE_UNSET = /* @__PURE__ */ Symbol(1 /* MINIFY */ || "represents an unset value for a tree");
 
-// src/deps/jsr.io/@oazmi/kitchensink/0.9.15/src/lambda.ts
-var THROTTLE_REJECT = /* @__PURE__ */ Symbol(1 /* MINIFY */ || "a rejection by a throttled function");
-var TIMEOUT = /* @__PURE__ */ Symbol(1 /* MINIFY */ || "a timeout by an awaited promiseTimeout function");
+// src/deps/jsr.io/@oazmi/kitchensink/0.10.1/src/lambda.ts
 var memorizeCore = (fn, weak_ref = false) => {
   const memory = weak_ref ? new HybridWeakMap() : /* @__PURE__ */ new Map(), get = bindMethodToSelfByName(memory, "get"), set = bindMethodToSelfByName(memory, "set"), has = bindMethodToSelfByName(memory, "has"), memorized_fn = (arg) => {
     const arg_exists = has(arg), value = arg_exists ? get(arg) : fn(arg);
@@ -696,7 +789,23 @@ var memorize = (fn) => {
   return memorizeCore(fn).fn;
 };
 
-// src/deps/jsr.io/@oazmi/kitchensink/0.9.15/src/semver.ts
+// src/deps/jsr.io/@oazmi/kitchensink/0.10.1/src/promiseman.ts
+var THROTTLE_REJECT = /* @__PURE__ */ Symbol(1 /* MINIFY */ || "a rejection by a throttled function");
+var TIMEOUT = /* @__PURE__ */ Symbol(1 /* MINIFY */ || "a timeout by an awaited promiseTimeout function");
+var syncTaskQueueFactory = () => {
+  let latest_promise = promise_resolve();
+  const task_queuer = (task_fn, ...args) => {
+    const original_latest_promise = latest_promise, [promise_current_task_value, resolve_current_task_value] = promise_outside();
+    latest_promise = promise_current_task_value;
+    original_latest_promise.finally(() => {
+      resolve_current_task_value(task_fn(...args));
+    });
+    return promise_current_task_value;
+  };
+  return task_queuer;
+};
+
+// src/deps/jsr.io/@oazmi/kitchensink/0.10.1/src/semver.ts
 var digits_regex_str = "x|0|[1-9]\\d*";
 var semver_core_regex_str = `(?<major>${digits_regex_str})\\.(?<minor>${digits_regex_str})\\.(?<patch>${digits_regex_str})`;
 var semver_prerelease_str = `(?<prerelease>[^\\+\\s]*)`;
@@ -1090,7 +1199,7 @@ var RuntimePackage = class {
   /** this method tries to resolve the provided import `path_alias` done by some resource within this package,
    * using the internal {@link importMapSortedEntries} list of import-aliases that this package uses.
    * if no import resources match the given `path_alias`, then `undefined` will be returned
-   * (which would probably mean that the given `path_alias` is already either an absolute or relative path, or perhaps incorrect altogether.
+   * (which would probably mean that the given `path_alias` is already either an absolute or relative path, or perhaps incorrect altogether).
    * 
    * > [!tip]
    * > for test case examples and configuration options, see the documentation comments of {@link resolvePathFromImportMapEntries}
@@ -1375,18 +1484,6 @@ var arrayLoggerFactory = (history) => {
 };
 var arrayLoggerHistory = [];
 var arrayLogger = /* @__PURE__ */ arrayLoggerFactory(arrayLoggerHistory);
-var syncTaskQueueFactory = () => {
-  let latest_promise = promise_resolve();
-  const task_queuer = (task_fn, ...args) => {
-    const original_latest_promise = latest_promise, [promise_current_task_value, resolve_current_task_value] = promise_outside();
-    latest_promise = promise_current_task_value;
-    original_latest_promise.finally(() => {
-      resolve_current_task_value(task_fn(...args));
-    });
-    return promise_current_task_value;
-  };
-  return task_queuer;
-};
 var entryPointsToImportMapEntries = (entry_points) => {
   if (!isArray(entry_points)) {
     entry_points = object_entries(entry_points);
@@ -1432,7 +1529,7 @@ var defaultEntryPluginSetup = {
 };
 var defaultStdinPath = "<stdin>";
 var entryPluginSetup = (config) => {
-  const { filters, initialPluginData: _initialPluginData, forceInitialPluginData, enableInheritPluginData, scanAncestralWorkspaces, acceptNamespaces: _acceptNamespaces } = { ...defaultEntryPluginSetup, ...config }, acceptNamespaces = /* @__PURE__ */ new Set([..._acceptNamespaces, "oazmi-loader-http" /* LOADER_HTTP */]), importerPluginDataRecord = /* @__PURE__ */ new Map(), importerPluginDataRecord_get = bind_map_get(importerPluginDataRecord), importerPluginDataRecord_set = bind_map_set(importerPluginDataRecord), importerPluginDataRecord_has = bind_map_has(importerPluginDataRecord), ALREADY_CAPTURED_BY_INITIAL = Symbol(0 /* MINIFY */ ? "" : "[oazmi-entry]: already captured by initial-data-injector"), ALREADY_CAPTURED_BY_INHERITOR = Symbol(0 /* MINIFY */ ? "" : "[oazmi-entry]: already captured by inherit-data-injector"), ALREADY_CAPTURED_BY_RESOLVER = Symbol(0 /* MINIFY */ ? "" : "[oazmi-entry]: already captured by absolute-path-resolver");
+  const { filters, initialPluginData: _initialPluginData, forceInitialPluginData, enableInheritPluginData, scanAncestralWorkspaces, acceptNamespaces: _acceptNamespaces } = { ...defaultEntryPluginSetup, ...config }, acceptNamespaces = /* @__PURE__ */ new Set([..._acceptNamespaces, "oazmi-loader-http" /* LOADER_HTTP */]), importerPluginDataRecord = /* @__PURE__ */ new Map(), importerPluginDataRecord_get = bind_map_get(importerPluginDataRecord), importerPluginDataRecord_set = bind_map_set(importerPluginDataRecord), importerPluginDataRecord_has = bind_map_has(importerPluginDataRecord), ALREADY_CAPTURED_BY_INITIAL = /* @__PURE__ */ Symbol(0 /* MINIFY */ ? "" : "[oazmi-entry]: already captured by initial-data-injector"), ALREADY_CAPTURED_BY_INHERITOR = /* @__PURE__ */ Symbol(0 /* MINIFY */ ? "" : "[oazmi-entry]: already captured by inherit-data-injector"), ALREADY_CAPTURED_BY_RESOLVER = /* @__PURE__ */ Symbol(0 /* MINIFY */ ? "" : "[oazmi-entry]: already captured by absolute-path-resolver");
   return async (build) => {
     const { runtimePackage: initialRuntimePackage, ...rest_initialPluginData } = _initialPluginData ?? {}, initialPluginData = rest_initialPluginData, initialPluginDataExists = _initialPluginData !== void 0;
     build.onStart(async () => {
@@ -1780,202 +1877,107 @@ var jsrPlugin = (config) => {
   };
 };
 
-// src/plugins/resolvers.ts
-var defaultRuntimePackageResolverConfig = {
-  enabled: true
-};
-var defaultImportMapResolverConfig = {
-  enabled: true,
-  globalImportMap: {}
-};
-var defaultNodeModulesResolverConfig = {
-  enabled: true
-};
-var defaultRelativePathResolverConfig = {
-  enabled: true,
-  resolvePath: defaultResolvePath,
-  isAbsolutePath: isAbsolutePath2
-};
-var defaultResolverPluginSetupConfig = {
-  runtimePackage: defaultRuntimePackageResolverConfig,
-  importMap: defaultImportMapResolverConfig,
-  nodeModules: defaultNodeModulesResolverConfig,
-  relativePath: defaultRelativePathResolverConfig,
-  namespace: "oazmi-resolver-pipeline" /* RESOLVER_PIPELINE */,
-  log: false
-};
-var resolverPluginSetup = (config) => {
-  const {
-    runtimePackage: _runtimePackageResolverConfig,
-    importMap: _importMapResolverConfig,
-    nodeModules: _nodeModulesResolverConfig,
-    relativePath: _relativePathResolverConfig,
-    namespace: plugin_ns,
-    log
-  } = { ...defaultResolverPluginSetupConfig, ...config };
-  const runtimePackageResolverConfig = { ...defaultRuntimePackageResolverConfig, ..._runtimePackageResolverConfig }, importMapResolverConfig = { ...defaultImportMapResolverConfig, ..._importMapResolverConfig }, nodeModulesResolverConfig = { ...defaultNodeModulesResolverConfig, ..._nodeModulesResolverConfig }, relativePathResolverConfig = { ...defaultRelativePathResolverConfig, ..._relativePathResolverConfig }, logFn = log ? log === true ? logLogger : log : void 0, output_ns = "discard-this-namespace", plugin_filter = /.*/;
-  return async (build) => {
-    const absWorkingDir = pathToPosixPath(build.initialOptions.absWorkingDir ?? "./");
-    const externalResourceSet = new Set(build.initialOptions.external);
-    const externalPathResolver = externalResourceSet.size <= 0 ? noop2 : async (args) => {
-      const { path, pluginData = {} } = args, is_external = externalResourceSet.has(path);
-      if (1 /* LOG */ && logFn) {
-        logFn(`[external-path]    checking: ${path}` + (!is_external ? "" : `
->> successfully verified the path to be external`));
-      }
-      return is_external ? {
-        path,
-        external: true,
-        namespace: output_ns,
-        pluginData: { ...pluginData }
-      } : void 0;
-    };
-    const runtimePackageResolver = runtimePackageResolverConfig.enabled === false ? noop2 : async (args) => {
-      if (args.pluginData?.resolverConfig?.useRuntimePackage === false) {
-        return;
-      }
-      const { path, pluginData = {} } = args, runtimePackage = pluginData.runtimePackage, resolved_result = runtimePackage && !isCertainlyRelativePath(path) ? runtimePackage.resolveImport(path) ?? runtimePackage.resolveWorkspaceImport(path) : void 0, [resolved_path, resolved_package] = array_isArray(resolved_result) ? resolved_result : [resolved_result, runtimePackage];
-      if (1 /* LOG */ && logFn) {
-        logFn(`[runtime-package] resolving: ${path}` + (!resolved_path ? "" : `
->> successfully resolved to: ${resolved_path}`));
-      }
-      return resolved_path ? {
-        path: resolved_path,
-        namespace: output_ns,
-        pluginData: { ...pluginData, runtimePackage: resolved_package }
-      } : void 0;
-    };
-    const { globalImportMap } = importMapResolverConfig;
-    const importMapResolver = importMapResolverConfig.enabled === false ? noop2 : async (args) => {
-      if (args.pluginData?.resolverConfig?.useImportMap === false) {
-        return;
-      }
-      const { path, pluginData = {} } = args, importMap = { ...globalImportMap, ...pluginData.importMap }, resolved_path = resolvePathFromImportMap(path, importMap);
-      if (1 /* LOG */ && logFn) {
-        logFn(`[import-map]      resolving: ${path}` + (!resolved_path ? "" : `
->> successfully resolved to: ${resolved_path}`));
-      }
-      return resolved_path ? {
-        path: resolved_path,
-        namespace: output_ns,
-        pluginData: { ...pluginData }
-      } : void 0;
-    };
-    const { resolvePath, isAbsolutePath: isAbsolutePath3 } = relativePathResolverConfig;
-    const node_modules_resolver = nodeModulesResolverFactory({ absWorkingDir: resolvePath(ensureEndSlash(absWorkingDir)) }, build);
-    const nodeModulesResolver = nodeModulesResolverConfig.enabled === false ? noop2 : async (args) => {
-      const { path, resolveDir, importer, pluginData = {} } = args;
-      if (pluginData.resolverConfig?.useNodeModules === false) {
-        return;
-      }
-      if (pluginData.resolverConfig?.useRelativePath !== false && (isCertainlyRelativePath(path) || isAbsolutePath3(path))) {
-        return;
-      }
-      const resolve_dir = resolvePath(ensureEndSlash(resolveDir ? resolveDir : absWorkingDir)), module_path_alias = pathToPosixPath(path), native_results_promise = node_modules_resolver({
-        importer,
-        path: module_path_alias,
-        resolveDir: resolve_dir
-      });
-      const { path: resolved_path, namespace: _0, pluginData: _1, ...rest_results } = await native_results_promise.catch(() => {
-        return {};
-      });
-      if (1 /* LOG */ && logFn) {
-        logFn(`[node-module]     resolving: ${path}` + (!resolved_path ? "" : `
->> successfully resolved to: ${resolved_path}`));
-      }
-      return resolved_path ? {
-        ...rest_results,
-        path: resolved_path,
-        namespace: output_ns,
-        pluginData: { ...pluginData }
-      } : void 0;
-    };
-    const relativePathResolver = relativePathResolverConfig.enabled === false ? noop2 : async (args) => {
-      if (args.pluginData?.resolverConfig?.useRelativePath === false) {
-        return;
-      }
-      const { path, importer, resolveDir, pluginData = {} } = args, resolve_dir = resolvePath(ensureEndSlash(resolveDir ? resolveDir : absWorkingDir)), dir = isAbsolutePath3(importer) ? importer : joinPaths(resolve_dir, importer), resolved_path = resolvePath(path, dir ? dir : void 0);
-      if (1 /* LOG */ && logFn) {
-        logFn(`[absolute-path]   resolving: ${path}` + (!resolved_path ? "" : `
->> successfully resolved to: ${resolved_path}`));
-      }
-      return {
-        path: resolved_path,
-        namespace: output_ns,
-        pluginData: { ...pluginData }
-      };
-    };
-    build.onResolve({ filter: plugin_filter, namespace: plugin_ns }, externalPathResolver);
-    build.onResolve({ filter: plugin_filter, namespace: plugin_ns }, runtimePackageResolver);
-    build.onResolve({ filter: plugin_filter, namespace: plugin_ns }, importMapResolver);
-    build.onResolve({ filter: plugin_filter, namespace: plugin_ns }, nodeModulesResolver);
-    build.onResolve({ filter: plugin_filter, namespace: plugin_ns }, relativePathResolver);
-  };
-};
-var resolverPlugin = (config) => {
-  return {
-    name: "oazmi-plugindata-resolvers",
-    setup: resolverPluginSetup(config)
-  };
-};
-var nodeModulesResolverFactory = (config, build) => {
-  const { absWorkingDir } = config;
-  const internalPluginSetup = (config2) => {
-    return (build2) => {
-      const ALREADY_CAPTURED = Symbol(), plugin_ns = "the-void", { resolve, reject, resolveDir, importer = "" } = config2, importer_path_scheme = getUriScheme(importer), importer_dir_as_file_uri = importer_path_scheme === "local" || importer_path_scheme === "file" ? resolveAsUrl("./", importer).href : void 0, resolve_dir = importer_dir_as_file_uri ?? resolveDir;
-      if (1 /* ASSERT */ && resolve_dir === "") {
-        logLogger(
-          `[nodeModulesResolverFactory]: WARNING! received an empty resolve directory ("args.resolveDir").`,
-          `
+// src/misc/esbuild_native_resolver.ts
+var EsbuildNativeResolver = class {
+  entryPoint = "<the-unloadable-void>";
+  namespace = "the-void";
+  startBuildPromise;
+  startBuildResolve;
+  stopBuildPromise;
+  stopBuildResolve;
+  #internal_resolve;
+  #build_result;
+  constructor(base_esbuild, build_options) {
+    [this.startBuildPromise, this.startBuildResolve] = promise_outside();
+    [this.stopBuildPromise, this.stopBuildResolve] = promise_outside();
+    build_options = this.initOptions(build_options);
+    build_options.plugins = [this.initPlugin()];
+    this.#build_result = base_esbuild.build(build_options);
+  }
+  async resolve(path, options) {
+    await this.startBuildPromise;
+    if (1 /* ASSERT */ && (options?.resolveDir ?? "") === "") {
+      logLogger(
+        `[EsbuildNativeResolver.resolve]: WARNING! received an empty resolve directory ("options.resolveDir").`,
+        `
 	we will fallback to esbuild's current-working-directory for filling in the "resolveDir" value,`,
-          `
-	however, you must be using the "nodeModulesResolverFactory" function incorrectly to have encountered this situation.`,
-          `
+        `
+	however, you must be using the "EsbuildNativeResolver.resolve" function incorrectly to have encountered this situation.`,
+        `
 	remember, the purpose of this function is to scan for a node-module, starting from a directory that YOU provide.`
-        );
-      }
-      build2.onResolve({ filter: /.*/ }, async (args) => {
-        if (args.pluginData?.[ALREADY_CAPTURED] === true) {
-          return;
-        }
-        const { path, external, namespace, sideEffects, suffix } = await build2.resolve(
-          ensureFileUrlIsLocalPath(args.path),
-          {
-            kind: "entry-point",
-            resolveDir: ensureFileUrlIsLocalPath(resolve_dir !== "" ? resolve_dir : args.resolveDir),
-            pluginData: { [ALREADY_CAPTURED]: true }
-          }
-        );
-        resolve({ path: pathToPosixPath(path), external, namespace, sideEffects, suffix });
-        return { path: "does-not-matter.js", namespace: plugin_ns };
-      });
-      build2.onLoad({ filter: /.*/, namespace: plugin_ns }, () => ({ contents: "", loader: "empty" }));
-    };
-  };
-  return async (args) => {
-    const { path, resolveDir: _resolveDir = "", importer } = args, resolveDir = _resolveDir === "" ? absWorkingDir ?? "" : _resolveDir, [promise, resolve, reject] = promise_outside(), internalPlugin = {
-      name: "native-esbuild-resolver-capture",
-      setup: internalPluginSetup({ resolve, reject, resolveDir, importer })
-    };
-    await build.esbuild.build({
-      entryPoints: [path],
+      );
+    }
+    path = ensureFileUrlIsLocalPath(path);
+    options ??= {};
+    options.resolveDir = ensureFileUrlIsLocalPath(options.resolveDir ? options.resolveDir : "./");
+    return this.#internal_resolve(path, options);
+  }
+  async stop() {
+    this.stopBuildResolve();
+    await this.#build_result;
+  }
+  initOptions(build_options = {}) {
+    const {
       absWorkingDir,
-      bundle: false,
+      alias,
+      conditions,
+      external,
+      mainFields,
+      nodePaths,
+      packages,
+      platform,
+      resolveExtensions,
+      tsconfig,
+      tsconfigRaw
+    } = build_options;
+    const entrypoint = this.entryPoint;
+    return {
+      absWorkingDir,
+      alias,
+      conditions,
+      external,
+      mainFields,
+      nodePaths,
+      packages,
+      platform,
+      resolveExtensions,
+      tsconfig,
+      tsconfigRaw,
+      // `bundle` must be true, else `external` will get rejected fatally by esbuild.
+      bundle: true,
       minify: false,
       write: false,
       outdir: "./temp/",
-      plugins: [internalPlugin]
-    }).catch(() => {
-      reject("esbuild's native resolver failed to resolve the path");
-    });
-    return promise;
-  };
+      entryPoints: [entrypoint]
+    };
+  }
+  initPlugin() {
+    const self = this;
+    const setup_fn = (build) => {
+      const entrypoint = self.entryPoint, filter = RegExp(escapeLiteralStringForRegex(entrypoint) + "$"), namespace = self.namespace;
+      build.onResolve({ filter }, async (args) => {
+        return { path: entrypoint, namespace };
+      });
+      build.onLoad({ filter, namespace }, async (args) => {
+        self.startBuildResolve();
+        self.#internal_resolve = (path, args2) => {
+          return build.resolve(path, { kind: "entry-point", resolveDir: "./", ...args2 });
+        };
+        await self.stopBuildPromise;
+        return { contents: "", loader: "empty" };
+      });
+    };
+    return {
+      name: "native-esbuild-resolver-capture",
+      setup: setup_fn
+    };
+  }
 };
 
 // src/plugins/filters/npm.ts
 var defaultNpmAutoInstallCliConfig = {
   dir: 1 /* ABS_WORKING_DIR */,
-  command: (package_name_and_version) => `npm install "${package_name_and_version}" --no-save`
+  command: (all_packages) => ({ process: "npm", args: ["install", "--no-save", "--no-package-lock", ...all_packages] })
 };
 var sync_task_queuer = syncTaskQueueFactory();
 var packageAvailability = /* @__PURE__ */ new Map();
@@ -1995,7 +1997,7 @@ var npmPluginSetup = (config = {}) => {
       const well_formed_alias_with_version_and_path = replacePrefix(alias, npm_prefix, "") ?? alias, { scope: alias_scope, pkg: alias_pkg } = parsePackageUrl(npm_prefix + well_formed_alias_with_version_and_path), well_formed_alias = (alias_scope ? "@" + alias_scope + "/" : "") + alias_pkg, well_formed_pkg_with_version_and_path = replacePrefix(pkg_name, npm_prefix, "") ?? pkg_name, { host: well_formed_pkg_with_version } = parsePackageUrl(npm_prefix + well_formed_pkg_with_version_and_path);
       return [well_formed_alias, npm_prefix + well_formed_pkg_with_version];
     })
-  );
+  ), autoInstalledPackages = [];
   if (isObject(autoInstall)) {
     nodeModulesDirs.unshift(autoInstall.dir);
   }
@@ -2009,7 +2011,11 @@ var npmPluginSetup = (config = {}) => {
         default:
           return pathOrUrlToLocalPathConverter(dir_path);
       }
-    }, node_modules_dirs = [...new Set(nodeModulesDirs.map(dir_path_converter))], validResolveDirFinder = findResolveDirOfNpmPackageFactory(build), autoInstallConfig = isObject(autoInstall) ? { dir: dir_path_converter(autoInstall.dir), command: autoInstall.command, log } : autoInstall;
+    }, node_modules_dirs = [...new Set(nodeModulesDirs.map(dir_path_converter))], node_modules_resolver = new EsbuildNativeResolver(build.esbuild), validResolveDirFinder = findResolveDirOfNpmPackageFactory(node_modules_resolver);
+    build.onEnd(async () => {
+      await node_modules_resolver.stop();
+    });
+    const autoInstallConfig = isObject(autoInstall) ? { dir: dir_path_converter(autoInstall.dir), command: autoInstall.command, log } : autoInstall;
     if (autoInstallConfig) {
       build.onStart(async () => {
         const is_dynamic_installation = autoInstallConfig === "dynamic", well_formed_peer_deps = object_entries(peerDependenciesImportMap);
@@ -2027,7 +2033,8 @@ var npmPluginSetup = (config = {}) => {
 	warning generated for the peer dependency package: "${pkg_name}", with alias: "${alias}".`
             );
           }
-          await sync_task_queuer(installNpmPackage, pkg_installation_string, autoInstallConfig);
+          autoInstalledPackages.push(pkg_installation_string);
+          await sync_task_queuer(installNpmPackages, autoInstalledPackages, autoInstallConfig);
         }
       });
     }
@@ -2046,7 +2053,8 @@ var npmPluginSetup = (config = {}) => {
       }
       let valid_resolve_dir = await validResolveDirFinder(resolved_npm_package_alias, scan_resolve_dir);
       if (!valid_resolve_dir && autoInstallConfig) {
-        await sync_task_queuer(installNpmPackage, well_formed_npm_package_alias, autoInstallConfig);
+        autoInstalledPackages.push(well_formed_npm_package_alias);
+        await sync_task_queuer(installNpmPackages, autoInstalledPackages, autoInstallConfig);
         valid_resolve_dir = await validResolveDirFinder(resolved_npm_package_alias, scan_resolve_dir);
       }
       if (!valid_resolve_dir) {
@@ -2102,11 +2110,9 @@ var pathOrUrlToLocalPathConverter = (dir_path_or_url) => {
       throw new Error(`expected a filesystem path, or a "file://" url, but received the incompatible uri scheme "${path_schema}".`);
   }
 };
-var findResolveDirOfNpmPackageFactory = (build) => {
-  const node_modules_resolver = nodeModulesResolverFactory({ absWorkingDir: void 0 }, build);
+var findResolveDirOfNpmPackageFactory = (node_modules_resolver) => {
   const validateNodeModuleExists = async (abs_resolve_dir, node_module_package_name) => {
-    const result = await node_modules_resolver({
-      path: node_module_package_name,
+    const result = await node_modules_resolver.resolve(node_module_package_name, {
       importer: "",
       resolveDir: abs_resolve_dir
     });
@@ -2123,11 +2129,11 @@ var findResolveDirOfNpmPackageFactory = (build) => {
   };
 };
 var current_js_runtime = identifyCurrentRuntime();
-var package_installation_command_deno = (package_name_and_version) => `deno cache --node-modules-dir="auto" --allow-scripts --no-config "npm:${package_name_and_version}"`;
-var package_installation_command_deno_noscript = (package_name_and_version) => `deno cache --node-modules-dir="auto" --no-config "npm:${package_name_and_version}"`;
-var package_installation_command_npm = (package_name_and_version) => `npm install "${package_name_and_version}" --no-save`;
-var package_installation_command_bun = (package_name_and_version) => `bun install "${package_name_and_version}" --no-save`;
-var package_installation_command_pnpm = (package_name_and_version) => `pnpm install "${package_name_and_version}"`;
+var package_installation_command_deno = (all_packages) => ({ process: "deno", args: ["cache", "--node-modules-dir=auto", "--allow-scripts", "--no-config", ...all_packages.map((package_name_and_version) => `npm:${package_name_and_version}`)] });
+var package_installation_command_deno_noscript = (all_packages) => ({ process: "deno", args: ["cache", "--node-modules-dir=auto", "--no-config", ...all_packages.map((package_name_and_version) => `npm:${package_name_and_version}`)] });
+var package_installation_command_npm = (all_packages) => ({ process: "npm", args: ["install", "--no-save", "--no-package-lock", ...all_packages] });
+var package_installation_command_bun = (all_packages) => ({ process: "bun", args: ["install", "--no-save", all_packages.at(-1)] });
+var package_installation_command_pnpm = (all_packages) => ({ process: "pnpm", args: ["install", all_packages.at(-1)] });
 var autoInstallOptionToNpmAutoInstallCliConfig = (option) => {
   if (!option) {
     return void 0;
@@ -2166,29 +2172,175 @@ var autoInstallOptionToNpmAutoInstallCliConfig = (option) => {
       return void 0;
   }
 };
-var installNpmPackage = async (package_name, config) => {
+var installNpmPackages = async (package_names, config) => {
   switch (current_js_runtime) {
     case 0 /* DENO */:
     case 1 /* BUN */:
     case 2 /* NODE */: {
-      return config === "dynamic" ? installNpmPackageDynamic(package_name) : installNpmPackageCli(package_name, config);
+      return config === "dynamic" ? installNpmPackagesDynamic(package_names) : installNpmPackagesCli(package_names, config);
     }
     default:
       throw new Error("ERROR! npm-package installation is not possible on web-browser runtimes.");
   }
 };
-var installNpmPackageCli = async (package_name, config) => {
-  const { command, dir, log } = config, logFn = log ? log === true ? logLogger : log : void 0, pkg_pseudo_url = parsePackageUrl(package_name.startsWith(npm_prefix) ? package_name : npm_prefix + package_name), pkg_name_and_version = pkg_pseudo_url.host, is_using_package_aliasing = pkg_name_and_version.includes("@npm:"), cli_command = command(is_using_package_aliasing ? package_name : pkg_name_and_version);
+var installNpmPackagesCli = async (package_names, config) => {
+  const { command, dir, log } = config, logFn = log ? log === true ? logLogger : log : void 0, normalized_package_names = package_names.map((package_name) => {
+    const pkg_pseudo_url = parsePackageUrl(package_name.startsWith(npm_prefix) ? package_name : npm_prefix + package_name), pkg_name_and_version = pkg_pseudo_url.host, is_using_package_aliasing = pkg_name_and_version.includes("@npm:");
+    return is_using_package_aliasing ? package_name : pkg_name_and_version;
+  }), { process, args } = command(normalized_package_names), cli_command = `${process} ${args.join(" ")}`;
   if (1 /* LOG */ && logFn) {
-    logFn(`[npmPlugin]      installing: "${package_name}", in directory "${dir}"
+    logFn(`[npmPlugin]      installing: "${package_names.at(-1)}", in directory "${dir}"
 >>    using the cli-command: \`${cli_command}\``);
   }
-  await execShellCommand(current_js_runtime, cli_command, { cwd: dir });
+  await spawnCommand(current_js_runtime, process, { cwd: dir, args });
 };
-var installNpmPackageDynamic = async (package_name) => {
-  const pkg_pseudo_url = parsePackageUrl(package_name.startsWith(npm_prefix) ? package_name : npm_prefix + package_name), pkg_import_url = pkg_pseudo_url.href.replace(/^npm\:[\/\\]*/, npm_prefix).slice(0, pkg_pseudo_url.pathname === "/" ? -1 : void 0), dynamic_export_script = `export * as myLib from "${dom_decodeURI(pkg_import_url)}"`, dynamic_export_script_blob = new Blob([dynamic_export_script], { type: "text/javascript" }), dynamic_export_script_url = URL.createObjectURL(dynamic_export_script_blob);
-  await import(dynamic_export_script_url);
+var installNpmPackagesDynamic = async (package_names) => {
+  await Promise.all(package_names.map(async (package_name) => {
+    const pkg_pseudo_url = parsePackageUrl(package_name.startsWith(npm_prefix) ? package_name : npm_prefix + package_name), pkg_import_url = pkg_pseudo_url.href.replace(/^npm\:[\/\\]*/, npm_prefix).slice(0, pkg_pseudo_url.pathname === "/" ? -1 : void 0), dynamic_export_script = `export * as myLib from "${dom_decodeURI(pkg_import_url)}"`, dynamic_export_script_blob = new Blob([dynamic_export_script], { type: "text/javascript" }), dynamic_export_script_url = URL.createObjectURL(dynamic_export_script_blob);
+    await import(dynamic_export_script_url);
+  }));
   return;
+};
+
+// src/plugins/resolvers.ts
+var defaultRuntimePackageResolverConfig = {
+  enabled: true
+};
+var defaultImportMapResolverConfig = {
+  enabled: true,
+  globalImportMap: {}
+};
+var defaultNodeModulesResolverConfig = {
+  enabled: true
+};
+var defaultRelativePathResolverConfig = {
+  enabled: true,
+  resolvePath: defaultResolvePath,
+  isAbsolutePath: isAbsolutePath2
+};
+var defaultResolverPluginSetupConfig = {
+  runtimePackage: defaultRuntimePackageResolverConfig,
+  importMap: defaultImportMapResolverConfig,
+  nodeModules: defaultNodeModulesResolverConfig,
+  relativePath: defaultRelativePathResolverConfig,
+  namespace: "oazmi-resolver-pipeline" /* RESOLVER_PIPELINE */,
+  log: false
+};
+var resolverPluginSetup = (config) => {
+  const {
+    runtimePackage: _runtimePackageResolverConfig,
+    importMap: _importMapResolverConfig,
+    nodeModules: _nodeModulesResolverConfig,
+    relativePath: _relativePathResolverConfig,
+    namespace: plugin_ns,
+    log
+  } = { ...defaultResolverPluginSetupConfig, ...config };
+  const runtimePackageResolverConfig = { ...defaultRuntimePackageResolverConfig, ..._runtimePackageResolverConfig }, importMapResolverConfig = { ...defaultImportMapResolverConfig, ..._importMapResolverConfig }, nodeModulesResolverConfig = { ...defaultNodeModulesResolverConfig, ..._nodeModulesResolverConfig }, relativePathResolverConfig = { ...defaultRelativePathResolverConfig, ..._relativePathResolverConfig }, logFn = log ? log === true ? logLogger : log : void 0, output_ns = "discard-this-namespace", plugin_filter = /.*/;
+  return async (build) => {
+    const absWorkingDir = ensureEndSlash(pathToPosixPath(build.initialOptions.absWorkingDir ?? "./"));
+    const externalResourceSet = new Set(build.initialOptions.external);
+    const externalPathResolver = externalResourceSet.size <= 0 ? noop2 : async (args) => {
+      const { path, pluginData = {} } = args, is_external = externalResourceSet.has(path);
+      if (1 /* LOG */ && logFn) {
+        logFn(`[external-path]    checking: ${path}` + (!is_external ? "" : `
+>> successfully verified the path to be external`));
+      }
+      return is_external ? {
+        path,
+        external: true,
+        namespace: output_ns,
+        pluginData: { ...pluginData }
+      } : void 0;
+    };
+    const runtimePackageResolver = runtimePackageResolverConfig.enabled === false ? noop2 : async (args) => {
+      if (args.pluginData?.resolverConfig?.useRuntimePackage === false) {
+        return;
+      }
+      const { path, pluginData = {} } = args, runtimePackage = pluginData.runtimePackage, resolved_result = runtimePackage && !isCertainlyRelativePath(path) ? runtimePackage.resolveImport(path) ?? runtimePackage.resolveWorkspaceImport(path) : void 0, [resolved_path, resolved_package] = array_isArray(resolved_result) ? resolved_result : [resolved_result, runtimePackage];
+      if (1 /* LOG */ && logFn) {
+        logFn(`[runtime-package] resolving: ${path}` + (!resolved_path ? "" : `
+>> successfully resolved to: ${resolved_path}`));
+      }
+      return resolved_path ? {
+        path: resolved_path,
+        namespace: output_ns,
+        pluginData: { ...pluginData, runtimePackage: resolved_package }
+      } : void 0;
+    };
+    const { globalImportMap } = importMapResolverConfig;
+    const importMapResolver = importMapResolverConfig.enabled === false ? noop2 : async (args) => {
+      if (args.pluginData?.resolverConfig?.useImportMap === false) {
+        return;
+      }
+      const { path, pluginData = {} } = args, importMap = { ...globalImportMap, ...pluginData.importMap }, resolved_path = resolvePathFromImportMap(path, importMap);
+      if (1 /* LOG */ && logFn) {
+        logFn(`[import-map]      resolving: ${path}` + (!resolved_path ? "" : `
+>> successfully resolved to: ${resolved_path}`));
+      }
+      return resolved_path ? {
+        path: resolved_path,
+        namespace: output_ns,
+        pluginData: { ...pluginData }
+      } : void 0;
+    };
+    const { resolvePath, isAbsolutePath: isAbsolutePath3 } = relativePathResolverConfig;
+    const node_modules_resolver = new EsbuildNativeResolver(build.esbuild, build.initialOptions);
+    build.onEnd(async () => {
+      await node_modules_resolver.stop();
+    });
+    const nodeModulesResolver = nodeModulesResolverConfig.enabled === false ? noop2 : async (args) => {
+      const { path, resolveDir, importer, pluginData = {} } = args;
+      if (pluginData.resolverConfig?.useNodeModules === false) {
+        return;
+      }
+      if (pluginData.resolverConfig?.useRelativePath !== false && (isCertainlyRelativePath(path) || isAbsolutePath3(path))) {
+        return;
+      }
+      const resolve_dir = resolvePath(ensureEndSlash(resolveDir ? resolveDir : absWorkingDir)), module_path_alias = pathToPosixPath(path), native_results_promise = node_modules_resolver.resolve(module_path_alias, {
+        importer,
+        resolveDir: resolve_dir
+      });
+      const { path: resolved_path, namespace: _0, pluginData: _1, ...rest_results } = await native_results_promise.catch(() => {
+        return {};
+      });
+      if (1 /* LOG */ && logFn) {
+        logFn(`[node-module]     resolving: ${path}` + (!resolved_path ? "" : `
+>> successfully resolved to: ${resolved_path}`));
+      }
+      return resolved_path ? {
+        ...rest_results,
+        path: resolved_path,
+        namespace: output_ns,
+        pluginData: { ...pluginData }
+      } : void 0;
+    };
+    const relativePathResolver = relativePathResolverConfig.enabled === false ? noop2 : async (args) => {
+      if (args.pluginData?.resolverConfig?.useRelativePath === false) {
+        return;
+      }
+      const { path, importer, resolveDir, pluginData = {} } = args, resolve_dir = resolvePath(ensureEndSlash(resolveDir ? resolveDir : absWorkingDir)), dir = isAbsolutePath3(importer) ? importer : joinPaths(resolve_dir, importer), resolved_path = resolvePath(path, dir ? dir : void 0);
+      if (1 /* LOG */ && logFn) {
+        logFn(`[absolute-path]   resolving: ${path}` + (!resolved_path ? "" : `
+>> successfully resolved to: ${resolved_path}`));
+      }
+      return {
+        path: resolved_path,
+        namespace: output_ns,
+        pluginData: { ...pluginData }
+      };
+    };
+    build.onResolve({ filter: plugin_filter, namespace: plugin_ns }, externalPathResolver);
+    build.onResolve({ filter: plugin_filter, namespace: plugin_ns }, runtimePackageResolver);
+    build.onResolve({ filter: plugin_filter, namespace: plugin_ns }, importMapResolver);
+    build.onResolve({ filter: plugin_filter, namespace: plugin_ns }, nodeModulesResolver);
+    build.onResolve({ filter: plugin_filter, namespace: plugin_ns }, relativePathResolver);
+  };
+};
+var resolverPlugin = (config) => {
+  return {
+    name: "oazmi-plugindata-resolvers",
+    setup: resolverPluginSetup(config)
+  };
 };
 
 // src/plugins/mod.ts

@@ -29,20 +29,19 @@
  *      then the resolved absolute filesystem path of the resource will be returned.
  *    - otherwise, if it fails, then the next path resolution will take place (path-joining).
  *    > [!tip]
- *    > under the hood, this function uses the {@link nodeModulesResolverFactory} function that initializes a mock build process,
+ *    > under the hood, this function uses the {@link EsbuildNativeResolver} class that initializes a mock build process,
  *    > which lets us indirectly query esbuild for the resolved path to the resource (if any).
  * 4. finally, when all else has failed and we've made it to here, and `args.path` is a relative path:
  *    - then we'll simply compute the absolute path of the input `args.path` by combining it with `args.importer`, and `args.resolveDir`.
  *      - if neither of those two arguments are non-empty strings, then we will resort to using esbuild's `absWorkingDir` build option.
  *      - if `absWorkingDir` was itself not specified, then we will fallback to the runtime's current-working-directory as the base directory of `args.path`.
- *    - and again, the original `args.pluginData` is returned along with the result, so that the child dependnecies can inherit it.
+ *    - and again, the original `args.pluginData` is returned along with the result, so that the child dependencies can inherit it.
  *
  * @module
 */
 import { type DeepPartial } from "../deps.js";
 import type { ImportMap } from "../importmap/typedefs.js";
-import type { EsbuildPlugin, EsbuildPluginBuild, EsbuildPluginSetup, LoggerFunction, OnResolveResult } from "./typedefs.js";
-import { type OnResolveArgs } from "./typedefs.js";
+import type { EsbuildPluginCompatible, EsbuildPluginSetup, LoggerFunction } from "./typedefs.js";
 /** configuration for the runtime-package resolver in {@link resolverPluginSetup},
  * which operates on the {@link CommonPluginData.runtimePackage} plugin-data property.
 */
@@ -200,27 +199,5 @@ export interface ResolverPluginSetupConfig {
 */
 export declare const resolverPluginSetup: (config?: DeepPartial<ResolverPluginSetupConfig>) => EsbuildPluginSetup;
 /** {@inheritDoc resolverPluginSetup} */
-export declare const resolverPlugin: (config?: DeepPartial<ResolverPluginSetupConfig>) => EsbuildPlugin;
-/** an interface to configure the {@link nodeModulesResolverFactory} function. */
-export interface NodeModulesResolverFactoryConfig {
-    /** the fallback resolve-dir path which should be used in place of `args.resolveDir` and `args.importer`, if neither are available.
-     * the `absWorkingDir` path will generally correspond to your project's directory (i.e. current working directory).
-    */
-    absWorkingDir?: string;
-}
-/** this factory function creates a path-resolver function that mimics esbuild's native-resolver's behavior.
- *
- * the slyish way how it works is that we create a new build process to query esbuild what it would hypothetically do if so and so input arguments were given,
- * then through a custom inner plugin, we capture esbuild's response (the resolved path), and return it back to the user.
- *
- * > [!note]
- * > the internal resolver function accepts `"file://"` uris for the following list of {@link OnResolveArgs} fields,
- * > and converts them to local paths for esbuild to understand:
- * > - `path`
- * > - `resolveDir`
- * > - `importer`
- * >
- * > with this feature, you won't have to worry about file-uris at all.
-*/
-export declare const nodeModulesResolverFactory: (config: NodeModulesResolverFactoryConfig, build: EsbuildPluginBuild) => ((args: Pick<OnResolveArgs, "path" | "resolveDir" | "importer">) => Promise<OnResolveResult>);
+export declare const resolverPlugin: (config?: DeepPartial<ResolverPluginSetupConfig>) => EsbuildPluginCompatible;
 //# sourceMappingURL=resolvers.d.ts.map

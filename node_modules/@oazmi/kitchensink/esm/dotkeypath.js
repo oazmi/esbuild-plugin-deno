@@ -10,7 +10,6 @@
  *
  * @module
 */
-import "./_dnt.polyfills.js";
 import { number_parseInt } from "./alias.js";
 /** get value of nested `obj` at a given `key-path`.
  *

@@ -98,7 +98,7 @@ export abstract class RuntimePackage<SCHEMA extends Record<string, any>> {
 	/** this method tries to resolve the provided import `path_alias` done by some resource within this package,
 	 * using the internal {@link importMapSortedEntries} list of import-aliases that this package uses.
 	 * if no import resources match the given `path_alias`, then `undefined` will be returned
-	 * (which would probably mean that the given `path_alias` is already either an absolute or relative path, or perhaps incorrect altogether.
+	 * (which would probably mean that the given `path_alias` is already either an absolute or relative path, or perhaps incorrect altogether).
 	 * 
 	 * > [!tip]
 	 * > for test case examples and configuration options, see the documentation comments of {@link resolvePathFromImportMapEntries}

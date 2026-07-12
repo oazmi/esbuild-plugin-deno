@@ -4,7 +4,6 @@
  *
  * @module
 */
-import "./_dnt.polyfills.js";
 import { console_error } from "./alias.js";
 import { resolveRange } from "./array1d.js";
 import { DEBUG } from "./deps.js";

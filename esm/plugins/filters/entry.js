@@ -37,7 +37,7 @@
  * finally, we come to the resolver which implicitly calls the namespaced resolvers of the {@link resolverPlugin},
  * which is a pipeline that can resolve {@link CommonPluginData.importMap | import-maps},
  * {@link CommonPluginData.runtimePackage | deno-packages},
- * {@link nodeModulesResolverFactory | node-packages (`node_modules`)},
+ * {@link EsbuildNativeResolver | node-packages (`node_modules`)},
  * and perform generic path-joining, in order to get the absolute path (doesn't have to be filesystem path) to the resource.
  *
  * most resolvers of the {@link resolverPlugin} require {@link CommonPluginData | `pluginData`} to be useful.

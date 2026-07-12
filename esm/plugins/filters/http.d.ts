@@ -3,7 +3,7 @@
  * @module
 */
 import { type DeepPartial } from "../../deps.js";
-import type { EsbuildLoaderType, EsbuildPlugin, EsbuildPluginSetup, LoggerFunction, OnLoadCallback } from "../typedefs.js";
+import type { EsbuildLoaderType, EsbuildPluginCompatible, EsbuildPluginSetup, LoggerFunction, OnLoadCallback } from "../typedefs.js";
 /** configuration options for the {@link urlLoaderFactory} function. */
 export interface UrlLoaderFactoryConfig {
     /** enable logging of the input arguments and preferred loader, when {@link DEBUG.LOG} is ennabled.
@@ -70,7 +70,7 @@ export interface UrlLoaderFactoryConfig {
  *
  * @param config provide a configuration to customize some aspects of the returned loader function.
  * @returns a url loader function that can be passed to the callback of {@link EsbuildPluginBuild.onLoad | `esbuild.PluginBuild.onLoad`},
- *   so that it can fetch the contents of url-based paths when esbuild intercept
+ *   so that it can fetch the contents of url-based paths when esbuild intercept it.
 */
 export declare const urlLoaderFactory: (config: UrlLoaderFactoryConfig) => OnLoadCallback;
 /** configuration options for the {@link httpPluginSetup} and {@link httpPlugin} functions. */
@@ -151,5 +151,5 @@ export interface HttpPluginSetupConfig {
 */
 export declare const httpPluginSetup: (config?: DeepPartial<HttpPluginSetupConfig>) => EsbuildPluginSetup;
 /** {@inheritDoc httpPluginSetup} */
-export declare const httpPlugin: (config?: Partial<HttpPluginSetupConfig>) => EsbuildPlugin;
+export declare const httpPlugin: (config?: Partial<HttpPluginSetupConfig>) => EsbuildPluginCompatible;
 //# sourceMappingURL=http.d.ts.map

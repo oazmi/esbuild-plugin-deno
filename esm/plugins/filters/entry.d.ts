@@ -37,7 +37,7 @@
  * finally, we come to the resolver which implicitly calls the namespaced resolvers of the {@link resolverPlugin},
  * which is a pipeline that can resolve {@link CommonPluginData.importMap | import-maps},
  * {@link CommonPluginData.runtimePackage | deno-packages},
- * {@link nodeModulesResolverFactory | node-packages (`node_modules`)},
+ * {@link EsbuildNativeResolver | node-packages (`node_modules`)},
  * and perform generic path-joining, in order to get the absolute path (doesn't have to be filesystem path) to the resource.
  *
  * most resolvers of the {@link resolverPlugin} require {@link CommonPluginData | `pluginData`} to be useful.
@@ -65,7 +65,7 @@
  * @module
 */
 import { type WorkspacePackage } from "../../packageman/base.js";
-import type { CommonPluginData, EsbuildPlugin, EsbuildPluginSetup } from "../typedefs.js";
+import type { CommonPluginData, EsbuildPluginCompatible, EsbuildPluginSetup } from "../typedefs.js";
 /** this is a slightly modified version of {@link CommonPluginData},
  * which accepts a path or url to your "deno.json" file under the `runtimePackage` property.
 */
@@ -146,5 +146,5 @@ export interface EntryPluginSetupConfig {
 */
 export declare const entryPluginSetup: (config?: Partial<EntryPluginSetupConfig>) => EsbuildPluginSetup;
 /** {@inheritDoc entryPluginSetup} */
-export declare const entryPlugin: (config?: Partial<EntryPluginSetupConfig>) => EsbuildPlugin;
+export declare const entryPlugin: (config?: Partial<EntryPluginSetupConfig>) => EsbuildPluginCompatible;
 //# sourceMappingURL=entry.d.ts.map

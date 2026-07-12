@@ -45,7 +45,6 @@
  *
  * @module
 */
-import "./_dnt.polyfills.js";
 import type { DecodeFunc, EncodeFunc } from "./eightpack.js";
 import type { VarNumericArrayType, VarNumericType } from "./typedefs.js";
 /** encode a `number` as a variable sized integer (signed or unsigned) in binary. */

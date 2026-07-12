@@ -14,7 +14,6 @@
  *
  * @module
 */
-import "./_dnt.polyfills.js";
 /** vectorize a zero parameter function.
  *
  * @example

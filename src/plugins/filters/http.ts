@@ -6,7 +6,7 @@
 import { DEBUG, type DeepPartial, defaultFetchConfig, fileUrlToLocalPath, getUriScheme, json_stringify, resolveAsUrl } from "../../deps.js"
 import { guessHttpResponseLoaders } from "../../loadermap/mod.js"
 import { logLogger } from "../funcdefs.js"
-import type { EsbuildLoaderType, EsbuildPlugin, EsbuildPluginBuild, EsbuildPluginSetup, LoggerFunction, OnLoadArgs, OnLoadCallback, OnResolveArgs, OnResolveCallback, OnResolveResult } from "../typedefs.js"
+import type { EsbuildLoaderType, EsbuildPluginBuild, EsbuildPluginCompatible, EsbuildPluginSetup, LoggerFunction, OnLoadArgs, OnLoadCallback, OnResolveArgs, OnResolveCallback, OnResolveResult } from "../typedefs.js"
 import { allEsbuildLoaders, defaultEsbuildNamespaces, PLUGIN_NAMESPACE } from "../typedefs.js"
 import type { entryPlugin } from "./entry.js"
 
@@ -80,7 +80,7 @@ export interface UrlLoaderFactoryConfig {
  * 
  * @param config provide a configuration to customize some aspects of the returned loader function.
  * @returns a url loader function that can be passed to the callback of {@link EsbuildPluginBuild.onLoad | `esbuild.PluginBuild.onLoad`},
- *   so that it can fetch the contents of url-based paths when esbuild intercept 
+ *   so that it can fetch the contents of url-based paths when esbuild intercept it.
 */
 export const urlLoaderFactory = (config: UrlLoaderFactoryConfig): OnLoadCallback => {
 	const
@@ -251,7 +251,7 @@ export const httpPluginSetup = (config: DeepPartial<HttpPluginSetupConfig> = {})
 }
 
 /** {@inheritDoc httpPluginSetup} */
-export const httpPlugin = (config?: Partial<HttpPluginSetupConfig>): EsbuildPlugin => {
+export const httpPlugin = (config?: Partial<HttpPluginSetupConfig>): EsbuildPluginCompatible => {
 	return {
 		name: "oazmi-http-plugin",
 		setup: httpPluginSetup(config),

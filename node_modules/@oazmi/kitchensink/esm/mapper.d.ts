@@ -123,7 +123,6 @@
  * })
  * ```
 */
-import "./_dnt.polyfills.js";
 export type RecordMapper<R, U extends {
     [K in keyof R]?: any;
 } = {

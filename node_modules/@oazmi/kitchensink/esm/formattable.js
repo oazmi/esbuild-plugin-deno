@@ -4,7 +4,6 @@
  *
  * @module
 */
-import "./_dnt.polyfills.js";
 import { sequenceMap } from "./mapper.js";
 import { clamp } from "./numericmethods.js";
 import { isArray } from "./struct.js";

@@ -25,6 +25,7 @@
 - you tell them to become a perpetual chanting machine.
 
 ## Our EMOJI Pledge
+
 🚀🌌🌚💯💯✌👳‍♂️🐫🦒🦍😾🧠
 
 ## Our GREEN Pledge
@@ -57,7 +58,6 @@ the following will be intolerated:
 we, the GH-PD, will imprison any user who publishes pictures of aborted octo-cat cell-clump and tries to collect empathy for
 a non-living item. (we also pay $500 in cash if you be quite, or rat out someone else)
 
-
 ## Your Pledge's SCOPE
 
-once you form a covenant with Nito - master of chaos, this code of conduct applies within all 2853 characters of this mark-down file.
+once you form a covenant with Nito - master of chaos, this code of conduct applies within all 2852 characters of this mark-down file.

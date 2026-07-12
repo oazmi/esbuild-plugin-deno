@@ -2,7 +2,6 @@
  *
  * @module
 */
-import "./_dnt.polyfills.js";
 import type { MaybePromiseLike } from "./typedefs.js";
 /** the type of time function to use for your {@link Stopwatch} instance.
  *

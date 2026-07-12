@@ -4,7 +4,6 @@
  *
  * @module
 */
-import "./_dnt.polyfills.js";
 import type { Degrees, UByte, UnitInterval } from "./typedefs.js";
 /** represents a function that formats an atomic-value `T` to its string representation */
 export type FormatValue<T extends any = number> = (value: T, i?: number, arr?: Array<unknown>) => string;

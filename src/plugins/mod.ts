@@ -8,8 +8,8 @@ import { entryPlugin, type EntryPluginSetupConfig } from "./filters/entry.js"
 import { httpPlugin } from "./filters/http.js"
 import { jsrPlugin } from "./filters/jsr.js"
 import { npmPlugin, type NpmPluginSetupConfig } from "./filters/npm.js"
-import { type ImportMapResolverConfig, resolverPlugin, type ResolverPluginSetupConfig } from "./resolvers.js"
-import { defaultEsbuildNamespaces, DIRECTORY, type EsbuildPlugin } from "./typedefs.js"
+import { resolverPlugin, type ImportMapResolverConfig, type ResolverPluginSetupConfig } from "./resolvers.js"
+import { defaultEsbuildNamespaces, DIRECTORY, type EsbuildPluginCompatible } from "./typedefs.js"
 
 
 export { DIRECTORY } from "./typedefs.js"
@@ -78,11 +78,11 @@ const defaultDenoPluginsConfig: DenoPluginsConfig = {
  * - {@link resolverPlugin}: a namespaced plugin that provides the backbone pipeline for resolving the paths of all of the plugins above.
 */
 export const denoPlugins = (config?: Partial<DenoPluginsConfig>): [
-	entry_plugin: EsbuildPlugin,
-	http_plugin: EsbuildPlugin,
-	jsr_plugin: EsbuildPlugin,
-	npm_plugin: EsbuildPlugin,
-	resolver_pipeline_plugin: EsbuildPlugin,
+	entry_plugin: EsbuildPluginCompatible,
+	http_plugin: EsbuildPluginCompatible,
+	jsr_plugin: EsbuildPluginCompatible,
+	npm_plugin: EsbuildPluginCompatible,
+	resolver_pipeline_plugin: EsbuildPluginCompatible,
 ] => {
 	const
 		{ acceptNamespaces, autoInstall, getCwd, globalImportMap, log, logFor, peerDependencies, nodeModulesDirs, initialPluginData, scanAncestralWorkspaces } = { ...defaultDenoPluginsConfig, ...config },

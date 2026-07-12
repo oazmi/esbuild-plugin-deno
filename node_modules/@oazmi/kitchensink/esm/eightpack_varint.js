@@ -45,7 +45,6 @@
  *
  * @module
 */
-import "./_dnt.polyfills.js";
 /** encode a `number` as a variable sized integer (signed or unsigned) in binary. */
 export const encode_varint = (value, type) => { return encode_varint_array([value,], type); };
 /** encode an array of `number`s as variable sized integers (signed or unsigned) in binary. */

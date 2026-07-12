@@ -2,7 +2,6 @@
  *
  * @module
 */
-import "./_dnt.polyfills.js";
 import { date_now, performance_now } from "./alias.js";
 import { DEBUG } from "./deps.js";
 const parseTimeFn = (time_fn) => {

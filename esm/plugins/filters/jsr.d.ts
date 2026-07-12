@@ -5,7 +5,7 @@
  *
  * @module
 */
-import type { EsbuildPlugin, EsbuildPluginSetup } from "../typedefs.js";
+import type { EsbuildPluginCompatible, EsbuildPluginSetup } from "../typedefs.js";
 /** configuration options for the {@link jsrPluginSetup} and {@link jsrPlugin} functions. */
 export interface JsrPluginSetupConfig {
     /** the regex filters which the plugin's resolvers should use for the initial interception of resource-paths.
@@ -40,5 +40,5 @@ export interface JsrPluginSetupConfig {
 */
 export declare const jsrPluginSetup: (config?: Partial<JsrPluginSetupConfig>) => EsbuildPluginSetup;
 /** {@inheritDoc jsrPluginSetup} */
-export declare const jsrPlugin: (config?: Partial<JsrPluginSetupConfig>) => EsbuildPlugin;
+export declare const jsrPlugin: (config?: Partial<JsrPluginSetupConfig>) => EsbuildPluginCompatible;
 //# sourceMappingURL=jsr.d.ts.map

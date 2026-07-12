@@ -103,7 +103,7 @@ export interface DenoJsonSchema {
 	version?: string
 
 	/** the exports done by the package. it can be one of the following:
-	 * - string: specifying the relative path to the default exported module. 
+	 * - string: specifying the relative path to the default exported module.
 	 * - key-value map: specifying the (relative) aliases as keys, and relative paths to exported modules, as the values.
 	*/
 	exports?: Exports

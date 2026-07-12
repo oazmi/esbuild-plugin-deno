@@ -2,7 +2,6 @@
  *
  * @module
 */
-import "./_dnt.polyfills.js";
 import type { NumericArray } from "./typedefs.js";
 /** configuration for customizing the hex-string representation made by {@link hexStringOfArray}.
  *
@@ -72,7 +71,7 @@ export interface HexStringReprConfig {
 }
 /** convert an array of integer numbers to hex-string, for the sake of easing representation, or for visual purposes.
  *
- * to customize the apearance of the hex-string, or to use a different radix, use the {@link HexStringReprConfig} interface to change the default `options`.
+ * to customize the appearance of the hex-string, or to use a different radix, use the {@link HexStringReprConfig} interface to change the default `options`.
  *
  * you must make sure that every element of your array `arr` is non-negative, in addition to being less than `options.radix ** 2`.
  * since the default `options.radix === 16`, each of your number must be smaller than `256` on the default config.
@@ -93,8 +92,11 @@ export interface HexStringReprConfig {
  * 	}
  *
  * const my_binary_code_repr = hexStringOfArray(my_binary_code, my_custom_config)
- *
  * assertEq(my_binary_code_repr, "<0x01,0x02,0x03,0x7D,0x7E,0x7F,0xC0,0xE1,0xFF,>")
+ *
+ * const my_custom_config2 = { ...my_custom_config, sep: "", trailingSep: false, prefix: "" }
+ * const my_binary_code_repr2 = hexStringOfArray(my_binary_code, my_custom_config2)
+ * assertEq(my_binary_code_repr2, "<0102037D7E7FC0E1FF>")
  * ```
 */
 export declare const hexStringOfArray: (arr: NumericArray, options: Partial<HexStringReprConfig>) => string;

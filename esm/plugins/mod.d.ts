@@ -5,7 +5,7 @@
 import { type EntryPluginSetupConfig } from "./filters/entry.js";
 import { type NpmPluginSetupConfig } from "./filters/npm.js";
 import { type ImportMapResolverConfig, type ResolverPluginSetupConfig } from "./resolvers.js";
-import { type EsbuildPlugin } from "./typedefs.js";
+import { type EsbuildPluginCompatible } from "./typedefs.js";
 export { DIRECTORY } from "./typedefs.js";
 /** the configuration interface for the deno esbuild plugins suite {@link denoPlugins}. */
 export interface DenoPluginsConfig extends Pick<EntryPluginSetupConfig, "initialPluginData" | "scanAncestralWorkspaces">, Pick<ResolverPluginSetupConfig, "log">, Pick<NpmPluginSetupConfig, "autoInstall" | "peerDependencies" | "nodeModulesDirs">, Pick<ImportMapResolverConfig, "globalImportMap"> {
@@ -50,5 +50,5 @@ export interface DenoPluginsConfig extends Pick<EntryPluginSetupConfig, "initial
  *   so that package-resources can be obtained from your `./node_modules/` folder.
  * - {@link resolverPlugin}: a namespaced plugin that provides the backbone pipeline for resolving the paths of all of the plugins above.
 */
-export declare const denoPlugins: (config?: Partial<DenoPluginsConfig>) => [entry_plugin: EsbuildPlugin, http_plugin: EsbuildPlugin, jsr_plugin: EsbuildPlugin, npm_plugin: EsbuildPlugin, resolver_pipeline_plugin: EsbuildPlugin];
+export declare const denoPlugins: (config?: Partial<DenoPluginsConfig>) => [entry_plugin: EsbuildPluginCompatible, http_plugin: EsbuildPluginCompatible, jsr_plugin: EsbuildPluginCompatible, npm_plugin: EsbuildPluginCompatible, resolver_pipeline_plugin: EsbuildPluginCompatible];
 //# sourceMappingURL=mod.d.ts.map

@@ -6,4 +6,4 @@ export { npmPlugin } from "./plugins/filters/npm.js";
 export { arrayLogger, arrayLoggerHistory, logLogger } from "./plugins/funcdefs.js";
 export { denoPlugins } from "./plugins/mod.js";
 export { resolverPlugin } from "./plugins/resolvers.js";
-export { DIRECTORY, allEsbuildLoaders, defaultEsbuildNamespaces } from "./plugins/typedefs.js";
+export { allEsbuildLoaders, defaultEsbuildNamespaces, DIRECTORY } from "./plugins/typedefs.js";

@@ -2,7 +2,6 @@
  *
  * @module
 */
-import "./_dnt.polyfills.js";
 import { resolveRange } from "./array1d.js";
 import { constructorOf } from "./struct.js";
 /** transpose a 2d array (matrix).

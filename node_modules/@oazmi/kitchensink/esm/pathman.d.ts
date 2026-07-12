@@ -11,7 +11,6 @@
  *
  * @module
 */
-import "./_dnt.polyfills.js";
 type PackageUriScheme = "jsr" | "npm" | "node";
 type PackageUriProtocol = "jsr:" | "npm:" | "node:";
 /** recognized uri schemes (i.e. the url protocol's scheme) that are returned by {@link getUriScheme}.

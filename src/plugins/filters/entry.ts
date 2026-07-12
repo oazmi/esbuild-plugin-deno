@@ -37,7 +37,7 @@
  * finally, we come to the resolver which implicitly calls the namespaced resolvers of the {@link resolverPlugin},
  * which is a pipeline that can resolve {@link CommonPluginData.importMap | import-maps},
  * {@link CommonPluginData.runtimePackage | deno-packages},
- * {@link nodeModulesResolverFactory | node-packages (`node_modules`)},
+ * {@link EsbuildNativeResolver | node-packages (`node_modules`)},
  * and perform generic path-joining, in order to get the absolute path (doesn't have to be filesystem path) to the resource.
  * 
  * most resolvers of the {@link resolverPlugin} require {@link CommonPluginData | `pluginData`} to be useful.
@@ -66,11 +66,12 @@
 */
 
 import { bind_map_get, bind_map_has, bind_map_set, DEBUG, fetchScanUrls, getUriScheme, isString, joinPaths, pathToPosixPath, resolveAsUrl } from "../../deps.js"
+import type { EsbuildNativeResolver } from "../../misc/esbuild_native_resolver.js"
 import { RuntimePackage, type WorkspacePackage } from "../../packageman/base.js"
 import { DenoPackage, denoPackageJsonFilenames } from "../../packageman/deno.js"
 import { logLogger } from "../funcdefs.js"
-import type { nodeModulesResolverFactory, resolverPlugin } from "../resolvers.js"
-import type { CommonPluginData, EsbuildPlugin, EsbuildPluginBuild, EsbuildPluginSetup, OnResolveArgs, OnResolveCallback } from "../typedefs.js"
+import type { resolverPlugin } from "../resolvers.js"
+import type { CommonPluginData, EsbuildPluginBuild, EsbuildPluginCompatible, EsbuildPluginSetup, OnResolveArgs, OnResolveCallback } from "../typedefs.js"
 import { defaultEsbuildNamespaces, PLUGIN_NAMESPACE } from "../typedefs.js"
 
 
@@ -348,7 +349,7 @@ export const entryPluginSetup = (config?: Partial<EntryPluginSetupConfig>): Esbu
 }
 
 /** {@inheritDoc entryPluginSetup} */
-export const entryPlugin = (config?: Partial<EntryPluginSetupConfig>): EsbuildPlugin => {
+export const entryPlugin = (config?: Partial<EntryPluginSetupConfig>): EsbuildPluginCompatible => {
 	return {
 		name: "oazmi-entry",
 		setup: entryPluginSetup(config),

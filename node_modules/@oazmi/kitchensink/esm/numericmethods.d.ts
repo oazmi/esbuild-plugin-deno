@@ -4,7 +4,6 @@
  *
  * @module
 */
-import "./_dnt.polyfills.js";
 import type { UnitInterval } from "./typedefs.js";
 /** clamp a `number` to inclusive `min` and `max` intervals.
  *

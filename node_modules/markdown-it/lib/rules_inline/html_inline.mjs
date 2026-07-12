@@ -42,7 +42,7 @@ export default function html_inline (state, silent) {
     const token = state.push('html_inline', '', 0)
     token.content = match[0]
 
-    if (isLinkOpen(token.content))  state.linkLevel++
+    if (isLinkOpen(token.content)) state.linkLevel++
     if (isLinkClose(token.content)) state.linkLevel--
   }
   state.pos += match[0].length

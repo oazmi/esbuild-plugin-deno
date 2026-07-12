@@ -13,5 +13,5 @@ export type { DenoPluginsConfig } from "./plugins/mod.js";
 export { resolverPlugin } from "./plugins/resolvers.js";
 export type { ResolverPluginSetupConfig } from "./plugins/resolvers.js";
 export type * from "./plugins/typedefs.js";
-export { DIRECTORY, allEsbuildLoaders, defaultEsbuildNamespaces } from "./plugins/typedefs.js";
+export { allEsbuildLoaders, defaultEsbuildNamespaces, DIRECTORY } from "./plugins/typedefs.js";
 //# sourceMappingURL=mod.d.ts.map

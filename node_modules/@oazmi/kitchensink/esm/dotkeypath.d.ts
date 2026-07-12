@@ -10,7 +10,6 @@
  *
  * @module
 */
-import "./_dnt.polyfills.js";
 import type { NonSymbolKeys } from "./typedefs.js";
 /** get an array of all possible `key-path`s.
  *

@@ -2,7 +2,6 @@
  *
  * @module
 */
-import "./_dnt.polyfills.js";
 import type { NumericArray } from "./typedefs.js";
 /** transpose a 2d array (matrix).
  *

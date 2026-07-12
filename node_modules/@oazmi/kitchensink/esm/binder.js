@@ -111,7 +111,6 @@
  *
  * @module
 */
-import "./_dnt.polyfills.js";
 /** generates a factory function that binds a class-prototype-method `func` (by reference) to the passed object `S` (which should be an instance of the class).
  * @param func the method to generate the binding for
  * @param args partial tuple of the first few arguments that should be passed in by default

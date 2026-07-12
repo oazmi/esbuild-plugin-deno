@@ -11,7 +11,6 @@
  *
  * @module
 */
-import "./_dnt.polyfills.js";
 import { array_from, dom_decodeURI, dom_encodeURI, object_entries } from "./alias.js";
 import { DEBUG } from "./deps.js";
 import { commonPrefix, quote } from "./stringman.js";
@@ -1098,7 +1097,7 @@ export const commonPathReplace = (paths, new_common_dir) => {
  * if the provided path ends with a trailing slash ("/"), then an empty string will be returned, emphasizing the lack of a file name.
  *
  * @example
- * ```ts  ignore
+ * ```ts ignore
  * import { assertEquals } from "jsr:@std/assert"
  *
  * // aliasing our functions for brevity
@@ -1421,6 +1420,30 @@ export const relativePath = (from_path, to_path) => {
     upwards_traversal[0] = "."; // we do this because the relative path should always begin with a dotslash ("./")
     return normalizePosixPath(upwards_traversal.join(sep) + sep + to_subpath);
 };
+/** the reduce function below is used by {@link joinPosixPaths}, and it is basically the driving force behind it.
+ *
+ * we could have used a `string` based reduce function (i.e. initial value could have been the string `"/"`, instead of the array `["/"]`),
+ * but we use an `Array` based reduce function, because strings are inherently immutable, so a new string is made during each modification.
+ * and that would use up lots of copy operations if you were joining lots of segments.
+ * it is better to process them as an array and then join it in one go at the end.
+*/
+const joinPosixPaths_reduce_fn = (concatenatible_full_path, segment) => {
+    const prev_segment = concatenatible_full_path.pop(), prev_segment_is_dir = string_ends_with(prev_segment, sep), prev_segment_as_dir = prev_segment_is_dir ? prev_segment : (prev_segment + sep); // rewriting the previous segment as a dir
+    if (!prev_segment_is_dir) {
+        const segment_is_rel_to_dir = string_starts_with(segment, dotslash), segment_is_rel_to_parent_dir = string_starts_with(segment, dotdotslash);
+        // we now modify the current segment's initial directory navigation commands to give an equivalent navigation supposing that `prev_segment` was a directory instead of a file.
+        // for that, we convert the initial `"./"` to `"../"`, or convert the initial `"../"` to `"../../"`, or
+        // if there is no directory navigation command at the beginning, then no modification to the current segment is needed.
+        if (segment_is_rel_to_dir) {
+            segment = "." + segment;
+        } // convert `"./a/b/c"` to `"../a/b/c"`
+        else if (segment_is_rel_to_parent_dir) {
+            segment = dotdotslash + segment;
+        } // convert `"../a/b/c"` to `"../../a/b/c"`
+    }
+    concatenatible_full_path.push(prev_segment_as_dir, segment);
+    return concatenatible_full_path;
+};
 /** joins multiple posix path segments into a single normalized path,
  * correctly handling files and directories differently when the `"./"` and `"../"` navigation commands are encountered.
  *
@@ -1474,27 +1497,8 @@ export const joinPosixPaths = (...segments) => {
             : segment === ".." ? dotdotslash
                 : segment;
     });
-    // below, in the reduce function, we could have used a `string` based reduce function (i.e. initial value could have been the string `"/"`, instead of the array `["/"]`),
-    // but we use an `Array` based reduce function, because strings are inherently immutable, so a new string is made during each modification.
-    // and that would use up lots of copy operations if you were joining lots of segments.
-    // it is better to process them as an array and then join it in one go at the end.
-    const concatenatible_segments = segments.reduce((concatenatible_full_path, segment) => {
-        const prev_segment = concatenatible_full_path.pop(), prev_segment_is_dir = string_ends_with(prev_segment, sep), prev_segment_as_dir = prev_segment_is_dir ? prev_segment : (prev_segment + sep); // rewriting the previous segment as a dir
-        if (!prev_segment_is_dir) {
-            const segment_is_rel_to_dir = string_starts_with(segment, dotslash), segment_is_rel_to_parent_dir = string_starts_with(segment, dotdotslash);
-            // we now modify the current segment's initial directory navigation commands to give an equivalent navigation supposing that `prev_segment` was a directory instead of a file.
-            // for that, we convert the initial `"./"` to `"../"`, or convert the initial `"../"` to `"../../"`, or
-            // if there is no directory navigation command at the beginning, then no modification to the current segment is needed.
-            if (segment_is_rel_to_dir) {
-                segment = "." + segment;
-            } // convert `"./a/b/c"` to `"../a/b/c"`
-            else if (segment_is_rel_to_parent_dir) {
-                segment = dotdotslash + segment;
-            } // convert `"../a/b/c"` to `"../../a/b/c"`
-        }
-        concatenatible_full_path.push(prev_segment_as_dir, segment);
-        return concatenatible_full_path;
-    }, [sep]);
+    // for better optimization, I've moved the reduction closure function to the outside scope (`joinPosixPaths_reduce_fn`).
+    const concatenatible_segments = segments.reduce(joinPosixPaths_reduce_fn, [sep]);
     concatenatible_segments.shift(); // we must remove the initial `"/"` that was used as the initial value of the reduce function
     return normalizePosixPath(concatenatible_segments.join(""));
 };

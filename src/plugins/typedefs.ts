@@ -130,6 +130,18 @@ export type EsbuildPluginSetup = esbuild.Plugin["setup"]
 /** type alias for `esbuild.PluginBuild`. */
 export type EsbuildPluginBuild = esbuild.PluginBuild
 
+/** weakly typed alias for `esbuild.Plugin`, so that it is compatible over all versions of esbuild. */
+export type EsbuildPluginCompatible = {
+	name: string
+	setup: EsbuildPluginSetupCompatible
+}
+
+/** weakly typed alias for `esbuild.Plugin["setup"]`, so that it is compatible over all versions of esbuild. */
+export type EsbuildPluginSetupCompatible = (build: EsbuildPluginBuildCompatible) => MaybePromise<void>
+
+/** weakly typed alias for `esbuild.PluginBuild`, so that it is compatible over all versions of esbuild. */
+export type EsbuildPluginBuildCompatible = { [K in keyof esbuild.PluginBuild]: any }
+
 /** type alias for `esbuild.Loader`. */
 export type EsbuildLoaderType = esbuild.Loader
 

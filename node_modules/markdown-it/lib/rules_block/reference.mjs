@@ -134,7 +134,7 @@ export default function reference (state, startLine, _endLine, silent) {
         nextLine++
       }
     } else if (isSpace(ch)) {
-      /* eslint no-empty:0 */
+      /* Nothing */
     } else {
       break
     }

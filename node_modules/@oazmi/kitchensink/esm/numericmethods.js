@@ -4,7 +4,6 @@
  *
  * @module
 */
-import "./_dnt.polyfills.js";
 import { math_round, number_MAX_VALUE } from "./alias.js";
 /** clamp a `number` to inclusive `min` and `max` intervals.
  *

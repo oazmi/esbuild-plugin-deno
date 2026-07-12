@@ -5,7 +5,6 @@
  *
  * @module
 */
-import "./_dnt.polyfills.js";
 /** a 2D array of cell type `T` */
 export type Array2D<T> = T[][];
 /** alias for a row-major 2D array */
