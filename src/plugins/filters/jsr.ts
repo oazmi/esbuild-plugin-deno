@@ -8,7 +8,7 @@
 
 import { ensureStartDotSlash, parsePackageUrl } from "../../deps.ts"
 import { DenoPackage } from "../../packageman/deno.ts"
-import type { CommonPluginData, EsbuildPlugin, EsbuildPluginBuild, EsbuildPluginSetup, OnResolveArgs, OnResolveCallback } from "../typedefs.ts"
+import type { CommonPluginData, EsbuildPluginBuild, EsbuildPluginCompatible, EsbuildPluginSetup, OnResolveArgs, OnResolveCallback } from "../typedefs.ts"
 import { defaultEsbuildNamespaces, PLUGIN_NAMESPACE } from "../typedefs.ts"
 import type { httpPlugin } from "./http.ts"
 
@@ -68,7 +68,7 @@ export const jsrPluginSetup = (config: Partial<JsrPluginSetupConfig> = {}): Esbu
 			const
 				{ path, pluginData = {}, ...rest_args } = args,
 				// below, we flush away any previous import-map and runtime-package manager stored in the plugin-data,
-				// as we will need to reset them for the current jsr package's new scope. 
+				// as we will need to reset them for the current jsr package's new scope.
 				{ importMap: _0, runtimePackage: _1, resolverConfig = {}, ...restPluginData } = pluginData,
 				// TODO: I'm not following the idea below, but may have to in the future if problems arise due to symbols:
 				// > we also strip away all symbols from the remaining plugin data, since I use symbols as a means of identifying if an entity had previously visited the same resolver.
@@ -103,7 +103,7 @@ export const jsrPluginSetup = (config: Partial<JsrPluginSetupConfig> = {}): Esbu
 }
 
 /** {@inheritDoc jsrPluginSetup} */
-export const jsrPlugin = (config?: Partial<JsrPluginSetupConfig>): EsbuildPlugin => {
+export const jsrPlugin = (config?: Partial<JsrPluginSetupConfig>): EsbuildPluginCompatible => {
 	return {
 		name: "oazmi-jsr-plugin",
 		setup: jsrPluginSetup(config),
