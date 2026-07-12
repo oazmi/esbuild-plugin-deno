@@ -80,7 +80,7 @@ export interface UrlLoaderFactoryConfig {
  * 
  * @param config provide a configuration to customize some aspects of the returned loader function.
  * @returns a url loader function that can be passed to the callback of {@link EsbuildPluginBuild.onLoad | `esbuild.PluginBuild.onLoad`},
- *   so that it can fetch the contents of url-based paths when esbuild intercept 
+ *   so that it can fetch the contents of url-based paths when esbuild intercept it.
 */
 export const urlLoaderFactory = (config: UrlLoaderFactoryConfig): OnLoadCallback => {
 	const

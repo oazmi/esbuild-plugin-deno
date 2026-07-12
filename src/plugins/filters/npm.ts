@@ -5,8 +5,9 @@
 */
 
 import { array_isEmpty, DEBUG, defaultGetCwd, dom_decodeURI, ensureEndSlash, ensureFileUrlIsLocalPath, escapeLiteralStringForRegex, getUriScheme, identifyCurrentRuntime, isObject, isString, joinPaths, normalizePath, object_entries, object_fromEntries, parsePackageUrl, pathToPosixPath, promise_outside, replacePrefix, RUNTIME, spawnCommand, syncTaskQueueFactory, type DeepPartial } from "../../deps.ts"
+import { EsbuildNativeResolver } from "../../misc/esbuild_native_resolver.ts"
 import { entryPointsToImportMapEntries, logLogger } from "../funcdefs.ts"
-import { nodeModulesResolverFactory, type resolverPlugin } from "../resolvers.ts"
+import type { resolverPlugin } from "../resolvers.ts"
 import type { CommonPluginData, EsbuildEntryPointsType, EsbuildPluginBuild, EsbuildPluginCompatible, EsbuildPluginSetup, LoggerFunction, OnResolveArgs, OnResolveCallback } from "../typedefs.ts"
 import { defaultEsbuildNamespaces, DIRECTORY, PLUGIN_NAMESPACE } from "../typedefs.ts"
 
@@ -315,10 +316,14 @@ export const npmPluginSetup = (config: DeepPartial<NpmPluginSetupConfig> = {}): 
 				}
 			},
 			node_modules_dirs = [...(new Set(nodeModulesDirs.map(dir_path_converter)))],
-			validResolveDirFinder = findResolveDirOfNpmPackageFactory(build),
-			autoInstallConfig = isObject(autoInstall)
-				? { dir: dir_path_converter(autoInstall.dir), command: autoInstall.command, log } satisfies NpmAutoInstallCliConfig
-				: autoInstall
+			node_modules_resolver = new EsbuildNativeResolver(build.esbuild),
+			validResolveDirFinder = findResolveDirOfNpmPackageFactory(node_modules_resolver)
+
+		build.onEnd(async () => { await node_modules_resolver.stop() })
+
+		const autoInstallConfig = isObject(autoInstall)
+			? { dir: dir_path_converter(autoInstall.dir), command: autoInstall.command, log } satisfies NpmAutoInstallCliConfig
+			: autoInstall
 
 		// first of all, we auto install any peer dependencies specified by the user
 		if (autoInstallConfig) {
@@ -508,12 +513,9 @@ export type FindResolveDirOfNpmPackage_FunctionSignature = (
  * console.log(`the "@oazmi/tsignal" package can be located when resolveDir is set to:`, my_package_resolve_dir)
  * ```
 */
-export const findResolveDirOfNpmPackageFactory = (build: EsbuildPluginBuild): FindResolveDirOfNpmPackage_FunctionSignature => {
-	const node_modules_resolver = nodeModulesResolverFactory({ absWorkingDir: undefined }, build)
-
+export const findResolveDirOfNpmPackageFactory = (node_modules_resolver: EsbuildNativeResolver): FindResolveDirOfNpmPackage_FunctionSignature => {
 	const validateNodeModuleExists = async (abs_resolve_dir: string, node_module_package_name: string): Promise<boolean> => {
-		const result = await node_modules_resolver({
-			path: node_module_package_name,
+		const result = await node_modules_resolver.resolve(node_module_package_name, {
 			importer: "",
 			resolveDir: abs_resolve_dir,
 		})

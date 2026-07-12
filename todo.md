@@ -105,7 +105,13 @@
   > please don't sniff formaldehyde, and did you know carbon killed oxide? (carbon "die" oxide, get it? haha humor +100,
   > social credit score -50, and everyone clapped for eternity - [quack quack](https://www.youtube.com/watch?v=oyFQVZ2h0V8&t=11s))
 
-## pre-version `0.4.6` todo list
+## pre-version `0.4.7` todo list
+
+- [ ] add support for the `links: Array<string>` field of `deno.json` for loading local versions of jsr-packages.
+      for reference, see the following documentation page: [link](https://docs.deno.com/runtime/fundamentals/configuration/#overriding-packages).
+      > NOTE: the documentation mentions that the paths must be relative paths, but I think I'll allow for any path (including http endpoints) for the time being.
+
+## (2026-07-12) pre-version `0.4.6` todo list
 
 - [x] use weak/loose definitions for the plugins' type (i.e. define a weak type alias of `esbuild.Plugin`), so that the plugins become compatible with other esbuild versions,
       rather than strictly being coupled to the esbuild version used by this library.
@@ -117,9 +123,12 @@
   > but it was only reasonably viable for npm (not possible at all with deno) on windows, because it installed the packages to `./lib/node_modules/` on unix systems,
   > making impossible for esbuild to discover, unless we also create a soft symbolic-link with the name `./node_modules`, which in of itself will pollute the user's directory,
   > and also their git ignore rules since the link `./node_modules` is identified as a file by git, and not a folder. so basically, it was not worth pursuing further.
-- [ ] add support for the `links: Array<string>` field of `deno.json` for loading local versions of jsr-packages.
-      for reference, see the following documentation page: [link](https://docs.deno.com/runtime/fundamentals/configuration/#overriding-packages).
-      > NOTE: the documentation mentions that the paths must be relative paths, but I think I'll allow for any path (including http endpoints) for the time being.
+- [x] copy over your enhanced node-resolver function/class from
+      [`@oazmi/superbuild/plugins/native-replica::EsbuildNativeResolver`](https://github.com/oazmi/superbuild/blob/4b764c9eb2849bdd51296f3bf26d476160022208/src/plugins/native_replica.ts#L95),
+      and replace the old one used inside the `resolverPlugin`.
+      the benefit of my newer approach is that we don't have to spawn an entirely new sub-build for resolving just a single path;
+      the `EsbuildNativeResolver` class lets me reuse the same old sub-build for repeated resolves,
+      until I decide that the main build has ended (at which point I signal the sub-build to stop hangging on its abusive `onLoad` hook).
 
 ## (2025-11-14) pre-version `0.4.5` todo list
 

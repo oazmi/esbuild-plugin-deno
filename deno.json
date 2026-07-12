@@ -1,6 +1,6 @@
 {
 	"name": "@oazmi/esbuild-plugin-deno",
-	"version": "0.4.5",
+	"version": "0.4.6",
 	"description": "A portable non-invasive suite of esbuild plugins for loading http, jsr, npm, and import-maps. Supports Deno, Node, Bun, Web. Alternate to @luca/esbuild-deno-loader , while compatible with other plugins and native esbuild resolvers (e.g. css loader).",
 	"author": "Omar Azmi",
 	"license": "Apache-2.0",
@@ -18,6 +18,7 @@
 	],
 	"exports": {
 		".": "./src/mod.ts",
+		"./misc": "./src/misc/mod.ts",
 		"./importmap": "./src/importmap/mod.ts",
 		"./loadermap": "./src/loadermap/mod.ts",
 		"./packageman/base": "./src/packageman/base.ts",
@@ -32,9 +33,10 @@
 		"./plugins/typedefs": "./src/plugins/typedefs.ts"
 	},
 	"imports": {
-		"@oazmi/esbuild-types": "jsr:@oazmi/esbuild-types@0.27.0",
-		"@oazmi/kitchensink": "jsr:@oazmi/kitchensink@0.10.0"
+		"@oazmi/esbuild-types": "jsr:@oazmi/esbuild-types@0.28.0",
+		"@oazmi/kitchensink": "jsr:@oazmi/kitchensink@0.10.1"
 	},
+	"minimumDependencyAge": "0",
 	"nodeModulesDir": "none",
 	"publish": {
 		"exclude": [
@@ -61,11 +63,11 @@
 	},
 	"packageJson": {
 		"dependencies": {
-			"@oazmi/kitchensink": "0.10.0"
+			"@oazmi/kitchensink": "0.10.1"
 		},
 		"devDependencies": {
 			"typescript": "^5.7.0",
-			"esbuild": "0.27.0",
+			"esbuild": "0.28.0",
 			"typedoc": "0.28.15"
 		},
 		"scripts": {
